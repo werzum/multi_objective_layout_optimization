@@ -4,6 +4,14 @@ import pandas as pd
 from pandas.api.types import is_string_dtype
 
 def read_tif(file_path):
+    """Reads a given tif file and extracts its features as raster
+
+    Args:
+        file_path (_type_): Filepath
+
+    Returns:
+        List: A list of Polygon features
+    """    
     # Convert tif to geometry
     geom_array = []
     with rasterio.open(file_path) as dataset:
