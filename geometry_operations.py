@@ -51,6 +51,19 @@ def generate_possible_lines(road_points,anchor_trees,slope_line,max_deviation):
 def gpd_contains(point, area):
     return area.contains(point)
 
+def create_geometry(geometry,buffer_size):
+    return geometry.buffer(buffer_size)
+
+def get_points_covered(points_gdf,geometry):
+
+    # get the points which are contained in the geometry
+    coverage_series = points_gdf.geometry.apply(lambda row: gpd_contains(row,geometry))
+    points_covered = points_gdf.loc[coverage_series,:]
+
+    # filter only those points
+    # and return and set of the covered points as well as the amount of trees covered
+    return set(points_covered["id"].values),points_covered.size
+
 def compute_points_covered_per_row(points_gdf,row_gdf,buffer_size):
     """Compute how many points are covered per row.geometry in the points_gdf
     Args:
@@ -58,14 +71,9 @@ def compute_points_covered_per_row(points_gdf,row_gdf,buffer_size):
         row_gdf (_type_): The gdf containing lines where we check how many points are covered
         buffer_size: The width added to the row_gdf.geometry entry
     """
-    id_covered = np.empty(len(row_gdf), dtype=object)
-    amount_covered = np.empty(len(row_gdf), dtype=object)
-    for index,row in row_gdf.iterrows():
-        buffer = Polygon(row.geometry.buffer(buffer_size))
-        # check where the buffer contains the geometry (point) of the tree on a per row basis. The .vectorize constructs a boolean series where gpd_contains
-        # is true, and then use .loc to only keep those entries
-        points_covered = points_gdf.loc[np.vectorize(gpd_contains)(points_gdf.geometry,buffer),:]
-        id_covered[index] = set(points_covered["id"].values)
-        amount_covered[index] = points_covered.size
+
+    #already create buffer to avoid having to recreate this object every time 
+    row_gdf["buffer"] = row_gdf.apply(lambda row: row.geometry.buffer(buffer_size),axis=1)
     
-    return id_covered,amount_covered
+    #appply and return the points covered by each buffer
+    return row_gdf["buffer"].apply(lambda row: get_points_covered(points_gdf,row))
