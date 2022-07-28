@@ -2,7 +2,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 def plot_gdfs(gdfs):
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(10, 10))
     ax.set_xlabel('X coordinate', fontsize=15)
     ax.set_ylabel('Y coordinate', fontsize=15)
     for gdf in gdfs:
