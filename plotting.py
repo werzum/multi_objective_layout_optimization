@@ -39,6 +39,13 @@ def onclick(event, coords):
         print("Array reset")
 
 def plot_optimization(target_function, results, xy):
+    """Plot the figure showing the results of an optimization
+
+    Args:
+        target_function (_type_): _description_
+        results (_type_): _description_
+        xy (_type_): _description_
+    """    
     fig = plt.figure()
     ax = fig.add_subplot(111)
     im = ax.imshow(target_function(xy), interpolation='bilinear', origin='lower',

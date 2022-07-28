@@ -56,6 +56,12 @@ def generate_possible_lines(road_points, anchor_trees, slope_line, max_deviation
 
 
 def within_maximum_rotation(angle,max_deviation):
+    """Check if the angle between the slope line and possible line is too great.
+    This checks several cases, but the angles don't seem to be <20 anyways really.
+
+    Returns:
+        Truth Value: If the rotation is within the max deviation
+    """    
     # if angle is smaller than max_dev or greater than 360-max_dev
     condition1 = True if angle < max_deviation or angle > 360-max_deviation else False
     # if flipped line is less than max_deviation+180
