@@ -34,6 +34,8 @@ def angle_between(v1, v2):
 
 def generate_possible_lines(road_points, anchor_trees, slope_line, max_deviation):
     """ Compute which lines can be made from road_points to anchor_trees without having an angle greater than max_deviation
+    Takes buffer size and minimum number of trees covered
+    
     Args:
         road_points (_type_): Array of points
         anchor_trees (_type_): Array of points
@@ -48,8 +50,8 @@ def generate_possible_lines(road_points, anchor_trees, slope_line, max_deviation
         for anchor in anchor_trees:
             possible_line = LineString([point, anchor])
             angle = angle_between(possible_line, slope_line)
+            
             if within_maximum_rotation(angle, max_deviation):
-
                 possible_lines.append(possible_line)
 
     return possible_lines
@@ -70,27 +72,35 @@ def within_maximum_rotation(angle,max_deviation):
     return condition1 or condition2
 
 
-def gpd_contains(point, area):
+def area_contains(point, area):
     return area.contains(point)
 
 
-def create_geometry(geometry, buffer_size):
+def create_buffer(geometry, buffer_size):
     return geometry.buffer(buffer_size)
 
 
-def get_points_covered(points_gdf, geometry):
+def get_points_covered(points_gdf, geometry, min_trees_covered):
+
+    """Return the points covered by geometry in the points_gdf
+
+    Returns:
+        _type_: _description_
+    """    
 
     # get the points which are contained in the geometry
     coverage_series = points_gdf.geometry.apply(
-        lambda row: gpd_contains(row, geometry))
+        lambda row: area_contains(row, geometry))
     points_covered = points_gdf.loc[coverage_series, :]
 
+    if points_covered.size < min_trees_covered:
+        return
     # filter only those points
     # and return and set of the covered points as well as the amount of trees covered
     return set(points_covered["id"].values), points_covered.size
 
 
-def compute_points_covered_per_row(points_gdf, row_gdf, buffer_size):
+def compute_points_covered_per_row(points_gdf, row_gdf, buffer_size, min_trees_covered):
     """Compute how many points are covered per row.geometry in the points_gdf
     Args:
         points_gdf (_type_): A gdf with a list of point geometries
@@ -103,4 +113,4 @@ def compute_points_covered_per_row(points_gdf, row_gdf, buffer_size):
         lambda row: row.geometry.buffer(buffer_size), axis=1)
 
     # appply and return the points covered by each buffer
-    return row_gdf["buffer"].apply(lambda row: get_points_covered(points_gdf, row))
+    return row_gdf["buffer"].apply(lambda row: get_points_covered(points_gdf, row, min_trees_covered))
