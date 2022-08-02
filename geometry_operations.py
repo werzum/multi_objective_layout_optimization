@@ -35,7 +35,7 @@ def angle_between(v1, v2):
 def generate_possible_lines(road_points, anchor_trees, slope_line, max_deviation):
     """ Compute which lines can be made from road_points to anchor_trees without having an angle greater than max_deviation
     Takes buffer size and minimum number of trees covered
-    
+
     Args:
         road_points (_type_): Array of points
         anchor_trees (_type_): Array of points
@@ -46,28 +46,31 @@ def generate_possible_lines(road_points, anchor_trees, slope_line, max_deviation
         _type_: _description_
     """
     possible_lines = []
+    slope_deviation = []
     for point in road_points:
         for anchor in anchor_trees:
             possible_line = LineString([point, anchor])
             angle = angle_between(possible_line, slope_line)
-            
+
             if within_maximum_rotation(angle, max_deviation):
                 possible_lines.append(possible_line)
+                slope_deviation.append(angle)
 
-    return possible_lines
+    return possible_lines, slope_deviation
 
 
-def within_maximum_rotation(angle,max_deviation):
+def within_maximum_rotation(angle, max_deviation):
     """Check if the angle between the slope line and possible line is too great.
     This checks several cases, but the angles don't seem to be <20 anyways really.
 
     Returns:
         Truth Value: If the rotation is within the max deviation
-    """    
+    """
     # if angle is smaller than max_dev or greater than 360-max_dev
     condition1 = True if angle < max_deviation or angle > 360-max_deviation else False
     # if flipped line is less than max_deviation+180
-    condition2 = True if (180-max_deviation) < angle < 180+max_deviation else False
+    condition2 = True if (180-max_deviation) < angle < 180 + \
+        max_deviation else False
 
     return condition1 or condition2
 
@@ -81,13 +84,11 @@ def create_buffer(geometry, buffer_size):
 
 
 def get_points_covered(points_gdf, geometry, min_trees_covered):
-
     """Return the points covered by geometry in the points_gdf
 
     Returns:
         _type_: _description_
-    """    
-
+    """
     # get the points which are contained in the geometry
     coverage_series = points_gdf.geometry.apply(
         lambda row: area_contains(row, geometry))
