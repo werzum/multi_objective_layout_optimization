@@ -75,7 +75,7 @@ def within_maximum_rotation(angle, max_deviation):
     return condition1 or condition2
 
 
-def area_contains(point, area):
+def area_contains(area, point):
     return area.contains(point)
 
 
@@ -90,15 +90,18 @@ def get_points_covered(points_gdf, geometry, min_trees_covered):
         _type_: _description_
     """
     # get the points which are contained in the geometry
-    coverage_series = points_gdf.geometry.apply(
-        lambda row: area_contains(row, geometry))
-    points_covered = points_gdf.loc[coverage_series, :]
+    coverage_series = points_gdf.geometry.intersects(geometry)
+    
+    # and select only those points from the point_gdf
+    #point_index, = np.where(points_gdf["id"].isin(coverage_series))
+    #contained_points = points_gdf[points_gdf["id"].isin(point_index)]
+    contained_points = points_gdf[coverage_series]
 
-    if points_covered.size < min_trees_covered:
+    if len(contained_points) < min_trees_covered:
         return
     # filter only those points
     # and return and set of the covered points as well as the amount of trees covered
-    return set(points_covered["id"].values), points_covered.size
+    return set(contained_points["id"].values), len(contained_points)
 
 
 def compute_points_covered_per_row(points_gdf, row_gdf, buffer_size, min_trees_covered):
