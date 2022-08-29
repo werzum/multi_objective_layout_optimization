@@ -187,3 +187,48 @@ def plot_lcsp_results(model, facility_points_gdf, demand_points_gdf, facility_co
 
     plt.gca().add_artist(ScaleBar(1))
     plt.show()
+
+
+
+def plot_p_median_results(model, facility_points_gdf, demand_points_gdf):
+    arr_points = []
+    fac_sites = []
+
+    facility_count = len(facility_points_gdf)
+
+    for i in range(facility_count):
+        if model.fac2cli[i]:
+
+            geom = demand_points_gdf.iloc[model.fac2cli[i]]['geometry']
+            arr_points.append(geom)
+            fac_sites.append(i)
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+    legend_elements = []
+
+    for i in range(len(arr_points)):
+        gdf = geopandas.GeoDataFrame(arr_points[i])
+
+        label = f"coverage_points by y{fac_sites[i]}"
+        legend_elements.append(Patch(label=label))
+
+        gdf.plot(ax=ax, zorder=3, alpha=0.7, label=label)
+        facility_points_gdf.iloc[[fac_sites[i]]].plot(ax=ax,
+                                marker="*",
+                                markersize=200 * 3.0,
+                                alpha=0.8,
+                                zorder=4,
+                                edgecolor="k")
+
+        legend_elements.append(mlines.Line2D(
+            [],
+            [],
+            marker="*",
+            ms=20 / 2,
+            linewidth=0,
+            alpha=0.8,
+            label=f"y{fac_sites[i]} facility selected",
+        ))
+
+    plt.title("P-Median", fontweight="bold")
+    plt.legend(handles = legend_elements, loc='upper left', bbox_to_anchor=(1.05, 1))
