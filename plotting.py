@@ -203,7 +203,7 @@ def plot_p_median_results(model, facility_points_gdf, demand_points_gdf):
             arr_points.append(geom)
             fac_sites.append(i)
 
-    fig, ax = plt.subplots(figsize=(6, 6))
+    fig, ax = plt.subplots(figsize=(12,12))
     legend_elements = []
 
     for i in range(len(arr_points)):
