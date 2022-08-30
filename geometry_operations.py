@@ -1,35 +1,7 @@
+import geometry_utilities
+
+from shapely.geometry import LineString
 import numpy as np
-import math
-
-from shapely.geometry import LineString, Polygon
-
-
-def get_contained_elements(gdf, polygon):
-    return list(filter(lambda x: polygon.contains(x), gdf.geometry))
-
-
-def unit_vector(vector):
-    """ Returns the unit vector of the vector.  """
-    return vector / np.linalg.norm(vector)
-
-
-def angle_between(v1, v2):
-    # extract their coords for vector
-    v1 = [v1.coords[0], v1.coords[1]]
-    v2 = [v2.coords[0], v2.coords[1]]
-
-    # and recompute as vector
-    # thanks for reminding me https://discuss.codechef.com/t/how-to-find-angle-between-two-lines/14516
-    v1 = (v1[1][0]-v1[0][0], v1[1][1]-v1[0][1])
-    v2 = (v2[1][0]-v2[0][0], v2[1][1]-v2[0][1])
-
-    # get the unit vector, dot product and then the arccos from that
-    unit_vector_1, unit_vector_2 = unit_vector(v1), unit_vector(v2)
-    dot_product = np.dot(unit_vector_1, unit_vector_2)
-    # in radians
-    angle = np.arccos(dot_product)
-    # to degrees - https://stackoverflow.com/questions/9875964/how-can-i-convert-radians-to-degrees-with-python
-    return math.degrees(angle)
 
 
 def generate_possible_lines(road_points, anchor_trees, slope_line, max_deviation):
@@ -47,55 +19,43 @@ def generate_possible_lines(road_points, anchor_trees, slope_line, max_deviation
     """
     possible_lines = []
     slope_deviation = []
+
     for point in road_points:
         for anchor in anchor_trees:
             possible_line = LineString([point, anchor])
-            angle = angle_between(possible_line, slope_line)
+            angle = geometry_utilities.angle_between(possible_line, slope_line)
 
-            if within_maximum_rotation(angle, max_deviation):
+            if geometry_utilities.within_maximum_rotation(angle, max_deviation):
                 possible_lines.append(possible_line)
                 slope_deviation.append(angle)
 
     return possible_lines, slope_deviation
 
+def generate_road_points(road_geometry, interval):
+    """Generate a list of points with a given interval along the road geometry
 
-def within_maximum_rotation(angle, max_deviation):
-    """Check if the angle between the slope line and possible line is too great.
-    This checks several cases, but the angles don't seem to be <20 anyways really.
-
-    Returns:
-        Truth Value: If the rotation is within the max deviation
-    """
-    # if angle is smaller than max_dev or greater than 360-max_dev
-    condition1 = True if angle < max_deviation or angle > 360-max_deviation else False
-    # if flipped line is less than max_deviation+180
-    condition2 = True if (180-max_deviation) < angle < 180 + \
-        max_deviation else False
-
-    return condition1 or condition2
-
-
-def area_contains(area, point):
-    return area.contains(point)
-
-
-def create_buffer(geometry, buffer_size):
-    return geometry.buffer(buffer_size)
-
-
-def get_points_covered(points_gdf, geometry, min_trees_covered):
-    """Return the points covered by geometry in the points_gdf
+    Args:
+        road_geometry (_type_): A list of lines that define the road
+        interval: The interval in which a new point is calculated
 
     Returns:
         _type_: _description_
+    """    
+    # thanks to https://stackoverflow.com/questions/62990029/how-to-get-equally-spaced-points-on-a-line-in-shapely
+    distance_delta = interval
+    distances = np.arange(0, road_geometry.length, distance_delta)
+    road_points = [road_geometry.interpolate(distance) for distance in distances] + [road_geometry.boundary[1]]
+
+    return road_points
+
+def compute_points_covered_by_geometry(points_gdf, geometry, min_trees_covered):
+    """Return the points covered by geometry in the points_gdf
+
+    Returns:
+        set(geometry), int : set of covered points as well as their amount
     """
-    # get the points which are contained in the geometry
-    coverage_series = points_gdf.geometry.intersects(geometry)
     
-    # and select only those points from the point_gdf
-    #point_index, = np.where(points_gdf["id"].isin(coverage_series))
-    #contained_points = points_gdf[points_gdf["id"].isin(point_index)]
-    contained_points = points_gdf[coverage_series]
+    contained_points = filter_gdf_by_contained_elements(points_gdf, geometry)
 
     if len(contained_points) < min_trees_covered:
         return
@@ -117,4 +77,21 @@ def compute_points_covered_per_row(points_gdf, row_gdf, buffer_size, min_trees_c
         lambda row: row.geometry.buffer(buffer_size), axis=1)
 
     # appply and return the points covered by each buffer
-    return row_gdf["buffer"].apply(lambda row: get_points_covered(points_gdf, row, min_trees_covered))
+    return row_gdf["buffer"].apply(lambda row: compute_points_covered_by_geometry(points_gdf, row, min_trees_covered))
+
+def filter_gdf_by_contained_elements(gdf, polygon):
+    """Return only the points in the gdf which are covered by the polygon
+
+    Args:
+        gdf (_type_): The gdf to filter
+        polygon (_type_): A polygon geometry
+
+    Returns:
+        _type_: the filtered gdf
+    """    
+    # get the points which are contained in the geometry
+    coverage_series = gdf.geometry.intersects(polygon)
+    # and select only those points from the point_gdf
+    contained_points = gdf[coverage_series]
+
+    return contained_points

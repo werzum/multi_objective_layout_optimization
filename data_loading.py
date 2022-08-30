@@ -1,6 +1,7 @@
 import rasterio
 from shapely.geometry import Polygon
 import pandas as pd
+import geopandas as gpd
 from pandas.api.types import is_string_dtype
 
 def read_tif(file_path):
@@ -36,8 +37,21 @@ def read_csv(file_path):
     return bestand
 
 def format_csv(csv):
+    # ensure the csv columns are parsed correctly - especially with the separators
     for column in  ["x","y","z","id"]:
         if is_string_dtype(csv[column]):
             csv[column] = csv[column].str.replace(',', '.').astype(float)
         csv[column] = pd.to_numeric(csv[column])
     return csv
+
+def load_bestand_and_forest():
+    # load the tif
+    forest_area_gdf = gpd.GeoDataFrame(pd.DataFrame(
+    {"name": ["area1", "area2", "area3", "area4", "area5"]}), 
+    geometry=read_tif("Resources_Organized/tif/Bestand3.tif"))
+
+    #load the data and show that we have correctly parsed the CSV
+    bestand_3_csv = read_csv("Resources_Organized/csv/Bestand3_h.csv")
+    bestand_3_csv = format_csv(bestand_3_csv)
+
+    return forest_area_gdf, bestand_3_csv

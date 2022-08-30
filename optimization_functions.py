@@ -13,3 +13,5 @@ def line_cost_function(buffer_width, line_length, slope_deviation, line_activate
 
 def tree_coverage_function(trees_covered, line_activated_index):
     return -(trees_covered*line_activated_index)
+
+# def add_facility_integer_variable
