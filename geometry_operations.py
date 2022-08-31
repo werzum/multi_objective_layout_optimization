@@ -2,9 +2,9 @@ import geometry_utilities
 
 from shapely.geometry import LineString
 import numpy as np
+import pandas as pd
 
-
-def generate_possible_lines(road_points, anchor_trees, slope_line, max_deviation):
+def generate_possible_lines(road_points, target_trees, anchor_trees, slope_line, max_deviation):
     """ Compute which lines can be made from road_points to anchor_trees without having an angle greater than max_deviation
     Takes buffer size and minimum number of trees covered
 
@@ -21,9 +21,11 @@ def generate_possible_lines(road_points, anchor_trees, slope_line, max_deviation
     slope_deviation = []
 
     for point in road_points:
-        for anchor in anchor_trees:
-            possible_line = LineString([point, anchor])
+        for target in target_trees.geometry:
+            possible_line = LineString([point, target])
             angle = geometry_utilities.angle_between(possible_line, slope_line)
+
+### here, we should check whether 3 anchor trees within given distance and angle are within reach - 1. compute within distance, 2. check angle
 
             if geometry_utilities.within_maximum_rotation(angle, max_deviation):
                 possible_lines.append(possible_line)
@@ -95,3 +97,22 @@ def filter_gdf_by_contained_elements(gdf, polygon):
     contained_points = gdf[coverage_series]
 
     return contained_points
+
+def compute_distances_facilities_clients(tree_gdf, line_gdf):
+    """Create a numpy matrix with the distance between every tree and line
+
+    Args:
+        tree_gdf (_type_): A gdf containing the trees
+        line_gdf (_type_): A gdf containing the facilities/lines
+
+    Returns:
+        _type_: A numpy matrix of the costs/distances
+    """    
+    # compute the distance to each tree for every row
+    distances = []
+    for line in line_gdf.iterrows():
+        line_tree_distance = tree_gdf.geometry.distance(line[1].geometry)
+        distances.append(line_tree_distance)
+
+    # pivot the table and convert to numpy matrix (solver expects it this way)
+    return np.asarray(distances).transpose()

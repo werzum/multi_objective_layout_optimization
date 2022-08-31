@@ -84,12 +84,9 @@ def plot_p_median_results(model, facility_points_gdf, demand_points_gdf):
     arr_points = []
     fac_sites = []
 
-    facility_count = len(facility_points_gdf)
-
     # fill arr_points and fac_sites for non-empty entries in the facilities to clients array
-    for i in range(facility_count):
+    for i in range(len(facility_points_gdf)):
         if model.fac2cli[i]:
-
             geom = demand_points_gdf.iloc[model.fac2cli[i]]['geometry']
             arr_points.append(geom)
             fac_sites.append(i)
