@@ -1,10 +1,14 @@
+from copy import deepcopy
 import geometry_utilities
 
 from shapely.geometry import LineString
+
 import numpy as np
 import pandas as pd
 
-def generate_possible_lines(road_points, target_trees, anchor_trees, slope_line, max_deviation):
+import itertools
+
+def generate_possible_lines(road_points, target_trees, anchor_trees, slope_line, max_deviation, max_anchor_distance, max_anchor_angle):
     """ Compute which lines can be made from road_points to anchor_trees without having an angle greater than max_deviation
     Takes buffer size and minimum number of trees covered
 
@@ -19,19 +23,38 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, slope_line,
     """
     possible_lines = []
     slope_deviation = []
+    possible_anchor_triples = []
 
     for point in road_points:
         for target in target_trees.geometry:
             possible_line = LineString([point, target])
             angle = geometry_utilities.angle_between(possible_line, slope_line)
 
-### here, we should check whether 3 anchor trees within given distance and angle are within reach - 1. compute within distance, 2. check angle
-
             if geometry_utilities.within_maximum_rotation(angle, max_deviation):
-                possible_lines.append(possible_line)
-                slope_deviation.append(angle)
 
-    return possible_lines, slope_deviation
+                #1. get list of possible anchors -> anchor trees
+                anchor_trees_working_copy = deepcopy(anchor_trees)
+                #2. check which points are within distance
+                anchor_trees_working_copy = anchor_trees_working_copy[anchor_trees_working_copy.geometry.distance(point)<max_anchor_distance]
+                #3. create lines to all these possible connections
+                if len(anchor_trees_working_copy)<3:
+                    continue
+                possible_anchor_lines = anchor_trees_working_copy.geometry.apply(lambda x: LineString([x,point]))
+
+                #4. check first pairs if angle>max_anchor_angle
+                pairwise_angle = [(x,y) for x,y in itertools.combinations(possible_anchor_lines,2) if(geometry_utilities.angle_between(x,y)<max_anchor_angle)]
+                #5. check if the third support line is also within correct distance
+                triple_angle = [(x,y,z) for x,y in pairwise_angle for z in possible_anchor_lines if(geometry_utilities.angle_between(x,z)<max_anchor_angle or geometry_utilities.angle_between(y,z)<max_anchor_angle)]
+
+                # if we have one or more valid anchor configurations, append this configuration to the line_gdf
+                if len(triple_angle)>1:
+                    possible_lines.append(possible_line)
+                    slope_deviation.append(angle)
+                    possible_anchor_triples.append(triple_angle)
+
+
+
+    return possible_lines, slope_deviation, possible_anchor_triples
 
 def generate_road_points(road_geometry, interval):
     """Generate a list of points with a given interval along the road geometry

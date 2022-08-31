@@ -1,5 +1,7 @@
 import numpy as np
 import math
+import warnings
+
 
 def unit_vector(vector):
     """ Returns the unit vector of the vector.  """
@@ -19,10 +21,15 @@ def angle_between(v1, v2):
     # get the unit vector, dot product and then the arccos from that
     unit_vector_1, unit_vector_2 = unit_vector(v1), unit_vector(v2)
     dot_product = np.dot(unit_vector_1, unit_vector_2)
-    # in radians
-    angle = np.arccos(dot_product)
-    # to degrees - https://stackoverflow.com/questions/9875964/how-can-i-convert-radians-to-degrees-with-python
-    return math.degrees(angle)
+
+    if -1 < dot_product < 1:
+        # in radians
+        angle = np.arccos(dot_product)
+        # to degrees - https://stackoverflow.com/questions/9875964/how-can-i-convert-radians-to-degrees-with-python
+        return math.degrees(angle)
+    else:
+        #we return a large angle?
+        return 90
 
 
 
