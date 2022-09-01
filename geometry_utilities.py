@@ -9,6 +9,16 @@ def unit_vector(vector):
 
 
 def angle_between(v1, v2):
+    """Returns the angle between to vectors. Returns 0 to 180 degrees angles - note that the direction of the vector matters!
+    Will however not discern between a -20 and 20 rotation wrt the v1.
+
+    Args:
+        v1 (_type_): _description_
+        v2 (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """    
     # extract their coords for vector
     v1 = [v1.coords[0], v1.coords[1]]
     v2 = [v2.coords[0], v2.coords[1]]
