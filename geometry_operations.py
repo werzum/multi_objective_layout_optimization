@@ -6,24 +6,24 @@ import geometry_utilities
 from shapely.geometry import LineString
 
 import numpy as np
-import pandas as pd
 
 import itertools
-from functools import reduce
 
-def generate_possible_lines(road_points, target_trees, anchor_trees, slope_line, max_main_line_slope_deviation, max_anchor_distance, max_anchor_angle):
-    """ Compute which lines can be made from road_points to anchor_trees without having an angle greater than max_deviation
+def generate_possible_lines(road_points, target_trees, anchor_trees, slope_line, max_main_line_slope_deviation, max_anchor_distance):
+    """Compute which lines can be made from road_points to anchor_trees without having an angle greater than max_deviation
     Takes buffer size and minimum number of trees covered
 
     Args:
-        road_points (_type_): Array of points
-        anchor_trees (_type_): Array of points
-        slope_line (_type_): A line
-        max_deviation: An int of the max deviation between possible line and slope line
+        road_points (_type_): _description_
+        target_trees (_type_): _description_
+        anchor_trees (_type_): _description_
+        slope_line (_type_): _description_
+        max_main_line_slope_deviation (_type_): How much the central of three lines can deviate from the slope
+        max_anchor_distance (_type_): How far away should the anchors be at most
 
     Returns:
         _type_: _description_
-    """
+    """    
     possible_lines = []
     slope_deviation = []
     possible_anchor_triples = []
@@ -39,55 +39,14 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, slope_line,
 
             if possible_line_to_slope_angle<max_main_line_slope_deviation:
 
-                #1. get list of possible anchors -> anchor trees
-                anchor_trees_working_copy = deepcopy(anchor_trees)
-                #2. check which points are within distance
-                anchor_trees_working_copy = anchor_trees_working_copy[anchor_trees_working_copy.geometry.distance(point)<max_anchor_distance]
-                #3. create lines to all these possible connections
-                if len(anchor_trees_working_copy)<3:
-                    continue
-                possible_anchor_lines = anchor_trees_working_copy.geometry.apply(lambda x: LineString([x,point]))
-
-                # check if all of those possible lines are within the max deviation to the slope
-                possible_anchor_lines = possible_anchor_lines[possible_anchor_lines.apply(lambda x: geometry_utilities.angle_between(x,slope_line)<max_outer_anchor_angle)].to_list()
-
-                if len(possible_anchor_lines)<3:
-                    continue
-
-                #4. check first pairs: one within 10-30 angle to the other and one should be <5 degrees to the slope line
-                pairwise_angle = [(x,y) for x,y in itertools.combinations(possible_anchor_lines,2) 
-                    if 
-                        min_outer_anchor_angle < geometry_utilities.angle_between(x,y) < max_outer_anchor_angle 
-                    and 
-                        (geometry_utilities.angle_between(x,slope_line) < max_center_tree_slope_angle 
-                    or 
-                        geometry_utilities.angle_between(y,slope_line) < max_center_tree_slope_angle)]
-
-                # skip if we dont have enough candidates
-                if len(pairwise_angle)<3:
-                    continue
-
-                #5. check if the third support line is also within correct angle - within 2*min_outer_anch_angle and 2* max_anchor_angle for one point and within min_outer, max_outer for the other -> so two lines are not on the same side!
-
-                triple_angle = []
-                for x,y in pairwise_angle:
-                    for z in possible_anchor_lines:
-                        if (x is not z and y is not z ):
-                            a = (max_outer_anchor_angle*2-10 < geometry_utilities.angle_between(x,z)< max_outer_anchor_angle*2 
-                            and min_outer_anchor_angle < geometry_utilities.angle_between(y,z)< max_outer_anchor_angle)
-                            b = (max_outer_anchor_angle*2-10 < geometry_utilities.angle_between(y,z)< max_outer_anchor_angle*2 
-                            and min_outer_anchor_angle < geometry_utilities.angle_between(x,z)< max_outer_anchor_angle)
-
-                            if (a,b):
-                                triple_angle.append([x,y,z])
+                # generate a list of line-triples that are within correct angles to the road point and slope line
+                triple_angle = generate_triple_angle(point, slope_line, anchor_trees, max_anchor_distance, max_outer_anchor_angle, min_outer_anchor_angle, max_center_tree_slope_angle)
 
                 # if we have one or more valid anchor configurations, append this configuration to the line_gdf
-                if len(triple_angle)>0:
+                if triple_angle and len(triple_angle)>0:
                     possible_lines.append(possible_line)
                     slope_deviation.append(possible_line_to_slope_angle)
                     possible_anchor_triples.append(triple_angle)
-
-
 
     return possible_lines, slope_deviation, possible_anchor_triples
 
@@ -174,3 +133,71 @@ def compute_distances_facilities_clients(tree_gdf, line_gdf):
 
     # pivot the table and convert to numpy matrix (solver expects it this way)
     return np.asarray(distances).transpose()
+
+def generate_triple_angle(point, slope_line, anchor_trees, max_anchor_distance, max_outer_anchor_angle, min_outer_anchor_angle, max_center_tree_slope_angle):
+    """Generate a list of line-triples that are within correct angles to the road point and slope line.
+    Checks whether:
+    - anchor trees are within (less than) correct distance
+    - all of those lines have a deviation < max outer anchor angle to the slope line
+    Then we create pairs of lines within max_outer_anchor_angle to each other AND one of them with <max_center_tree_slope_angle to the slope line
+    This results in pairs of lines were one is the inner and one the right-most (or vice versa)
+    Then, we check for a third possible line if it is within 2*min_outer_anch_angle and 2* max_anchor_angle for one point and within min_outer, max_outer for the other -> so two lines are not on the same side!
+    This results in triples where we have the central and rightmost line from the tuples section plus one line that is at least 2*min and at most 2*max outer angle away from the rightmost line (or vv.)
+
+    Args:
+        point (_type_): The road point we want to check for possible anchors
+        slope_line (_type_): _description_
+        anchor_trees (_type_): _description_
+        max_anchor_distance (_type_): _description_
+        max_outer_anchor_angle (_type_): Max angle between right and left line
+        min_outer_anchor_angle (_type_): Minimum angle between right and left line
+        max_center_tree_slope_angle (_type_): Max deviation of center line from slope line
+
+    Returns:
+        _type_: _description_
+    """    
+    #1. get list of possible anchors -> anchor trees
+    anchor_trees_working_copy = deepcopy(anchor_trees)
+    
+    #2. check which points are within distance
+    anchor_trees_working_copy = anchor_trees_working_copy[anchor_trees_working_copy.geometry.distance(point)<max_anchor_distance]
+
+    #3. create lines to all these possible connections
+    if anchor_trees_working_copy.empty or len(anchor_trees_working_copy)<3:
+        return
+    possible_anchor_lines = anchor_trees_working_copy.geometry.apply(lambda x: LineString([x,point]))
+
+    # check if all of those possible lines are within the max deviation to the slope
+    possible_anchor_lines = possible_anchor_lines[possible_anchor_lines.apply(lambda x: geometry_utilities.angle_between(x,slope_line)<max_outer_anchor_angle)].to_list()
+
+    if len(possible_anchor_lines)<3:
+        return
+
+    #4. check first pairs: one within 10-30 angle to the other and one should be <5 degrees to the slope line
+    pairwise_angle = [(x,y) for x,y in itertools.combinations(possible_anchor_lines,2) 
+        if 
+            min_outer_anchor_angle < geometry_utilities.angle_between(x,y) < max_outer_anchor_angle 
+        and 
+            (geometry_utilities.angle_between(x,slope_line) < max_center_tree_slope_angle 
+        or 
+            geometry_utilities.angle_between(y,slope_line) < max_center_tree_slope_angle)]
+
+    # skip if we dont have enough candidates
+    if len(pairwise_angle)<3:
+        return
+
+    #5. check if the third support line is also within correct angle - within 2*min_outer_anch_angle and 2* max_anchor_angle for one point and within min_outer, max_outer for the other -> so two lines are not on the same side!
+    triple_angle = []
+    for x,y in pairwise_angle:
+        for z in possible_anchor_lines:
+            #make sure that we are not comparing a possible line with itself
+            if (x is not z and y is not z ):
+                a = (max_outer_anchor_angle*2-10 < geometry_utilities.angle_between(x,z)< max_outer_anchor_angle*2 
+                and min_outer_anchor_angle < geometry_utilities.angle_between(y,z)< max_outer_anchor_angle)
+                b = (max_outer_anchor_angle*2-10 < geometry_utilities.angle_between(y,z)< max_outer_anchor_angle*2 
+                and min_outer_anchor_angle < geometry_utilities.angle_between(x,z)< max_outer_anchor_angle)
+
+                if (a,b):
+                    triple_angle.append([x,y,z])
+    
+    return triple_angle
