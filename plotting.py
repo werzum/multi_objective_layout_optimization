@@ -73,7 +73,7 @@ def plot_optimization(target_function, results, xy):
     plt.show()
 
 
-def plot_p_median_results(model, facility_points_gdf, demand_points_gdf):
+def plot_p_median_results(model, facility_points_gdf, demand_points_gdf, anchor_trees, target_trees, line_gdf):
     """ Plot the results of the P-Median optimization. Based on this https://pysal.org/spopt/notebooks/p-median.html, but heavily shortened.
 
     Args:
@@ -83,6 +83,7 @@ def plot_p_median_results(model, facility_points_gdf, demand_points_gdf):
     """    
     arr_points = []
     fac_sites = []
+    line_triples = []
 
     # fill arr_points and fac_sites for non-empty entries in the facilities to clients array
     for i in range(len(facility_points_gdf)):
@@ -90,6 +91,7 @@ def plot_p_median_results(model, facility_points_gdf, demand_points_gdf):
             geom = demand_points_gdf.iloc[model.fac2cli[i]]['geometry']
             arr_points.append(geom)
             fac_sites.append(i)
+            line_triples.append(line_gdf.iloc[model.fac2cli[i]]["possible_anchor_triples"])
 
     fig, ax = plt.subplots(figsize=(12,12))
     legend_elements = []
@@ -97,6 +99,7 @@ def plot_p_median_results(model, facility_points_gdf, demand_points_gdf):
     # add the trees with respective color to which factory they belong to the map
     for i in range(len(arr_points)):
         gdf = geopandas.GeoDataFrame(arr_points[i])
+        anchor_lines_gdf = geopandas.GeoDataFrame(line_triples[i])
 
         label = f"coverage_points by y{fac_sites[i]}"
         legend_elements.append(Patch(label=label))
@@ -109,6 +112,8 @@ def plot_p_median_results(model, facility_points_gdf, demand_points_gdf):
                                 zorder=4,
                                 edgecolor="k")
 
+        anchor_lines_gdf.plot(ax=ax)
+
         legend_elements.append(mlines.Line2D(
             [],
             [],
@@ -118,6 +123,9 @@ def plot_p_median_results(model, facility_points_gdf, demand_points_gdf):
             alpha=0.8,
             label=f"y{fac_sites[i]} facility selected",
         ))
+
+    anchor_trees.plot(ax=ax)
+    target_trees.plot(ax=ax)
 
     plt.title("P-Median", fontweight="bold")
     plt.legend(handles = legend_elements, loc='upper left', bbox_to_anchor=(1.05, 1))
