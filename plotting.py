@@ -1,4 +1,4 @@
-import geopandas
+import geopandas as gpd
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 import matplotlib.lines as mlines
@@ -41,37 +41,6 @@ def onclick(event, coords):
         coords = []
         print("Array reset")
 
-def plot_optimization(target_function, results, xy):
-    """Plot the figure showing the results of an optimization
-
-    Args:
-        target_function (_type_): _description_
-        results (_type_): _description_
-        xy (_type_): _description_
-    """    
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    im = ax.imshow(target_function(xy), interpolation='bilinear', origin='lower',
-                cmap='gray')
-    ax.set_xlabel('x')
-    ax.set_ylabel('y')
-
-    def plot_point(res, marker='o', color=None):
-        ax.plot(512+res.x[0], 512+res.x[1], marker=marker, color=color, ms=10)
-
-    # SHGO produces multiple minima, plot them all (with a smaller marker size)
-    plot_point(results['shgo'], color='r', marker='+')
-    plot_point(results['shgo_sobol'], color='r', marker='x')
-
-    for i in range(results['shgo_sobol'].xl.shape[0]):
-        ax.plot(512 + results['shgo_sobol'].xl[i, 0],
-                512 + results['shgo_sobol'].xl[i, 1],
-                'ro', ms=2)
-
-    ax.set_xlim([-4, 514*2])
-    ax.set_ylim([-4, 514*2])
-    plt.show()
-
 
 def plot_p_median_results(model, facility_points_gdf, demand_points_gdf, anchor_trees, target_trees, line_gdf):
     """ Plot the results of the P-Median optimization. Based on this https://pysal.org/spopt/notebooks/p-median.html, but heavily shortened.
@@ -88,18 +57,25 @@ def plot_p_median_results(model, facility_points_gdf, demand_points_gdf, anchor_
     # fill arr_points and fac_sites for non-empty entries in the facilities to clients array
     for i in range(len(facility_points_gdf)):
         if model.fac2cli[i]:
+            # get the corresponding demand points from the fac2cli entry
             geom = demand_points_gdf.iloc[model.fac2cli[i]]['geometry']
             arr_points.append(geom)
             fac_sites.append(i)
-            line_triples.append(line_gdf.iloc[model.fac2cli[i]]["possible_anchor_triples"])
+            # get the corresponding anchor triple from the line_gdf
+            line_triples.append(line_gdf.iloc[i]["possible_anchor_triples"])
 
     fig, ax = plt.subplots(figsize=(12,12))
     legend_elements = []
 
+    #ugly decomprehension
+    unwrapped_triples = []
+    for item in line_triples:
+        unwrapped_triples.append(gpd.GeoSeries(sum(item, [])))
+
     # add the trees with respective color to which factory they belong to the map
     for i in range(len(arr_points)):
-        gdf = geopandas.GeoDataFrame(arr_points[i])
-        anchor_lines_gdf = geopandas.GeoDataFrame(line_triples[i])
+        gdf = gpd.GeoDataFrame(arr_points[i])
+        anchor_lines_gdf = gpd.GeoDataFrame(geometry=unwrapped_triples[i])
 
         label = f"coverage_points by y{fac_sites[i]}"
         legend_elements.append(Patch(label=label))
