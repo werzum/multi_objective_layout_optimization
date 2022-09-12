@@ -32,7 +32,7 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, slope_line,
     max_outer_anchor_angle = 30
     max_center_tree_slope_angle = 5
 
-    for point in road_points[1:50]:
+    for point in road_points:
         for target in target_trees.geometry:
             possible_line = LineString([point, target])
             possible_line_to_slope_angle = geometry_utilities.angle_between(possible_line, slope_line)
