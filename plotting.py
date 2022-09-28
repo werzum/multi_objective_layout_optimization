@@ -12,7 +12,7 @@ def plot_gdfs(gdfs):
         gdf.plot(alpha=0.5,ax=ax)
 
 def plot_gdf_with_anchors_and_supports(gdfs, line_gdf):
-    fig, ax = plt.subplots(figsize=(10, 10))
+    fig, ax = plt.subplots(figsize=(15, 15))
     ax.set_xlabel('X coordinate', fontsize=15)
     ax.set_ylabel('Y coordinate', fontsize=15)
     for gdf in gdfs:

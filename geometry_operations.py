@@ -10,7 +10,7 @@ import numpy as np
 
 import itertools
 
-def generate_possible_lines(road_points, target_trees, anchor_trees, slope_line, max_main_line_slope_deviation, max_anchor_distance):
+def generate_possible_lines(road_points, target_trees, anchor_trees, overall_trees, slope_line, max_main_line_slope_deviation, max_anchor_distance):
     """Compute which lines can be made from road_points to anchor_trees without having an angle greater than max_deviation
     Takes buffer size and minimum number of trees covered
 
@@ -43,15 +43,20 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, slope_line,
 
                 # find trees along the last bit of the route that are close to the line and can serve as support tree
                 min_support_sideways_distance = 0.1
-                max_support_sideways_distance = 2
+                max_support_sideways_distance = 3
                 min_support_anchor_distance = 5
                 max_support_anchor_distance = 20
-                min_support_sideways_distance_trees = target_trees.geometry.distance(possible_line) < min_support_sideways_distance
-                max_support_sideways_distance_trees = target_trees.geometry.distance(possible_line) < max_support_sideways_distance
-                min_support_anchor_distance_trees = target_trees.geometry.distance(target_trees) < min_support_anchor_distance
-                max_support_anchor_distance_trees = target_trees.geometry.distance(target_trees) < max_support_anchor_distance
+                # find those trees that are within the sideways distance to the proposed line
+                min_support_sideways_distance_trees = overall_trees.geometry.distance(possible_line) > min_support_sideways_distance
+                max_support_sideways_distance_trees = overall_trees.geometry.distance(possible_line) < max_support_sideways_distance
+                # find those trees that are within the right distance to the target tree
+                min_support_anchor_distance_trees = overall_trees.geometry.distance(target) > min_support_anchor_distance
+                max_support_anchor_distance_trees = overall_trees.geometry.distance(target) < max_support_anchor_distance
 
                 support_tree_candidates = target_trees[min_support_sideways_distance_trees * max_support_sideways_distance_trees * min_support_anchor_distance_trees * max_support_anchor_distance_trees]
+
+                # select only those support tree candidates which are close to the roadside point than the target tree
+                support_tree_candidates = support_tree_candidates[support_tree_candidates.geometry.distance(point) < target.distance(point)]
 
                 # continue if there is at least one support tree candidate
                 if len(support_tree_candidates) > 0:
