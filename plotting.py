@@ -11,6 +11,21 @@ def plot_gdfs(gdfs):
     for gdf in gdfs:
         gdf.plot(alpha=0.5,ax=ax)
 
+def plot_gdf_with_anchors_and_supports(gdfs, line_gdf):
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.set_xlabel('X coordinate', fontsize=15)
+    ax.set_ylabel('Y coordinate', fontsize=15)
+    for gdf in gdfs:
+        gdf.plot(alpha=0.5,ax=ax)
+
+    line_gdf.plot(alpha=0.5, ax=ax)
+
+    for keyword in ["possible_support_trees","possible_anchor_triples"]:
+        sublist = [item for sublist in line_gdf[keyword] for item in sublist]
+        b = [item for subliste in sublist for item in subliste]
+        c = gpd.GeoSeries(b)
+        c.plot(cmap="tab20", ax=ax)
+
 def plot_scatter_xy(list):
     xs = [point.x for point in list]
     ys = [point.y for point in list]

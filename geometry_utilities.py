@@ -1,3 +1,4 @@
+from operator import truediv
 import numpy as np
 import math
 import warnings
@@ -7,6 +8,12 @@ def unit_vector(vector):
     """ Returns the unit vector of the vector.  """
     return vector / np.linalg.norm(vector)
 
+
+def value_within_range(min, max, distance):
+    if distance > min and distance < max:
+        return True
+    else:
+        return False
 
 def angle_between(v1, v2):
     """Returns the angle between to vectors. Returns 0 to 180 degrees angles - note that the direction of the vector matters!
