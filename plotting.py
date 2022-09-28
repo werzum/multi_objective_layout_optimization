@@ -68,6 +68,7 @@ def plot_p_median_results(model, facility_points_gdf, demand_points_gdf, anchor_
     arr_points = []
     fac_sites = []
     line_triples = []
+    support_trees = []
 
     # fill arr_points and fac_sites for non-empty entries in the facilities to clients array
     for i in range(len(facility_points_gdf)):
@@ -76,8 +77,10 @@ def plot_p_median_results(model, facility_points_gdf, demand_points_gdf, anchor_
             geom = demand_points_gdf.iloc[model.fac2cli[i]]['geometry']
             arr_points.append(geom)
             fac_sites.append(i)
-            # get the corresponding anchor triple from the line_gdf
+            # get the corresponding anchor triple and support tree from the line_gdf
             line_triples.append(line_gdf.iloc[i]["possible_anchor_triples"])
+            support_trees.append(line_gdf.iloc[i]["possible_support_trees"])
+
 
     fig, ax = plt.subplots(figsize=(12,12))
     legend_elements = []
@@ -87,10 +90,18 @@ def plot_p_median_results(model, facility_points_gdf, demand_points_gdf, anchor_
     for item in line_triples:
         unwrapped_triples.append(gpd.GeoSeries(sum(item, [])))
 
+    #ugly decomprehension again
+    unwrapped_support_trees = []
+    for support_tree in support_trees:
+        sublist = [item for sublist in support_tree for item in sublist]
+        c = gpd.GeoSeries(sublist)
+        unwrapped_support_trees.append(c)
+
     # add the trees with respective color to which factory they belong to the map
     for i in range(len(arr_points)):
         gdf = gpd.GeoDataFrame(arr_points[i])
         anchor_lines_gdf = gpd.GeoDataFrame(geometry=unwrapped_triples[i])
+        support_trees_gdf = unwrapped_support_trees[i]
 
         label = f"coverage_points by y{fac_sites[i]}"
         legend_elements.append(Patch(label=label))
@@ -103,7 +114,8 @@ def plot_p_median_results(model, facility_points_gdf, demand_points_gdf, anchor_
                                 zorder=4,
                                 edgecolor="k")
 
-        anchor_lines_gdf.plot(ax=ax)
+        anchor_lines_gdf.plot(ax=ax, cmap="tab20")
+        support_trees_gdf.plot(ax=ax, color="black")
 
         legend_elements.append(mlines.Line2D(
             [],

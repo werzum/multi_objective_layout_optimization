@@ -1,7 +1,7 @@
 from copy import deepcopy
 from enum import unique
 from re import T
-from turtle import pos
+from turtle import distance, pos
 import geometry_utilities
 
 from shapely.geometry import LineString
@@ -10,7 +10,7 @@ import numpy as np
 
 import itertools
 
-def generate_possible_lines(road_points, target_trees, anchor_trees, overall_trees, slope_line, max_main_line_slope_deviation, max_anchor_distance):
+def generate_possible_lines(road_points, target_trees, anchor_trees, overall_trees, slope_line):
     """Compute which lines can be made from road_points to anchor_trees without having an angle greater than max_deviation
     Takes buffer size and minimum number of trees covered
 
@@ -30,9 +30,7 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
     possible_anchor_triples = []
     possible_support_trees = []
 
-    min_outer_anchor_angle = 15
-    max_outer_anchor_angle = 40
-    max_center_tree_slope_angle = 5
+    max_main_line_slope_deviation = 20
 
     for point in road_points:
         for target in target_trees.geometry:
@@ -40,28 +38,14 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
             possible_line_to_slope_angle = geometry_utilities.angle_between(possible_line, slope_line)
 
             if possible_line_to_slope_angle<max_main_line_slope_deviation:
-
-                # find trees along the last bit of the route that are close to the line and can serve as support tree
-                min_support_sideways_distance = 0.1
-                max_support_sideways_distance = 3
-                min_support_anchor_distance = 5
-                max_support_anchor_distance = 20
-                # find those trees that are within the sideways distance to the proposed line
-                min_support_sideways_distance_trees = overall_trees.geometry.distance(possible_line) > min_support_sideways_distance
-                max_support_sideways_distance_trees = overall_trees.geometry.distance(possible_line) < max_support_sideways_distance
-                # find those trees that are within the right distance to the target tree
-                min_support_anchor_distance_trees = overall_trees.geometry.distance(target) > min_support_anchor_distance
-                max_support_anchor_distance_trees = overall_trees.geometry.distance(target) < max_support_anchor_distance
-
-                support_tree_candidates = target_trees[min_support_sideways_distance_trees * max_support_sideways_distance_trees * min_support_anchor_distance_trees * max_support_anchor_distance_trees]
-
-                # select only those support tree candidates which are close to the roadside point than the target tree
-                support_tree_candidates = support_tree_candidates[support_tree_candidates.geometry.distance(point) < target.distance(point)]
+                
+                # compute the intermediate support trees betweeen the point and the target
+                support_tree_candidates = generate_support_trees(overall_trees, target, point, possible_line)
 
                 # continue if there is at least one support tree candidate
                 if len(support_tree_candidates) > 0:
                     # generate a list of line-triples that are within correct angles to the road point and slope line
-                    triple_angle = generate_triple_angle(point, slope_line, anchor_trees, max_anchor_distance, max_outer_anchor_angle, min_outer_anchor_angle, max_center_tree_slope_angle)
+                    triple_angle = generate_triple_angle(point, slope_line, anchor_trees)
 
                     # if we have one or more valid anchor configurations, append this configuration to the line_gdf
                     if triple_angle and len(triple_angle)>0:
@@ -72,6 +56,41 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
 
 
     return possible_lines, slope_deviation, possible_anchor_triples, possible_support_trees
+
+def generate_support_trees(overall_trees, target, point, possible_line):
+    """find trees in overall_trees along the last bit of the possible_line that are close to the line and can serve as support tree
+
+    Args:
+        overall_trees (_type_): GDF of all trees
+        target (_type_): The last tree
+        point (_type_): The road point we are starting from
+        possible_line (_type_): The limne between target and point
+
+    Returns:
+        _type_: _description_
+    """    
+    # Parameters
+    min_support_sideways_distance = 0.1
+    max_support_sideways_distance = 1.5
+    min_support_anchor_distance = 10
+    max_support_anchor_distance = 20
+
+    # find those trees that are within the sideways distance to the proposed line
+    min_support_sideways_distance_trees = overall_trees.geometry.distance(possible_line) > min_support_sideways_distance
+    max_support_sideways_distance_trees = overall_trees.geometry.distance(possible_line) < max_support_sideways_distance
+
+    # find those trees that are within the right distance to the target tree
+    min_support_anchor_distance_trees = overall_trees.geometry.distance(target) > min_support_anchor_distance
+    max_support_anchor_distance_trees = overall_trees.geometry.distance(target) < max_support_anchor_distance
+
+    # shouldnt this be overall_ instead of target_?
+    support_tree_candidates = overall_trees[min_support_sideways_distance_trees * max_support_sideways_distance_trees * min_support_anchor_distance_trees * max_support_anchor_distance_trees]
+
+    # select only those support tree candidates which are close to the roadside point than the target tree
+    support_tree_candidates = support_tree_candidates[support_tree_candidates.geometry.distance(point) < target.distance(point)]
+
+    return support_tree_candidates
+
 
 def generate_road_points(road_geometry, interval):
     """Generate a list of points with a given interval along the road geometry
@@ -152,12 +171,16 @@ def compute_distances_facilities_clients(tree_gdf, line_gdf):
     distances = []
     for line in line_gdf.iterrows():
         line_tree_distance = tree_gdf.geometry.distance(line[1].geometry)
+
+        # square the distance after 20 meters to reflect high costs
+        line_tree_distance[line_tree_distance>20] = line_tree_distance[line_tree_distance>20]**2
+
         distances.append(line_tree_distance)
 
     # pivot the table and convert to numpy matrix (solver expects it this way)
     return np.asarray(distances).transpose()
 
-def generate_triple_angle(point, slope_line, anchor_trees, max_anchor_distance, max_outer_anchor_angle, min_outer_anchor_angle, max_center_tree_slope_angle):
+def generate_triple_angle(point, slope_line, anchor_trees):
     """Generate a list of line-triples that are within correct angles to the road point and slope line.
     Checks whether:
     - anchor trees are within (less than) correct distance
@@ -179,6 +202,11 @@ def generate_triple_angle(point, slope_line, anchor_trees, max_anchor_distance, 
     Returns:
         _type_: _description_
     """    
+    min_outer_anchor_angle = 20
+    max_outer_anchor_angle = 40
+    max_center_tree_slope_angle = 3
+    max_anchor_distance = 20
+
     #1. get list of possible anchors -> anchor trees
     anchor_trees_working_copy = deepcopy(anchor_trees)
     

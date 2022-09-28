@@ -12,7 +12,7 @@ def line_cost_function(line_length, slope_deviation):
     Returns:
         _type_: _description_
     """
-    return line_length+slope_deviation**2
+    return line_length**1.5+slope_deviation**2
 
 
 def add_facility_variables(model, facility_range):
@@ -54,7 +54,7 @@ def add_facility_client_variables(model, facility_range, client_range):
     setattr(model, "cli_assgn_vars", cli_assgn_vars)
 
 
-def add_moo_objective_function(model, facility_range, client_range, facility_cost):
+def add_moo_objective_function(model, facility_range, client_range, facility_cost, obj_a_factor):
     """Add the objective function to the model, compromised of two terms to minimize:
     First term: minimize cost*cli assigned to facility
     Second term: minimize the cost of factories
@@ -64,12 +64,14 @@ def add_moo_objective_function(model, facility_range, client_range, facility_cos
         facility_range (_type_): _description_
         client_range (_type_): _description_
         facility_cost (_type_): _description_
+        obj_a_factor (float): The weight of each objective (as int), is converted here to float to represent the 0-1 range
     """
-    model.problem += pulp.lpSum([
+    obj_a_factor = obj_a_factor*0.1
+    model.problem += (obj_a_factor)*pulp.lpSum([
         model.aij[cli][fac] * model.cli_assgn_vars[cli][fac]
         for cli in client_range
         for fac in facility_range
-    ]) + pulp.lpSum([
+    ]) + (1-obj_a_factor)*pulp.lpSum([
         model.fac_vars[fac]*facility_cost[fac] for fac in facility_range]
     ), "objective function"
 
