@@ -30,7 +30,7 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
     possible_anchor_triples = []
     possible_support_trees = []
 
-    max_main_line_slope_deviation = 10
+    max_main_line_slope_deviation = 20
 
     for point in road_points:
         for target in target_trees.geometry:
