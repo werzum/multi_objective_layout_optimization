@@ -11,8 +11,12 @@ import numpy as np
 import itertools
 
 def generate_possible_lines(road_points, target_trees, anchor_trees, overall_trees, slope_line):
-    """Compute which lines can be made from road_points to anchor_trees without having an angle greater than max_deviation
-    Takes buffer size and minimum number of trees covered
+    """Compute which lines can be made from road_points to anchor_trees without having an angle greater than max_main_line_slope_deviation
+    First, we generate all possible lines between  each point along the road and all head anchors.
+    For those which do not deviate more than max_main_line_slope_deviation degrees from the slope line, we compute head anchor support trees along the lines.
+    If those are present, we compute triples of tail anchor support trees.
+    If those are present, valid configurations are appended to the respective lists.
+
 
     Args:
         road_points (_type_): _description_
