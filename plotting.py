@@ -130,7 +130,7 @@ def plot_p_median_results(model, facility_points_gdf, demand_points_gdf, anchor_
     anchor_trees.plot(ax=ax)
     target_trees.plot(ax=ax)
 
-    plt.title("P-Median", fontweight="bold")
+    plt.title("Optimized Layout", fontweight="bold")
     plt.legend(handles = legend_elements, loc='upper left', bbox_to_anchor=(1.05, 1))
 
 
