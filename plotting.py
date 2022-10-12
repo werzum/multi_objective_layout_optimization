@@ -133,7 +133,7 @@ def plot_p_median_results(model, facility_points_gdf, demand_points_gdf, anchor_
     plt.title("Optimized Layout", fontweight="bold")
     plt.legend(handles = legend_elements, loc='upper left', bbox_to_anchor=(1.05, 1))
 
-
+import numpy as np
 def plot_pymoo_results(model, facility_points_gdf, demand_points_gdf, anchor_trees, target_trees, line_gdf):
     """ Plot the results of the P-Median optimization. Based on this https://pysal.org/spopt/notebooks/p-median.html, but heavily shortened.
 
@@ -157,7 +157,9 @@ def plot_pymoo_results(model, facility_points_gdf, demand_points_gdf, anchor_tre
         if fac_vars[i]:
             # get the corresponding demand points from the fac2cli entry
             # get all entries for this column in cli_assgn_vars
-            geom = demand_points_gdf.iloc[cli_assgn_vars[:,i]]['geometry']
+            indices = np.where(cli_assgn_vars[:,i])
+            #geom = demand_points_gdf.iloc[model.fac2cli[i]]['geometry']
+            geom = demand_points_gdf.iloc[indices]['geometry']
             arr_points.append(geom)
             fac_sites.append(i)
             # get the corresponding anchor triple from the line_gdf
