@@ -1,6 +1,7 @@
 import numpy as np
 import pulp
-
+import operator
+from random import randint, choices
 
 def line_cost_function(line_length, slope_deviation):
     """Compute the cost of each line based on different factors
@@ -98,3 +99,54 @@ def add_facility_is_opened_constraint(model, facility_range, client_range):
     for cli in client_range:
         for fac in facility_range:
             model.problem += model.fac_vars[fac] - model.cli_assgn_vars[cli][fac] >= 0
+
+
+def test_and_reassign_clis(fac_range, cli_range, fac_vars, cli_assgn_vars, fac_indices, aij):
+
+    """ Ensure that the opening and assignment constraint are satisfied
+
+    Returns:
+        _type_: _description_
+    """    
+
+    for i in range(fac_range):
+        #  find where a cli is assigned to a fac that is not opened (sum of row is negative)
+        opening_assignment_test = fac_vars[i]-cli_assgn_vars[:,i]
+        if operator.contains(opening_assignment_test, -1):
+            # assign all clis to the nearest opened fac:
+            for j in range(cli_range):
+
+                #skip if no facs are opened
+                if len(fac_indices>0):
+                    # get the 2nd smallest distance to avoid finding distance to self
+                    smallest_distance = min(aij[j,fac_indices])
+
+                    # find its position
+                    min_index = np.where(aij[j]==smallest_distance)[0]
+                    # and assign this client to this one
+                    random_fac = choices(min_index)
+                    cli_assgn_vars[j, random_fac] = 1
+
+    for j in range(cli_range):
+        if np.sum(cli_assgn_vars[j,:]) > 1:
+            # get indices of the facs this cli is assigned
+            cli_assgn_indices = np.where(fac_vars==1)[0]
+
+            # skip if this one isnt assigned (which should not happen) or we have no more facs opened
+            if len(cli_assgn_indices)<1 or len(fac_indices)<1:
+                continue
+
+            # get the 2nd smallest to avoid finding distance to self
+            smallest_distance = min(aij[j,fac_indices])
+            # find its position
+            min_index = np.where(aij[j]==smallest_distance)[0]
+            # and assign to one of them
+            random_fac = choices(min_index)
+            #random_fac = choices(cli_assgn_indices)
+            
+            # set whole row to zero
+            cli_assgn_vars[j] = np.zeros(fac_range)
+            # and randomly set one of those facs to 1
+            cli_assgn_vars[j,random_fac] = 1
+
+    return cli_assgn_vars, fac_vars

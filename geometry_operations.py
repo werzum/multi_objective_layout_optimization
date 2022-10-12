@@ -177,7 +177,7 @@ def compute_distances_facilities_clients(tree_gdf, line_gdf):
         line_tree_distance = tree_gdf.geometry.distance(line[1].geometry)
 
         # square the distance after 20 meters to reflect high costs
-        line_tree_distance[line_tree_distance>20] = line_tree_distance[line_tree_distance>20]**2
+        # line_tree_distance[line_tree_distance>20] = line_tree_distance[line_tree_distance>20]**2
 
         distances.append(line_tree_distance)
 
