@@ -147,7 +147,7 @@ def plot_pymoo_results(model, facility_points_gdf, demand_points_gdf, anchor_tre
     line_triples = []
 
     # extract the cli_assgn_vars and fac_vars from the model/x results of the pymoo optimization
-    variable_matrix = model[0].reshape((len(demand_points_gdf)+1,len(line_gdf)))
+    variable_matrix = model[-1].reshape((len(demand_points_gdf)+1,len(line_gdf)))
 
     cli_assgn_vars = variable_matrix[:-1]
     fac_vars = variable_matrix[-1:][0]
