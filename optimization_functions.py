@@ -4,7 +4,7 @@ import operator
 from random import randint, choices
 
 def line_cost_function(line_length, slope_deviation):
-    """Compute the cost of each line based on different factors
+    """Compute the cost of each line based on Bont (2018) Rigi Penalty, line cost based on Stampfer (2003) heuristic
 
     Args:
         line_length (_type_): _description_
@@ -13,8 +13,25 @@ def line_cost_function(line_length, slope_deviation):
     Returns:
         _type_: _description_
     """
-    return line_length**1.5+slope_deviation**2
+    # taken from Bont (2018) figure
+    line_cost = (0.005455*line_length) + 21.73
+    # Line install cost as per Bont (2019)
+    line_cost+= 200
 
+    # add penalty according to deviation
+    if 10 <= slope_deviation <= 35:
+        return line_cost
+    elif slope_deviation >= 45:
+        return line_cost+line_length*2
+    else:
+        return line_cost+(line_length*0.5)
+
+def tree_cost_function(BHD):
+    # per Denzin rule of thumb
+    volume = (BHD**2)/1000
+    # per Bont 2019
+    cost = 65*volume
+    return cost
 
 def add_facility_variables(model, facility_range):
     """Create a list of x_i variables representing wether a facility is active
