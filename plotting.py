@@ -134,6 +134,7 @@ def plot_p_median_results(model, facility_points_gdf, demand_points_gdf, anchor_
     plt.legend(handles = legend_elements, loc='upper left', bbox_to_anchor=(1.05, 1))
 
 import numpy as np
+
 def plot_pymoo_results(model, facility_points_gdf, demand_points_gdf, anchor_trees, target_trees, line_gdf):
     """ Plot the results of the P-Median optimization. Based on this https://pysal.org/spopt/notebooks/p-median.html, but heavily shortened.
 
