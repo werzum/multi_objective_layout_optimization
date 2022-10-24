@@ -19,16 +19,20 @@ def line_cost_function(line_length, slope_deviation):
     line_cost+= 200
 
     # add penalty according to deviation
-    if 10 <= slope_deviation <= 35:
-        return line_cost
-    elif slope_deviation >= 45:
-        return line_cost+line_length*2
-    else:
-        return line_cost+(line_length*0.5)
+    def deviation_condition (individual_cost, individual_deviation):
+        if 10 <= individual_deviation <= 35:
+            return individual_cost
+        elif individual_deviation >= 45:
+            return individual_cost+line_length*2
+        else:
+            return individual_cost+(line_length*0.5)
+    
+    # apply the penalty computation to each element and return this list
+    return deviation_condition(line_length, slope_deviation)
 
 def tree_cost_function(BHD):
     # per Denzin rule of thumb
-    volume = (BHD**2)/1000
+    volume = (BHD.astype(int)**2)/1000
     # per Bont 2019
     cost = 65*volume
     return cost
