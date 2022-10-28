@@ -1,5 +1,6 @@
 from copy import deepcopy
 from enum import unique
+from operator import truediv
 from re import T
 from turtle import distance, pos
 import geometry_utilities
@@ -10,7 +11,7 @@ import numpy as np
 
 import itertools
 
-def generate_possible_lines(road_points, target_trees, anchor_trees, overall_trees, slope_line):
+def generate_possible_lines(road_points, target_trees, anchor_trees, overall_trees, slope_line, height_gdf):
     """Compute which lines can be made from road_points to anchor_trees without having an angle greater than max_main_line_slope_deviation
     First, we generate all possible lines between  each point along the road and all head anchors.
     For those which do not deviate more than max_main_line_slope_deviation degrees from the slope line, we compute head anchor support trees along the lines.
@@ -53,13 +54,56 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
 
                     # if we have one or more valid anchor configurations, append this configuration to the line_gdf
                     if triple_angle and len(triple_angle)>0:
-                        possible_lines.append(possible_line)
-                        slope_deviation.append(possible_line_to_slope_angle)
-                        possible_anchor_triples.append(triple_angle)
-                        possible_support_trees.append([support_tree_candidates.geometry])
+                        
+                        # and finally check for height obstructions and, if no obstructions were found, append this configuration to the line_gdf
+                        if no_height_obstructions(possible_line, height_gdf):
+                            possible_lines.append(possible_line)
+                            slope_deviation.append(possible_line_to_slope_angle)
+                            possible_anchor_triples.append(triple_angle)
+                            possible_support_trees.append([support_tree_candidates.geometry])
 
 
     return possible_lines, slope_deviation, possible_anchor_triples, possible_support_trees
+
+def no_height_obstructions(possible_line,height_gdf):
+    """A function to check whether there are any points along the line candidate (spanned up by the starting/end points elevation plus the support height) which are less than min_height away from the line.
+
+    Args:
+        possible_line (_type_): _description_
+        height_gdf (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """    
+    support_height = 8
+    min_height = 2
+    start_point, end_point = possible_line.boundary[0], possible_line.boundary[1]
+
+    # find the elevation of the point in the height gdf closest to the line start point and end point
+    max_deviation = 0.1
+    start_point_height = fetch_point_elevation(start_point,height_gdf,max_deviation)
+    end_point_height = fetch_point_elevation(end_point,height_gdf,max_deviation)
+
+    # add the height of the support to it
+    start_point_height+=support_height
+    end_point_height+=support_height
+
+    # fetch the points along the line
+    floor_points = generate_road_points(possible_line, interval = 1)
+    # and get their height
+    floor_points_height = [fetch_point_elevation(point,height_gdf,max_deviation) for point in floor_points]
+
+    # get the distances of each point along the line to the line itself
+    line_start_point_array = np.array([start_point.x,start_point.y,start_point_height])
+    line_end_point_array = np.array([end_point.x,end_point.y,end_point_height])
+    floor_point_array = list(zip([point.x for point in floor_points], [point.y for point in floor_points],floor_points_height))
+    line_to_floor_distances = [geometry_utilities.lineseg_dist(point,line_start_point_array, line_end_point_array) for point in floor_point_array]
+
+    return True if min(line_to_floor_distances)>min_height else False
+
+
+def fetch_point_elevation(point, height_gdf, max_deviation):
+    return height_gdf.loc[(height_gdf.x > point.x-max_deviation) & (height_gdf.x < point.x+max_deviation) & (height_gdf.y < point.y+max_deviation) & (height_gdf.y > point.y-max_deviation),"elev"].values[0]
 
 def generate_support_trees(overall_trees, target, point, possible_line):
     """find trees in overall_trees along the last bit of the possible_line that are close to the line and can serve as support tree

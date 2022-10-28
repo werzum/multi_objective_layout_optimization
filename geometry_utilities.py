@@ -74,4 +74,30 @@ def create_buffer(geometry, buffer_size):
     return geometry.buffer(buffer_size)
 
 
+def lineseg_dist(p, a, b):
+    """Function lineseg_dist returns the distance the distance from point p to line segment [a,b]. p, a and b are np.arrays. 
 
+    Taken from SO https://stackoverflow.com/questions/56463412/distance-from-a-point-to-a-line-segment-in-3d-python
+
+    Args:
+        p (_type_): _description_
+        a (_type_): _description_
+        b (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """    
+    # normalized tangent vector
+    d = np.divide(b - a, np.linalg.norm(b - a))
+
+    # signed parallel distance components
+    s = np.dot(a - p, d)
+    t = np.dot(p - b, d)
+
+    # clamped parallel distance
+    h = np.maximum.reduce([s, t, 0])
+
+    # perpendicular distance component
+    c = np.cross(p - a, d)
+
+    return np.hypot(h, np.linalg.norm(c))
