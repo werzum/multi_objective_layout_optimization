@@ -48,8 +48,8 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
 
                 # continue if there is at least one support tree candidate
                 if len(support_tree_candidates) > 0:
-                    # generate a list of line-triples that are within correct angles to the road point and slope line
-                    triple_angle = generate_triple_angle(point, slope_line, anchor_trees)
+                    # generate a list of line-triples that are within correct angles to the road point and line candidate
+                    triple_angle = generate_triple_angle(point, possible_line, anchor_trees)
 
                     # if we have one or more valid anchor configurations, append this configuration to the line_gdf
                     if triple_angle and len(triple_angle)>0:
@@ -184,7 +184,7 @@ def compute_distances_facilities_clients(tree_gdf, line_gdf):
     # pivot the table and convert to numpy matrix (solver expects it this way)
     return np.asarray(distances).transpose()
 
-def generate_triple_angle(point, slope_line, anchor_trees):
+def generate_triple_angle(point, line_candidate, anchor_trees):
     """Generate a list of line-triples that are within correct angles to the road point and slope line.
     Checks whether:
     - anchor trees are within (less than) correct distance
@@ -196,7 +196,7 @@ def generate_triple_angle(point, slope_line, anchor_trees):
 
     Args:
         point (_type_): The road point we want to check for possible anchors
-        slope_line (_type_): _description_
+        line_candidate (_type_): _description_
         anchor_trees (_type_): _description_
         max_anchor_distance (_type_): _description_
         max_outer_anchor_angle (_type_): Max angle between right and left line
@@ -223,7 +223,7 @@ def generate_triple_angle(point, slope_line, anchor_trees):
     possible_anchor_lines = anchor_trees_working_copy.geometry.apply(lambda x: LineString([x,point]))
 
     # check if all of those possible lines are within the max deviation to the slope
-    possible_anchor_lines = possible_anchor_lines[possible_anchor_lines.apply(lambda x: geometry_utilities.angle_between(x,slope_line)<max_outer_anchor_angle)].to_list()
+    possible_anchor_lines = possible_anchor_lines[possible_anchor_lines.apply(lambda x: geometry_utilities.angle_between(x,line_candidate)<max_outer_anchor_angle)].to_list()
 
     if len(possible_anchor_lines)<3:
         return
@@ -233,9 +233,9 @@ def generate_triple_angle(point, slope_line, anchor_trees):
         if 
             min_outer_anchor_angle < geometry_utilities.angle_between(x,y) < max_outer_anchor_angle 
         and 
-            (geometry_utilities.angle_between(x,slope_line) < max_center_tree_slope_angle 
+            (geometry_utilities.angle_between(x,line_candidate) < max_center_tree_slope_angle 
         or 
-            geometry_utilities.angle_between(y,slope_line) < max_center_tree_slope_angle)]
+            geometry_utilities.angle_between(y,line_candidate) < max_center_tree_slope_angle)]
 
     # skip if we dont have enough candidates
     if len(pairwise_angle)<3:
