@@ -5,7 +5,7 @@ from re import T
 from turtle import distance, pos
 import geometry_utilities
 
-from shapely.geometry import LineString
+from shapely.geometry import LineString, Point
 
 import numpy as np
 
@@ -77,7 +77,7 @@ def no_height_obstructions(possible_line,height_gdf):
     """    
     support_height = 8
     min_height = 2
-    start_point, end_point = possible_line.boundary[0], possible_line.boundary[1]
+    start_point, end_point = Point(possible_line.coords[0]), Point(possible_line.coords[1])
 
     # find the elevation of the point in the height gdf closest to the line start point and end point
     max_deviation = 0.1
@@ -153,7 +153,7 @@ def generate_road_points(road_geometry, interval):
     # thanks to https://stackoverflow.com/questions/62990029/how-to-get-equally-spaced-points-on-a-line-in-shapely
     distance_delta = interval
     distances = np.arange(0, road_geometry.length, distance_delta)
-    road_points = [road_geometry.interpolate(distance) for distance in distances] + [road_geometry.boundary[1]]
+    road_points = [road_geometry.interpolate(distance) for distance in distances] + [Point(road_geometry.coords[1])]
 
     return road_points
 
