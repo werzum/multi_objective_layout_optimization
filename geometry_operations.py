@@ -5,6 +5,8 @@ from re import T
 from turtle import distance, pos
 import geometry_utilities
 
+import matplotlib.pyplot as plt
+
 from shapely.geometry import LineString, Point
 
 import numpy as np
@@ -76,7 +78,8 @@ def no_height_obstructions(possible_line,height_gdf):
         _type_: _description_
     """    
     support_height = 8
-    min_height = 2
+    min_height = 1
+    road_height_cutoff = 15
     start_point, end_point = Point(possible_line.coords[0]), Point(possible_line.coords[1])
 
     # find the elevation of the point in the height gdf closest to the line start point and end point
@@ -90,6 +93,9 @@ def no_height_obstructions(possible_line,height_gdf):
 
     # fetch the points along the line
     floor_points = generate_road_points(possible_line, interval = 1)
+    # remove first 15 points since they are on the road and throw off the computation
+    floor_points = floor_points[road_height_cutoff:]
+
     # and get their height
     floor_points_height = [fetch_point_elevation(point,height_gdf,max_deviation) for point in floor_points]
 
@@ -99,7 +105,13 @@ def no_height_obstructions(possible_line,height_gdf):
     floor_point_array = list(zip([point.x for point in floor_points], [point.y for point in floor_points],floor_points_height))
     line_to_floor_distances = [geometry_utilities.lineseg_dist(point,line_start_point_array, line_end_point_array) for point in floor_point_array]
 
-    return True if min(line_to_floor_distances)>min_height else False
+    if min(line_to_floor_distances)>min_height:
+        return True
+    else:
+        plt.figure(figsize=(10, 10))
+        plt.plot([point.x for point in floor_points], floor_points_height)
+        plt.plot([start_point.x, end_point.x],[start_point_height, end_point_height])
+        return False
 
 
 def fetch_point_elevation(point, height_gdf, max_deviation):
