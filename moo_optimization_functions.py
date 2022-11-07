@@ -84,21 +84,54 @@ class MyMutation(Mutation):
             cli_assgn_vars = variable_matrix[:-1]
             fac_vars = variable_matrix[-1]
 
-            #randomly remove a facility
-            fac_indices = np.where(fac_vars==1)[0]
-            if randint(0,1) and len(fac_indices)>0:
-                fac_vars[choices(fac_indices)] = 0
+            # try 10 times to remove a facility that decreases objective value
+            for k in range(10):
 
-                #reshuffle those clis which had previously been assigned to this
-                cli_assgn_vars, fac_vars = optimization_functions.test_and_reassign_clis(problem.facility_range, problem.client_range, fac_vars, cli_assgn_vars, fac_indices, problem.cost_matrix)
+                #get old obj value
+                overall_distance_obj_before = np.sum(cli_assgn_vars*problem.cost_matrix)
+                overall_cost_obj_before = np.sum(fac_vars*problem.facility_cost)
+                objective_value_before = overall_cost_obj_before+overall_distance_obj_before
+
+                #randomly remove a facility
+                fac_indices = np.where(fac_vars==1)[0]
+                if randint(0,1) and len(fac_indices)>0:
+                    fac_to_delete = choices(fac_indices)
+                    fac_vars[fac_to_delete] = 0
+
+                    #reshuffle those clis which had previously been assigned to this
+                    cli_assgn_vars, fac_vars = optimization_functions.test_and_reassign_clis(problem.facility_range, problem.client_range, fac_vars, cli_assgn_vars, fac_indices, problem.cost_matrix)
+
+                    overall_distance_obj_after = np.sum(cli_assgn_vars*problem.cost_matrix)
+                    overall_cost_obj_after = np.sum(fac_vars*problem.facility_cost)
+                    objective_value_after = overall_cost_obj_after+overall_distance_obj_after
+
+                    #see whether this decreased the objective function
+                    if objective_value_after<objective_value_before:
+                        break
+                    # undo this and keep trying
+                    else:
+                        fac_vars[fac_to_delete] = 1
+                        #reshuffle those clis which had previously been assigned to this
+                        cli_assgn_vars, fac_vars = optimization_functions.test_and_reassign_clis(problem.facility_range, problem.client_range, fac_vars, cli_assgn_vars, fac_indices, problem.cost_matrix)
 
             # else randomly open one facility up
             else:
-                fac_vars[randint(0,problem.facility_range-1)] = 1
-                fac_indices = np.where(fac_vars==1)[0]
 
-                # just now for speedup:
-                if randint(0,1):
+                # try 10 times to remove a facility that decreases objective value
+                for k in range(10):
+
+                    #get old obj value
+                    overall_distance_obj_before = np.sum(cli_assgn_vars*problem.cost_matrix)
+                    overall_cost_obj_before = np.sum(fac_vars*problem.facility_cost)
+                    objective_value_before = overall_cost_obj_before+overall_distance_obj_before
+
+                    # open random factory
+                    factory_to_open = randint(0,problem.facility_range-1)
+                    fac_vars[factory_to_open] = 1
+                    fac_indices = np.where(fac_vars==1)[0]
+
+                    # # just now for speedup:
+                    # if randint(0,1):
                     # and reassign all facs to their closest version
                     if len(fac_indices)>0:
                         for j in range(problem.client_range):
@@ -112,6 +145,26 @@ class MyMutation(Mutation):
                             random_fac = choices(min_index)
 
                             cli_assgn_vars[j, random_fac] = 1
+
+                            #get new obj value
+                            overall_distance_obj_after = np.sum(cli_assgn_vars*problem.cost_matrix)
+                            overall_cost_obj_after = np.sum(fac_vars*problem.facility_cost)
+                            objective_value_after = overall_cost_obj_after+overall_distance_obj_after
+
+                            if objective_value_after<objective_value_before:
+                                break
+                            else:
+                                fac_vars[factory_to_open] = 1
+                                # and reassign
+                                for j in range(problem.client_range):
+                                    # smallest distance of this cli to open facs
+                                    smallest_distance = min(problem.cost_matrix[j,fac_indices])
+                                    # find its position
+                                    min_index = np.where(problem.cost_matrix[j]==smallest_distance)[0]
+                                    # and assign to one of them
+                                    random_fac = choices(min_index)
+                                    cli_assgn_vars[j, random_fac] = 1
+
         
             buffer.append(np.vstack([cli_assgn_vars,fac_vars]))
         
