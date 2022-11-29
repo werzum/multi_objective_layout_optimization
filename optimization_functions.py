@@ -90,6 +90,7 @@ def add_moo_objective_function(model, facility_range, client_range, facility_cos
     """
     obj_a_factor = obj_a_factor*0.1
     model.problem += (obj_a_factor)*pulp.lpSum([
+        # the cost per m3 based on the productivity model by Gaffariyan, Stampfer, Sessions 2013
         (0.043*model.aij[cli][fac]# the distance from tree to cable road, aka lateral yarding distance
         +0.007*distance_carriage_support[cli][fac] #the yarding distance between carriage and support
         #+tree_volumes_list[cli]**-0.3 # the crown volume of the tree

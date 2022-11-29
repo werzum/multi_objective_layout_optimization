@@ -70,6 +70,15 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
     return possible_lines, slope_deviation, possible_anchor_triples, possible_support_trees, angle_between_supports
 
 def compute_angle_between_supports(possible_line, height_gdf):
+    """ Compute the angle between the start and end support of a cable road.
+
+    Args:
+        possible_line (_type_): _description_
+        height_gdf (_type_): _description_
+
+    Returns:
+        _type_:  the angle between two points in degrees
+    """    
     start_point_xy, end_point_xy = Point(possible_line.coords[0]), Point(possible_line.coords[1])
     max_deviation = 0.1
     start_point_xy_height = fetch_point_elevation(start_point_xy,height_gdf,max_deviation)
