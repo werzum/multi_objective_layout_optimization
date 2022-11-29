@@ -36,6 +36,7 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
     slope_deviation = []
     possible_anchor_triples = []
     possible_support_trees = []
+    angle_between_supports = []
 
     max_main_line_slope_deviation = 45
 
@@ -59,13 +60,27 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
                         
                         # and finally check for height obstructions and, if no obstructions were found, append this configuration to the line_gdf
                         if no_height_obstructions(possible_line, height_gdf):
+                            angle_between_supports.append(compute_angle_between_supports(possible_line, height_gdf))
                             possible_lines.append(possible_line)
                             slope_deviation.append(possible_line_to_slope_angle)
                             possible_anchor_triples.append(triple_angle)
                             possible_support_trees.append([support_tree_candidates.geometry])
 
 
-    return possible_lines, slope_deviation, possible_anchor_triples, possible_support_trees
+    return possible_lines, slope_deviation, possible_anchor_triples, possible_support_trees, angle_between_supports
+
+def compute_angle_between_supports(possible_line, height_gdf):
+    start_point_xy, end_point_xy = Point(possible_line.coords[0]), Point(possible_line.coords[1])
+    max_deviation = 0.1
+    start_point_xy_height = fetch_point_elevation(start_point_xy,height_gdf,max_deviation)
+    end_point_xy_height = fetch_point_elevation(end_point_xy,height_gdf,max_deviation)
+
+    # piece together the triple from the xy coordinates and the z (height)
+    start_point_xyz = (start_point_xy.coords[0][0],start_point_xy.coords[0][1],start_point_xy_height)
+    end_point_xyz = (end_point_xy.coords[0][0],end_point_xy.coords[0][1],end_point_xy_height)
+
+    # and finally compute the angle
+    return geometry_utilities.angle_between_3d(start_point_xyz, end_point_xyz)
 
 def no_height_obstructions(possible_line,height_gdf):
     """A function to check whether there are any points along the line candidate (spanned up by the starting/end points elevation plus the support height) which are less than min_height away from the line.
@@ -217,6 +232,8 @@ def filter_gdf_by_contained_elements(gdf, polygon):
 
     return contained_points
 
+from shapely.ops import nearest_points
+
 def compute_distances_facilities_clients(tree_gdf, line_gdf):
     """Create a numpy matrix with the distance between every tree and line
 
@@ -228,17 +245,21 @@ def compute_distances_facilities_clients(tree_gdf, line_gdf):
         _type_: A numpy matrix of the costs/distances
     """    
     # compute the distance to each tree for every row
-    distances = []
+    tree_line_distances = []
+    carriage_support_distances = []
+
+
     for line in line_gdf.iterrows():
         line_tree_distance = tree_gdf.geometry.distance(line[1].geometry)
+        # get the nearest point between the tree and the cable road for all trees
+        # project(tree,line)) gets the distance of the closest point on the line
+        carriage_support_distance = [line[1].geometry.project(Point(tree_geometry.coords[0])) for tree_geometry in tree_gdf.geometry]
 
-        # square the distance after 20 meters to reflect high costs
-        # line_tree_distance[line_tree_distance>20] = line_tree_distance[line_tree_distance>20]**2
-
-        distances.append(line_tree_distance)
+        tree_line_distances.append(line_tree_distance)
+        carriage_support_distances.append(carriage_support_distance)
 
     # pivot the table and convert to numpy matrix (solver expects it this way)
-    return np.asarray(distances).transpose()
+    return np.asarray(tree_line_distances).transpose(), np.asarray(carriage_support_distances).transpose()
 
 def generate_triple_angle(point, line_candidate, anchor_trees):
     """Generate a list of line-triples that are within correct angles to the road point and slope line.

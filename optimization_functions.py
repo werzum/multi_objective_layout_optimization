@@ -76,7 +76,7 @@ def add_facility_client_variables(model, facility_range, client_range):
     setattr(model, "cli_assgn_vars", cli_assgn_vars)
 
 
-def add_moo_objective_function(model, facility_range, client_range, facility_cost, obj_a_factor):
+def add_moo_objective_function(model, facility_range, client_range, facility_cost, obj_a_factor, tree_volumes_list, angle_between_supports_list, distance_carriage_support):
     """Add the objective function to the model, compromised of two terms to minimize:
     First term: minimize cost*cli assigned to facility
     Second term: minimize the cost of factories
@@ -90,7 +90,12 @@ def add_moo_objective_function(model, facility_range, client_range, facility_cos
     """
     obj_a_factor = obj_a_factor*0.1
     model.problem += (obj_a_factor)*pulp.lpSum([
-        model.aij[cli][fac] * model.cli_assgn_vars[cli][fac]
+        (0.043*model.aij[cli][fac]# the distance from tree to cable road, aka lateral yarding distance
+        +0.007*distance_carriage_support[cli][fac] #the yarding distance between carriage and support
+        #+tree_volumes_list[cli]**-0.3 # the crown volume of the tree
+        +0.029*100 # the harvest intensity set to 100%
+        +0.038*angle_between_supports_list[fac]) #the angle between the supports of this cable road
+         * model.cli_assgn_vars[cli][fac]
         for cli in client_range
         for fac in facility_range
     ]) + (1-obj_a_factor)*pulp.lpSum([

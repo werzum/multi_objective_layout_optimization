@@ -16,7 +16,7 @@ def value_within_range(min, max, distance):
         return False
 
 def angle_between(v1, v2):
-    """Returns the angle between to vectors. Returns 0 to 180 degrees angles - note that the direction of the vector matters!
+    """Returns the angle between to 2d vectors. Returns 0 to 180 degrees angles - note that the direction of the vector matters!
     Will however not discern between a -20 and 20 rotation wrt the v1.
 
     Args:
@@ -101,3 +101,17 @@ def lineseg_dist(p, a, b):
     c = np.cross(p - a, d)
 
     return np.hypot(h, np.linalg.norm(c))
+
+def angle_between_3d(v1, v2):
+    """ Returns the angle in radians between vectors 'v1' and 'v2'::
+
+            >>> angle_between((1, 0, 0), (0, 1, 0))
+            1.5707963267948966
+            >>> angle_between((1, 0, 0), (1, 0, 0))
+            0.0
+            >>> angle_between((1, 0, 0), (-1, 0, 0))
+            3.141592653589793
+    """
+    v1_u = unit_vector(v1)
+    v2_u = unit_vector(v2)
+    return math.degrees(np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0)))

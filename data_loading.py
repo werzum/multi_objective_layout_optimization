@@ -44,7 +44,7 @@ def read_csv(file_path):
 
 def format_csv(csv):
     # ensure the csv columns are parsed correctly - especially with the separators
-    for column in  ["x","y","z","id","BHD"]:
+    for column in  ["x","y","z","id","BHD","crownVolume"]:
         if is_string_dtype(csv[column]):
             csv[column] = csv[column].str.replace(',', '.').astype(float)
         csv[column] = pd.to_numeric(csv[column])
