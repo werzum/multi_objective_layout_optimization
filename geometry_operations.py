@@ -1,17 +1,14 @@
 from copy import deepcopy
-from enum import unique
-from operator import truediv
-from re import T
-from turtle import distance, pos
-import geometry_utilities
+from turtle import distance
+from shapely.geometry import LineString, Point
 
 import matplotlib.pyplot as plt
 
-from shapely.geometry import LineString, Point
-
 import numpy as np
-
+import math
 import itertools
+
+import geometry_utilities
 
 def generate_possible_lines(road_points, target_trees, anchor_trees, overall_trees, slope_line, height_gdf):
     """Compute which lines can be made from road_points to anchor_trees without having an angle greater than max_main_line_slope_deviation
@@ -66,8 +63,11 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
                             possible_anchor_triples.append(triple_angle)
                             possible_support_trees.append([support_tree_candidates.geometry])
 
+    start_point_dict = {}
+    for id,line in enumerate(possible_lines):
+        start_point_dict[id] = line.coords[0]
 
-    return possible_lines, slope_deviation, possible_anchor_triples, possible_support_trees, angle_between_supports
+    return possible_lines, slope_deviation, possible_anchor_triples, possible_support_trees, angle_between_supports, start_point_dict
 
 def compute_angle_between_supports(possible_line, height_gdf):
     """ Compute the angle between the start and end support of a cable road.
@@ -115,10 +115,39 @@ def no_height_obstructions(possible_line,height_gdf):
     start_point_height+=support_height
     end_point_height+=support_height
 
-    # fetch the points along the line
+    # fetch the floor points along the line
     floor_points = generate_road_points(possible_line, interval = 1)
     # remove first 15 points since they are on the road and throw off the computation
     floor_points = floor_points[road_height_cutoff:]
+
+
+    #here we add the line computation
+        #     onst float Precision = 0.0001;
+        # double a_prev = a - IntervalStep;
+        # double a_next = a;
+        # do
+        # {
+        #     a = (a_prev + a_next) / 2f;
+        #     if (Math.Sqrt(Math.Pow(l, 2) - Math.Pow(v, 2)) < 2 * a * Math.sinh(h/(2*a)))
+        #         a_prev = a;
+        #     else
+        #         a_next = a;
+        # } while (a_next - a_prev > Precision);
+
+    #\begin{equation*}\begin{split}h & = x_2 - x_1 \\v & = y_2 - y_1 \\\end{split}\end{equation*}
+    # height_difference = x_2-x_1
+    # width_difference = y_2-y_1
+    # line_length = 100
+
+    # precision = 0.0001
+    # a_prev = a - interval_step
+    # a_next = a
+    # while a_next-a_prev > precision:
+    #     a = (a_prev + a_next) / 2f
+    #     if (math.sqrt(l**2 - v**2)) < 2 * a * math.sinh(h/(2*a)):
+    #         a_prev = a
+    #     else:
+    #         a_next = a
 
     # and get their height
     floor_points_height = [fetch_point_elevation(point,height_gdf,max_deviation) for point in floor_points]
