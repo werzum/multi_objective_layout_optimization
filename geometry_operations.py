@@ -56,12 +56,12 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
                     if triple_angle and len(triple_angle)>0:
                         
                         # and finally check for height obstructions and, if no obstructions were found, append this configuration to the line_gdf
-                        if no_height_obstructions(possible_line, height_gdf):
-                            angle_between_supports.append(compute_angle_between_supports(possible_line, height_gdf))
-                            possible_lines.append(possible_line)
-                            slope_deviation.append(possible_line_to_slope_angle)
-                            possible_anchor_triples.append(triple_angle)
-                            possible_support_trees.append([support_tree_candidates.geometry])
+                        #if no_height_obstructions(possible_line, height_gdf):
+                        angle_between_supports.append(compute_angle_between_supports(possible_line, height_gdf))
+                        possible_lines.append(possible_line)
+                        slope_deviation.append(possible_line_to_slope_angle)
+                        possible_anchor_triples.append(triple_angle)
+                        possible_support_trees.append([support_tree_candidates.geometry])
 
     start_point_dict = {}
     for id,line in enumerate(possible_lines):

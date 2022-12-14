@@ -44,10 +44,9 @@ def read_csv(file_path):
 
 def format_csv(csv):
     # ensure the csv columns are parsed correctly - especially with the separators
-    for column in  ["x","y","z","id","BHD","crownVolume"]:
-        if is_string_dtype(csv[column]):
-            csv[column] = csv[column].str.replace(',', '.').astype(float)
-        csv[column] = pd.to_numeric(csv[column])
+    # convert just columns "a" and "b"
+    csv[["x","y","z","id","BHD","crownVolume"]] = csv[["x","y","z","id","BHD","crownVolume"]].replace(',', '.',regex=True).astype(float)
+    csv[["x","y","z","id","BHD","crownVolume"]] = csv[["x","y","z","id","BHD","crownVolume"]].apply(pd.to_numeric)
     return csv
 
 def load_bestand_and_forest():
