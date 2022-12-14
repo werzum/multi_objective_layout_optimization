@@ -103,9 +103,31 @@ def lineseg_dist(p, a, b):
     return np.hypot(h, np.linalg.norm(c))
 
 def angle_between_3d(v1, v2):
-    """ Returns the angle in radians between vectors 'v1' and 'v2'
-    
     """
+    Calculates the angle between two 3D vectors.
+    
+    Args:
+        v1: The first 3D vector.
+        v2: The second 3D vector.
+        
+    Returns:
+        The angle between the two vectors in degrees.
+    """
+
     v1_u = unit_vector(v1)
     v2_u = unit_vector(v2)
     return math.degrees(np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0)))
+
+def distance_between_3d_points(point1, point2):
+    """ Compute distance between two 3d points
+
+    Args:
+        point1 (_type_): Numpy array of coordinates
+        point2 (_type_): Numpy array of coordinates
+
+    Returns:
+        _type_: float of distance
+    """    
+    squared_dist = np.sum((point1-point2)**2, axis=0)
+    dist = np.sqrt(squared_dist)
+    return dist

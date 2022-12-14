@@ -116,55 +116,57 @@ def no_height_obstructions(possible_line,height_gdf):
     end_point_height+=support_height
 
     # fetch the floor points along the line
-    floor_points = generate_road_points(possible_line, interval = 1)
+    points_along_line = generate_road_points(possible_line, interval = 1)
     # remove first 15 points since they are on the road and throw off the computation
-    floor_points = floor_points[road_height_cutoff:]
-
-
-    #here we add the line computation
-        #     onst float Precision = 0.0001;
-        # double a_prev = a - IntervalStep;
-        # double a_next = a;
-        # do
-        # {
-        #     a = (a_prev + a_next) / 2f;
-        #     if (Math.Sqrt(Math.Pow(l, 2) - Math.Pow(v, 2)) < 2 * a * Math.sinh(h/(2*a)))
-        #         a_prev = a;
-        #     else
-        #         a_next = a;
-        # } while (a_next - a_prev > Precision);
-
-    #\begin{equation*}\begin{split}h & = x_2 - x_1 \\v & = y_2 - y_1 \\\end{split}\end{equation*}
-    # height_difference = x_2-x_1
-    # width_difference = y_2-y_1
-    # line_length = 100
-
-    # precision = 0.0001
-    # a_prev = a - interval_step
-    # a_next = a
-    # while a_next-a_prev > precision:
-    #     a = (a_prev + a_next) / 2f
-    #     if (math.sqrt(l**2 - v**2)) < 2 * a * math.sinh(h/(2*a)):
-    #         a_prev = a
-    #     else:
-    #         a_next = a
-
-    # and get their height
-    floor_points_height = [fetch_point_elevation(point,height_gdf,max_deviation) for point in floor_points]
+    points_along_line = points_along_line[road_height_cutoff:]
+    # and their height
+    floor_height_below_line_points = [fetch_point_elevation(point,height_gdf,max_deviation) for point in points_along_line]
 
     # get the distances of each point along the line to the line itself
+    # 1. create arrays for start and end point
     line_start_point_array = np.array([start_point.x,start_point.y,start_point_height])
     line_end_point_array = np.array([end_point.x,end_point.y,end_point_height])
-    floor_point_array = list(zip([point.x for point in floor_points], [point.y for point in floor_points],floor_points_height))
-    line_to_floor_distances = [geometry_utilities.lineseg_dist(point,line_start_point_array, line_end_point_array) for point in floor_point_array]
 
-    if min(line_to_floor_distances)>min_height:
+    # 2. get the ldh for each point along the line between start and end and put the im an array
+    # define variables
+    c_rope_length = geometry_utilities.distance_between_3d_points(line_start_point_array,line_end_point_array)
+    b_whole_section = start_point.distance(end_point)
+    H_t_horizontal_force_tragseil = 1000 #improvised value
+    q_vertical_force = 100 #improvised value
+    q_bar_rope_weight = 10 #improvised value
+    q_delta_weight_difference_pull_rope_weight = 10 #improvised value
+    # compute distances and create the corresponding points
+    ldh_array = np.array([lastdurchhang_at_point(point, start_point, end_point, b_whole_section, H_t_horizontal_force_tragseil, q_vertical_force, c_rope_length, q_bar_rope_weight, q_delta_weight_difference_pull_rope_weight) for point in points_along_line])
+
+    # 3. create an array of the floor points and their distance to the line (without slope)
+    floor_points = list(zip([point.x for point in points_along_line], [point.y for point in points_along_line],floor_height_below_line_points))
+    line_to_floor_distances = [geometry_utilities.lineseg_dist(point,line_start_point_array, line_end_point_array) for point in floor_points]
+
+    # and finally check the distances between each floor point and the ldh point
+    sloped_line_to_floor_distances = line_to_floor_distances - ldh_array
+
+    if min(sloped_line_to_floor_distances)>min_height:
         return True
     else:
-        plt.figure(figsize=(10, 10))
-        plt.plot([point.x for point in floor_points], floor_points_height)
-        plt.plot([start_point.x, end_point.x],[start_point_height, end_point_height])
+        # plot the failed lines
+        # plt.figure(figsize=(10, 10))
+        # plt.plot([point[0] for point in floor_points], floor_height_below_line_points)
+        # plt.plot([point[0] for point in floor_points], floor_height_below_line_points+sloped_line_to_floor_distances)
+        # plt.plot([start_point.x, end_point.x],[start_point_height, end_point_height])
+        # plt.show()
         return False
+
+def lastdurchhang_at_point(point, start_point, end_point, b_whole_section, H_t_horizontal_force_tragseil, q_vertical_force, c_rope_length, q_bar_rope_weight, q_delta_weight_difference_pull_rope_weight):
+    b1_section_1 = start_point.distance(point)
+    b2_section_2 = end_point.distance(point)
+    lastdurchhang = (b1_section_1*b2_section_2/(b_whole_section*H_t_horizontal_force_tragseil))*(q_vertical_force+(c_rope_length*q_bar_rope_weight/2)+(c_rope_length*q_delta_weight_difference_pull_rope_weight/(4*b_whole_section))*(b2_section_2-b1_section_1))
+    return lastdurchhang
+
+def lastdurchhang_mitte():
+    q_r_längeneinheitsgewicht_tragseil = 100 #improvised value
+    S_bar_t_mittlere_kraft_tragseil = H_t_horizontal_force_tragseil*(c_rope_length/b_whole_section)
+    #compute ldh with simplified formula
+    ldh_mitte = c_rope_length/4*S_bar_t_mittlere_kraft_tragseil*(q_vertical_force+(c_rope_length*q_r_längeneinheitsgewicht_tragseil)/2)
 
 
 def fetch_point_elevation(point, height_gdf, max_deviation):
