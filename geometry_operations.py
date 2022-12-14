@@ -56,12 +56,12 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
                     if triple_angle and len(triple_angle)>0:
                         
                         # and finally check for height obstructions and, if no obstructions were found, append this configuration to the line_gdf
-                        #if no_height_obstructions(possible_line, height_gdf):
-                        angle_between_supports.append(compute_angle_between_supports(possible_line, height_gdf))
-                        possible_lines.append(possible_line)
-                        slope_deviation.append(possible_line_to_slope_angle)
-                        possible_anchor_triples.append(triple_angle)
-                        possible_support_trees.append([support_tree_candidates.geometry])
+                        if no_height_obstructions(possible_line, height_gdf):
+                            angle_between_supports.append(compute_angle_between_supports(possible_line, height_gdf))
+                            possible_lines.append(possible_line)
+                            slope_deviation.append(possible_line_to_slope_angle)
+                            possible_anchor_triples.append(triple_angle)
+                            possible_support_trees.append([support_tree_candidates.geometry])
 
     start_point_dict = {}
     for id,line in enumerate(possible_lines):
@@ -149,11 +149,11 @@ def no_height_obstructions(possible_line,height_gdf):
         return True
     else:
         # plot the failed lines
-        # plt.figure(figsize=(10, 10))
-        # plt.plot([point[0] for point in floor_points], floor_height_below_line_points)
-        # plt.plot([point[0] for point in floor_points], floor_height_below_line_points+sloped_line_to_floor_distances)
-        # plt.plot([start_point.x, end_point.x],[start_point_height, end_point_height])
-        # plt.show()
+        plt.figure(figsize=(10, 10))
+        plt.plot([point[0] for point in floor_points], floor_height_below_line_points)
+        plt.plot([point[0] for point in floor_points], floor_height_below_line_points+sloped_line_to_floor_distances)
+        plt.plot([start_point.x, end_point.x],[start_point_height, end_point_height])
+        plt.show()
         return False
 
 def lastdurchhang_at_point(point, start_point, end_point, b_whole_section, H_t_horizontal_force_tragseil, q_vertical_force, c_rope_length, q_bar_rope_weight, q_delta_weight_difference_pull_rope_weight):
