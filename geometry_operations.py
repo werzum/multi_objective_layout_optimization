@@ -34,9 +34,11 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
     possible_anchor_triples = []
     possible_support_trees = []
     angle_between_supports = []
+    nr_of_supports = []
 
     max_main_line_slope_deviation = 45
 
+    
     for point in road_points:
         for target in target_trees.geometry:
             possible_line = LineString([point, target])
@@ -55,19 +57,21 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
                     # if we have one or more valid anchor configurations, append this configuration to the line_gdf
                     if triple_angle and len(triple_angle)>0:
                         
-                        # and finally check for height obstructions and, if no obstructions were found, append this configuration to the line_gdf
-                        if no_height_obstructions(possible_line, height_gdf):
-                            angle_between_supports.append(compute_angle_between_supports(possible_line, height_gdf))
-                            possible_lines.append(possible_line)
-                            slope_deviation.append(possible_line_to_slope_angle)
-                            possible_anchor_triples.append(triple_angle)
-                            possible_support_trees.append([support_tree_candidates.geometry])
+                        # add the corresponding values to the array
+                        angle_between_supports.append(compute_angle_between_supports(possible_line, height_gdf))
+                        possible_lines.append(possible_line)
+                        slope_deviation.append(possible_line_to_slope_angle)
+                        possible_anchor_triples.append(triple_angle)
+                        possible_support_trees.append([support_tree_candidates.geometry])
+                        # and finally check for height obstructions and add supports if necessary
+                        nr_of_supports.append(no_height_obstructions(possible_line, height_gdf, 0))
+                        
 
     start_point_dict = {}
     for id,line in enumerate(possible_lines):
         start_point_dict[id] = line.coords[0]
 
-    return possible_lines, slope_deviation, possible_anchor_triples, possible_support_trees, angle_between_supports, start_point_dict
+    return possible_lines, slope_deviation, possible_anchor_triples, possible_support_trees, angle_between_supports, start_point_dict, nr_of_supports
 
 def compute_angle_between_supports(possible_line, height_gdf):
     """ Compute the angle between the start and end support of a cable road.
@@ -91,7 +95,7 @@ def compute_angle_between_supports(possible_line, height_gdf):
     # and finally compute the angle
     return geometry_utilities.angle_between_3d(start_point_xyz, end_point_xyz)
 
-def no_height_obstructions(possible_line,height_gdf):
+def no_height_obstructions(possible_line,height_gdf, current_supports):
     """A function to check whether there are any points along the line candidate (spanned up by the starting/end points elevation plus the support height) which are less than min_height away from the line.
 
     Args:
@@ -101,7 +105,7 @@ def no_height_obstructions(possible_line,height_gdf):
     Returns:
         _type_: _description_
     """    
-    support_height = 8
+    support_height = 11
     min_height = 1
     road_height_cutoff = 15
     start_point, end_point = Point(possible_line.coords[0]), Point(possible_line.coords[1])
@@ -118,7 +122,7 @@ def no_height_obstructions(possible_line,height_gdf):
     # fetch the floor points along the line
     points_along_line = generate_road_points(possible_line, interval = 1)
     # remove first 15 points since they are on the road and throw off the computation
-    points_along_line = points_along_line[road_height_cutoff:]
+    #points_along_line = points_along_line[road_height_cutoff:]
     # and their height
     floor_height_below_line_points = [fetch_point_elevation(point,height_gdf,max_deviation) for point in points_along_line]
 
@@ -131,10 +135,10 @@ def no_height_obstructions(possible_line,height_gdf):
     # define variables
     c_rope_length = geometry_utilities.distance_between_3d_points(line_start_point_array,line_end_point_array)
     b_whole_section = start_point.distance(end_point)
-    H_t_horizontal_force_tragseil = 1000 #improvised value
-    q_vertical_force = 100 #improvised value
-    q_bar_rope_weight = 10 #improvised value
-    q_delta_weight_difference_pull_rope_weight = 10 #improvised value
+    H_t_horizontal_force_tragseil = 80000 #improvised value 
+    q_vertical_force = 15000 #improvised value 30kn?
+    q_bar_rope_weight = 1.6 #improvised value 2?
+    q_delta_weight_difference_pull_rope_weight = 0.6 #improvised value
     # compute distances and create the corresponding points
     ldh_array = np.array([lastdurchhang_at_point(point, start_point, end_point, b_whole_section, H_t_horizontal_force_tragseil, q_vertical_force, c_rope_length, q_bar_rope_weight, q_delta_weight_difference_pull_rope_weight) for point in points_along_line])
 
@@ -144,21 +148,69 @@ def no_height_obstructions(possible_line,height_gdf):
 
     # and finally check the distances between each floor point and the ldh point
     sloped_line_to_floor_distances = line_to_floor_distances - ldh_array
+    # fig = plt.figure(figsize=(10, 10))
+    # ax = plt.axes(projection='3d') 
+    # plt.axis([-120,0,-100,20])
 
-    if min(sloped_line_to_floor_distances)>min_height:
-        return True
+    lowest_point_height = min(sloped_line_to_floor_distances)
+
+    if lowest_point_height>min_height:
+        return current_supports
     else:
+        # fig = plt.figure(figsize=(10, 10))
+        # ax = plt.axes(projection='3d') 
+        # plt.axis([-120,0,-100,20])
+        # # plot the failed lines
+        # ax.plot3D([point[0] for point in floor_points], [point[1] for point in floor_points],floor_height_below_line_points)
+        # ax.plot3D([point[0] for point in floor_points],[point[1] for point in floor_points], floor_height_below_line_points+sloped_line_to_floor_distances)
+        # ax.plot3D([start_point.x, end_point.x],[start_point.y, end_point.y],[start_point_height, end_point_height])
+        # fig.show()
+        #1. get the point of contact
+        index = int(np.where(sloped_line_to_floor_distances == lowest_point_height)[0])
+
+        #2. "put a support on it" - add support height and flag this as supported
+        sloped_line_to_floor_distances[index]+= support_height
+        current_supports+=1
+
+        #3. create the new point and lines to/from it
+        new_support_point = points_along_line[index]
+        road_to_support_line = LineString([start_point, new_support_point])
+        support_to_anchor_line = LineString([new_support_point,end_point])
+
+        #4. redo the line height computation left and right recursively
+        # add the last argument to prevent adding the supports twice
+        current_supports = no_height_obstructions(road_to_support_line,height_gdf, current_supports)
+        current_supports = no_height_obstructions(support_to_anchor_line,height_gdf, current_supports)
+        return current_supports
+
         # plot the failed lines
-        plt.figure(figsize=(10, 10))
-        plt.plot([point[0] for point in floor_points], floor_height_below_line_points)
-        plt.plot([point[0] for point in floor_points], floor_height_below_line_points+sloped_line_to_floor_distances)
-        plt.plot([start_point.x, end_point.x],[start_point_height, end_point_height])
-        plt.show()
-        return False
+        # ax.plot3D([point[0] for point in floor_points], [point[1] for point in floor_points],floor_height_below_line_points)
+        # ax.plot3D([point[0] for point in floor_points],[point[1] for point in floor_points], floor_height_below_line_points+sloped_line_to_floor_distances)
+        # ax.plot3D([start_point.x, end_point.x],[start_point.y, end_point.y],[start_point_height, end_point_height])
+        # fig.show()
+        # return False
 
 def lastdurchhang_at_point(point, start_point, end_point, b_whole_section, H_t_horizontal_force_tragseil, q_vertical_force, c_rope_length, q_bar_rope_weight, q_delta_weight_difference_pull_rope_weight):
+    """
+    Calculates the lastdurchhang value at a given point.
+
+    Args:
+    point (Point): The point at which the lastdurchhang value is to be calculated.
+    start_point (Point): The start point of the section.
+    end_point (Point): The end point of the section.
+    b_whole_section (float): The length of the whole section.
+    H_t_horizontal_force_tragseil (float): The horizontal force of the tragseil.
+    q_vertical_force (float): The vertical force.
+    c_rope_length (float): The length of the rope.
+    q_bar_rope_weight (float): The weight of the rope.
+    q_delta_weight_difference_pull_rope_weight (float): The difference in weight between the pull rope and the tragseil.
+
+    Returns:
+    float: The lastdurchhang value at the given point.
+    """
     b1_section_1 = start_point.distance(point)
     b2_section_2 = end_point.distance(point)
+
     lastdurchhang = (b1_section_1*b2_section_2/(b_whole_section*H_t_horizontal_force_tragseil))*(q_vertical_force+(c_rope_length*q_bar_rope_weight/2)+(c_rope_length*q_delta_weight_difference_pull_rope_weight/(4*b_whole_section))*(b2_section_2-b1_section_1))
     return lastdurchhang
 
@@ -170,6 +222,17 @@ def lastdurchhang_mitte():
 
 
 def fetch_point_elevation(point, height_gdf, max_deviation):
+    """
+    Fetches the elevation of a given point.
+
+    Args:
+    point (Point): The point for which the elevation is to be fetched.
+    height_gdf (GeoDataFrame): A GeoDataFrame containing the elevations.
+    max_deviation (float): The maximum deviation allowed while fetching the elevation.
+
+    Returns:
+    float: The elevation of the given point.
+    """
     return height_gdf.loc[(height_gdf.x > point.x-max_deviation) & (height_gdf.x < point.x+max_deviation) & (height_gdf.y < point.y+max_deviation) & (height_gdf.y > point.y-max_deviation),"elev"].values[0]
 
 def generate_support_trees(overall_trees, target, point, possible_line):

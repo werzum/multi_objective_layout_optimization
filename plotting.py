@@ -2,7 +2,6 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 import matplotlib.lines as mlines
-from matplotlib_scalebar.scalebar import ScaleBar
 
 def plot_gdfs(gdfs):
     fig, ax = plt.subplots(figsize=(10, 10))
