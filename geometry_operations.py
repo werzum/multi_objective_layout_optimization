@@ -10,7 +10,7 @@ import itertools
 
 import geometry_utilities
 
-def generate_possible_lines(road_points, target_trees, anchor_trees, overall_trees, slope_line, height_gdf):
+def generate_possible_lines(road_points, target_trees, anchor_trees, overall_trees, slope_line, height_gdf, plot_possible_lines):
     """Compute which lines can be made from road_points to anchor_trees without having an angle greater than max_main_line_slope_deviation
     First, we generate all possible lines between  each point along the road and all head anchors.
     For those which do not deviate more than max_main_line_slope_deviation degrees from the slope line, we compute head anchor support trees along the lines.
@@ -35,9 +35,16 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
     possible_support_trees = []
     angle_between_supports = []
     nr_of_supports = []
+    location_of_int_supports = []
 
     max_main_line_slope_deviation = 45
 
+    if plot_possible_lines:
+        fig = plt.figure(figsize=(15, 15))
+        ax = plt.axes(projection='3d') 
+        plt.axis([-60,60,-100,20])
+    else:
+        ax = None
     
     for point in road_points:
         for target in target_trees.geometry:
@@ -64,14 +71,21 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
                         possible_anchor_triples.append(triple_angle)
                         possible_support_trees.append([support_tree_candidates.geometry])
                         # and finally check for height obstructions and add supports if necessary
-                        nr_of_supports.append(no_height_obstructions(possible_line, height_gdf, 0))
+                        returned_location_int_supports = []
+                        returned_number_supports, returned_location_int_supports = no_height_obstructions(possible_line, height_gdf, 0, plot_possible_lines, ax, returned_location_int_supports)
+                        nr_of_supports.append(returned_number_supports)
+                        location_of_int_supports.append(returned_location_int_supports)
                         
-
     start_point_dict = {}
     for id,line in enumerate(possible_lines):
         start_point_dict[id] = line.coords[0]
+    
+    if plot_possible_lines:
+        # height_gdf_small = height_gdf.iloc[::500, :]
+        # ax.plot_trisurf(height_gdf_small["x"], height_gdf_small["y"], height_gdf_small["elev"], linewidth=0)
+        fig.show()
 
-    return possible_lines, slope_deviation, possible_anchor_triples, possible_support_trees, angle_between_supports, start_point_dict, nr_of_supports
+    return possible_lines, slope_deviation, possible_anchor_triples, possible_support_trees, angle_between_supports, start_point_dict, nr_of_supports, location_of_int_supports
 
 def compute_angle_between_supports(possible_line, height_gdf):
     """ Compute the angle between the start and end support of a cable road.
@@ -95,7 +109,7 @@ def compute_angle_between_supports(possible_line, height_gdf):
     # and finally compute the angle
     return geometry_utilities.angle_between_3d(start_point_xyz, end_point_xyz)
 
-def no_height_obstructions(possible_line,height_gdf, current_supports):
+def no_height_obstructions(possible_line,height_gdf, current_supports, plot_possible_lines, ax, location_supports):
     """A function to check whether there are any points along the line candidate (spanned up by the starting/end points elevation plus the support height) which are less than min_height away from the line.
 
     Args:
@@ -148,23 +162,20 @@ def no_height_obstructions(possible_line,height_gdf, current_supports):
 
     # and finally check the distances between each floor point and the ldh point
     sloped_line_to_floor_distances = line_to_floor_distances - ldh_array
-    # fig = plt.figure(figsize=(10, 10))
-    # ax = plt.axes(projection='3d') 
-    # plt.axis([-120,0,-100,20])
 
+    # return current supports if we are far away enough from the ground
     lowest_point_height = min(sloped_line_to_floor_distances)
 
+    # plot the lines if true
+    if plot_possible_lines:
+        # plot the failed lines
+        ax.plot3D([point[0] for point in floor_points],[point[1] for point in floor_points], floor_height_below_line_points+sloped_line_to_floor_distances)
+        #ax.plot3D([start_point.x, end_point.x],[start_point.y, end_point.y],[start_point_height, end_point_height])
+
     if lowest_point_height>min_height:
-        return current_supports
+        return current_supports, location_supports
+    # and enter the next recursive loop if not
     else:
-        # fig = plt.figure(figsize=(10, 10))
-        # ax = plt.axes(projection='3d') 
-        # plt.axis([-120,0,-100,20])
-        # # plot the failed lines
-        # ax.plot3D([point[0] for point in floor_points], [point[1] for point in floor_points],floor_height_below_line_points)
-        # ax.plot3D([point[0] for point in floor_points],[point[1] for point in floor_points], floor_height_below_line_points+sloped_line_to_floor_distances)
-        # ax.plot3D([start_point.x, end_point.x],[start_point.y, end_point.y],[start_point_height, end_point_height])
-        # fig.show()
         #1. get the point of contact
         index = int(np.where(sloped_line_to_floor_distances == lowest_point_height)[0])
 
@@ -179,16 +190,9 @@ def no_height_obstructions(possible_line,height_gdf, current_supports):
 
         #4. redo the line height computation left and right recursively
         # add the last argument to prevent adding the supports twice
-        current_supports = no_height_obstructions(road_to_support_line,height_gdf, current_supports)
-        current_supports = no_height_obstructions(support_to_anchor_line,height_gdf, current_supports)
-        return current_supports
-
-        # plot the failed lines
-        # ax.plot3D([point[0] for point in floor_points], [point[1] for point in floor_points],floor_height_below_line_points)
-        # ax.plot3D([point[0] for point in floor_points],[point[1] for point in floor_points], floor_height_below_line_points+sloped_line_to_floor_distances)
-        # ax.plot3D([start_point.x, end_point.x],[start_point.y, end_point.y],[start_point_height, end_point_height])
-        # fig.show()
-        # return False
+        current_supports, location_supports = no_height_obstructions(road_to_support_line,height_gdf, current_supports, plot_possible_lines, ax, location_supports)
+        current_supports, location_supports = no_height_obstructions(support_to_anchor_line,height_gdf, current_supports, plot_possible_lines, ax, location_supports)
+        return current_supports, location_supports.append(floor_points[index])
 
 def lastdurchhang_at_point(point, start_point, end_point, b_whole_section, H_t_horizontal_force_tragseil, q_vertical_force, c_rope_length, q_bar_rope_weight, q_delta_weight_difference_pull_rope_weight):
     """

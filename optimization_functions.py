@@ -5,8 +5,8 @@ from random import randint, choices
 import math
 
 
-def line_cost_function(line_length, uphill_yarding, large_yarder, intermediate_support_height):
-    """Compute the cost of each line based on Bont (2018) Rigi Penalty, line cost based on Stampfer (2003) heuristic
+def line_cost_function(line_length, uphill_yarding, large_yarder, intermediate_support_height, number_intermediate_supports):
+    """Compute the cost of each line based Kanzian
 
     Args:
         line_length (_type_): _description_
@@ -15,10 +15,6 @@ def line_cost_function(line_length, uphill_yarding, large_yarder, intermediate_s
     Returns:
         _type_: _description_
     """
-    # taken from Bont (2018) figure
-    #line_cost = (0.005455*line_length) + 21.73
-    # Line install cost as per Bont (2019)
-    #line_cost+= 200
     cost_man_hour = 44
 
     # rename the variables according to Kanzian publication
@@ -36,7 +32,7 @@ def line_cost_function(line_length, uphill_yarding, large_yarder, intermediate_s
     takedown_time = math.e**(0.96
                              + 0.00233*line_length
                              - 0.31 * extraction_direction
-                             - 0.31 * intermediate_support_height
+                             - 0.31 * number_intermediate_supports
                              + 0.33 * yarder_size)
 
     install_time = setup_time+takedown_time
