@@ -2,6 +2,7 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 import matplotlib.lines as mlines
+from shapely.geometry import Point
 
 def plot_gdfs(gdfs):
     fig, ax = plt.subplots(figsize=(10, 10))
@@ -22,6 +23,11 @@ def plot_gdf_with_anchors_and_supports(gdfs, line_gdf):
     for keyword in ["possible_support_trees","possible_anchor_triples"]:
         sublist = [item for sublist in line_gdf[keyword] for item in sublist]
         b = [item for subliste in sublist for item in subliste]
+        c = gpd.GeoSeries(b)
+        c.plot(cmap="tab20", ax=ax)
+    
+    for keyword in ["location_of_int_supports"]:
+        b = [Point(item[0][0],item[0][1]) for item in line_gdf[keyword] if item]
         c = gpd.GeoSeries(b)
         c.plot(cmap="tab20", ax=ax)
 
