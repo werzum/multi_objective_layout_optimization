@@ -9,6 +9,7 @@ import math
 import itertools
 
 import geometry_utilities
+import plotting
 
 import vispy.scene
 from vispy.scene import visuals
@@ -72,7 +73,6 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
                         returned_number_supports, returned_location_int_supports = no_height_obstructions(possible_line, height_gdf, 0, plot_possible_lines, view, returned_location_int_supports_init, overall_trees)
 
                         if (returned_number_supports and returned_location_int_supports) is not None:
-                            print(returned_number_supports, returned_location_int_supports)
                             #add the supports and their location
                             nr_of_supports.append(returned_number_supports)
                             location_of_int_supports.append(returned_location_int_supports)
@@ -135,17 +135,12 @@ def no_height_obstructions(possible_line, height_gdf, current_supports, plot_pos
     """    
     support_height = 11
     min_height = 1
-    road_height_cutoff = 15
     start_point, end_point = Point(possible_line.coords[0]), Point(possible_line.coords[1])
 
     # find the elevation of the point in the height gdf closest to the line start point and end point
     max_deviation = 0.1
-    start_point_height = fetch_point_elevation(start_point,height_gdf,max_deviation)
-    end_point_height = fetch_point_elevation(end_point,height_gdf,max_deviation)
-
-    # add the height of the support to it
-    start_point_height+=support_height
-    end_point_height+=support_height
+    start_point_height = fetch_point_elevation(start_point,height_gdf,max_deviation)+support_height
+    end_point_height = fetch_point_elevation(end_point,height_gdf,max_deviation)+support_height
 
     # fetch the floor points along the line
     points_along_line = generate_road_points(possible_line, interval = 1)
@@ -159,19 +154,13 @@ def no_height_obstructions(possible_line, height_gdf, current_supports, plot_pos
     line_start_point_array = np.array([start_point.x,start_point.y,start_point_height])
     line_end_point_array = np.array([end_point.x,end_point.y,end_point_height])
 
-    # 2. get the ldh for each point along the line between start and end and put the im an array
-    # define variables
+    # 2. get the rope lenght and compute ldh for every point along it
     c_rope_length = geometry_utilities.distance_between_3d_points(line_start_point_array,line_end_point_array)
     #exit the process if we have unrealistically low rope length
     if c_rope_length < 5:
         return None, None
     b_whole_section = start_point.distance(end_point)
-    H_t_horizontal_force_tragseil = 80000 #improvised value 
-    q_vertical_force = 15000 #improvised value 30kn?
-    q_bar_rope_weight = 1.6 #improvised value 2?
-    q_delta_weight_difference_pull_rope_weight = 0.6 #improvised value
-    # compute distances and create the corresponding points
-    ldh_array = np.array([lastdurchhang_at_point(point, start_point, end_point, b_whole_section, H_t_horizontal_force_tragseil, q_vertical_force, c_rope_length, q_bar_rope_weight, q_delta_weight_difference_pull_rope_weight) for point in points_along_line])
+    ldh_array = np.array([lastdurchhang_at_point(point, start_point, end_point, c_rope_length, b_whole_section) for point in points_along_line])
 
     # 3. create an array of the floor points and their distance to the line (without slope)
     floor_points = list(zip([point.x for point in points_along_line], [point.y for point in points_along_line],floor_height_below_line_points))
@@ -185,21 +174,14 @@ def no_height_obstructions(possible_line, height_gdf, current_supports, plot_pos
 
     # plot the lines if true
     if plot_possible_lines and current_supports>0:
-        # plot the failed lines
-        pos = np.vstack(([point[0] for point in floor_points],[point[1] for point in floor_points], floor_height_below_line_points+sloped_line_to_floor_distances)).T
-        # only every 3rd point to kill the CPU a little less
-        pos = pos[::3]
-        # create scatter object and fill in the data
-        scatter = visuals.Markers()
-        scatter.set_data(pos, edge_width=0, face_color=(1, 1, 0.5, 1), size=5)
-        view.add(scatter)
+        plotting.plot_lines(floor_points,floor_height_below_line_points, sloped_line_to_floor_distances, view)
 
     # check if the line is above the ground
     if lowest_point_height>min_height:
         return current_supports, location_supports
+
     # and enter the next recursive loop if not
     else:
-        print(start_point.xy, end_point.xy)
         #1. get the point of contact
         sloped_line_to_floor_distances_index = int(np.where(sloped_line_to_floor_distances == lowest_point_height)[0])
 
@@ -218,26 +200,16 @@ def no_height_obstructions(possible_line, height_gdf, current_supports, plot_pos
         point_of_contact = points_along_line[sloped_line_to_floor_distances_index]
         distance_candidates =  intermediate_support_candidates.distance(point_of_contact)
         distance_candidates = distance_candidates.sort_values(ascending=True)
-
         for index, candidate in enumerate(distance_candidates.index):
+            #5. create the new point and lines to/from it
             candidate_point = overall_trees.iloc[candidate].geometry
+            new_support_point, road_to_support_line, support_to_anchor_line = create_candidate_points_and_lines(candidate, start_point, end_point, candidate_point, overall_trees)
 
-            #5. create the new candidate point and lines to/from it
-            road_to_support_line = LineString([start_point, candidate_point])
-            support_to_anchor_line = LineString([candidate_point, end_point])
-
-            #3. create the new point and lines to/from it
-            # increment support
+            # increment support count and add to list of supports
             current_supports+=1
-            # get the location of the support point - why am Ii not able to do this with intermediate_support_candidates?
-            new_support_point = overall_trees.iloc[candidate].geometry
-            road_to_support_line = LineString([start_point, new_support_point])
-            support_to_anchor_line = LineString([new_support_point,end_point])
             location_supports.append(new_support_point)
 
-            #4. redo the line height computation left and right recursively
-            # add the last argument to prevent adding the supports twice
-
+            #6. redo the line height computation left and right recursively
             current_supports, location_supports = no_height_obstructions(road_to_support_line,height_gdf, current_supports, plot_possible_lines, view, location_supports, overall_trees)
             # weird double check - check first left segment, then right segment, only return supports if successfull
             if (current_supports and location_supports) is not None:
@@ -254,7 +226,18 @@ def no_height_obstructions(possible_line, height_gdf, current_supports, plot_pos
                 return None, None
 
 
-def lastdurchhang_at_point(point, start_point, end_point, b_whole_section, H_t_horizontal_force_tragseil, q_vertical_force, c_rope_length, q_bar_rope_weight, q_delta_weight_difference_pull_rope_weight):
+def create_candidate_points_and_lines(candidate, start_point, end_point, candidate_point, overall_trees):
+    #5. create the new candidate point and lines to/from it
+    road_to_support_line = LineString([start_point, candidate_point])
+    support_to_anchor_line = LineString([candidate_point, end_point])
+    # get the location of the support point - why am Ii not able to do this with intermediate_support_candidates?
+    new_support_point = overall_trees.iloc[candidate].geometry
+    road_to_support_line = LineString([start_point, new_support_point])
+    support_to_anchor_line = LineString([new_support_point,end_point])
+    
+    return new_support_point, road_to_support_line, support_to_anchor_line
+
+def lastdurchhang_at_point(point, start_point, end_point, c_rope_length, b_whole_section):
     """
     Calculates the lastdurchhang value at a given point.
 
@@ -272,17 +255,17 @@ def lastdurchhang_at_point(point, start_point, end_point, b_whole_section, H_t_h
     Returns:
     float: The lastdurchhang value at the given point.
     """
+    H_t_horizontal_force_tragseil = 80000 #improvised value 
+    q_vertical_force = 15000 #improvised value 30kn?
+    q_bar_rope_weight = 1.6 #improvised value 2?
+    q_delta_weight_difference_pull_rope_weight = 0.6 #improvised value
+    # compute distances and create the corresponding points
+
     b1_section_1 = start_point.distance(point)
     b2_section_2 = end_point.distance(point)
 
     lastdurchhang = (b1_section_1*b2_section_2/(b_whole_section*H_t_horizontal_force_tragseil))*(q_vertical_force+(c_rope_length*q_bar_rope_weight/2)+(c_rope_length*q_delta_weight_difference_pull_rope_weight/(4*b_whole_section))*(b2_section_2-b1_section_1))
     return lastdurchhang
-
-def lastdurchhang_mitte():
-    q_r_längeneinheitsgewicht_tragseil = 100 #improvised value
-    S_bar_t_mittlere_kraft_tragseil = H_t_horizontal_force_tragseil*(c_rope_length/b_whole_section)
-    #compute ldh with simplified formula
-    ldh_mitte = c_rope_length/4*S_bar_t_mittlere_kraft_tragseil*(q_vertical_force+(c_rope_length*q_r_längeneinheitsgewicht_tragseil)/2)
 
 
 def fetch_point_elevation(point, height_gdf, max_deviation):

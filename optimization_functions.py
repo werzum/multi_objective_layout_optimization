@@ -32,7 +32,7 @@ def line_cost_function(line_length, uphill_yarding, large_yarder, intermediate_s
     takedown_time = math.e**(0.96
                              + 0.00233*line_length
                              - 0.31 * extraction_direction
-                             - 0.31 * number_intermediate_supports
+                             + 0.31 * number_intermediate_supports
                              + 0.33 * yarder_size)
 
     install_time = setup_time+takedown_time

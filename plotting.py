@@ -4,6 +4,7 @@ from matplotlib.patches import Patch
 import matplotlib.lines as mlines
 from shapely.geometry import Point
 from itertools import chain
+from vispy.scene import visuals
 
 def plot_gdfs(gdfs):
     fig, ax = plt.subplots(figsize=(10, 10))
@@ -217,3 +218,14 @@ def plot_pymoo_results(model, facility_points_gdf, demand_points_gdf, anchor_tre
 
     plt.title("P-Median", fontweight="bold")
     plt.legend(handles = legend_elements, loc='upper left', bbox_to_anchor=(1.05, 1))
+
+
+def plot_lines(floor_points,floor_height_below_line_points, sloped_line_to_floor_distances, view):
+    # plot the failed lines
+    pos = np.vstack(([point[0] for point in floor_points],[point[1] for point in floor_points], floor_height_below_line_points+sloped_line_to_floor_distances)).T
+    # only every 3rd point to kill the CPU a little less
+    pos = pos[::2]
+    # create scatter object and fill in the data
+    scatter = visuals.Markers()
+    scatter.set_data(pos, edge_width=0, face_color=(1, 1, 0.5, 1), size=5)
+    view.add(scatter)
