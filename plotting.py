@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 import matplotlib.lines as mlines
 from shapely.geometry import Point
+from itertools import chain
 
 def plot_gdfs(gdfs):
     fig, ax = plt.subplots(figsize=(10, 10))
@@ -27,9 +28,12 @@ def plot_gdf_with_anchors_and_supports(gdfs, line_gdf):
         c.plot(cmap="tab20", ax=ax)
     
     for keyword in ["location_of_int_supports"]:
-        b = [Point(item[0][0],item[0][1]) for item in line_gdf[keyword] if item]
-        c = gpd.GeoSeries(b)
-        c.plot(cmap="tab20", ax=ax)
+        # filter the empty ones
+        b = list(filter(None, line_gdf[keyword]))
+        # unpack the list
+        c = list(chain.from_iterable(b))
+        d = gpd.GeoSeries(c)
+        d.plot(cmap="tab20", ax=ax)
 
 def plot_scatter_xy(list):
     xs = [point.x for point in list]

@@ -66,17 +66,23 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
 
                     # if we have one or more valid anchor configurations, append this configuration to the line_gdf
                     if triple_angle and len(triple_angle)>0:
-                        # add the corresponding values to the array
-                        angle_between_supports.append(compute_angle_between_supports(possible_line, height_gdf))
-                        possible_lines.append(possible_line)
-                        slope_deviation.append(possible_line_to_slope_angle)
-                        possible_anchor_triples.append(triple_angle)
-                        possible_support_trees.append([support_tree_candidates.geometry])
+                        
                         # and finally check for height obstructions and add supports if necessary
                         returned_location_int_supports_init = []
-                        returned_number_supports, returned_location_int_supports = no_height_obstructions(possible_line, height_gdf, 0, plot_possible_lines, view, returned_location_int_supports_init)
-                        nr_of_supports.append(returned_number_supports)
-                        location_of_int_supports.append(returned_location_int_supports)
+                        returned_number_supports, returned_location_int_supports = no_height_obstructions(possible_line, height_gdf, 0, plot_possible_lines, view, returned_location_int_supports_init, overall_trees)
+
+                        if (returned_number_supports and returned_location_int_supports) is not None:
+                            print(returned_number_supports, returned_location_int_supports)
+                            #add the supports and their location
+                            nr_of_supports.append(returned_number_supports)
+                            location_of_int_supports.append(returned_location_int_supports)
+                            # add the corresponding values to the array
+                            angle_between_supports.append(compute_angle_between_supports(possible_line, height_gdf))
+                            possible_lines.append(possible_line)
+                            slope_deviation.append(possible_line_to_slope_angle)
+                            possible_anchor_triples.append(triple_angle)
+                            possible_support_trees.append([support_tree_candidates.geometry])
+
                         
     start_point_dict = {}
     for id,line in enumerate(possible_lines):
@@ -117,7 +123,7 @@ def compute_angle_between_supports(possible_line, height_gdf):
     # and finally compute the angle
     return geometry_utilities.angle_between_3d(start_point_xyz, end_point_xyz)
 
-def no_height_obstructions(possible_line,height_gdf, current_supports, plot_possible_lines, view, location_supports):
+def no_height_obstructions(possible_line, height_gdf, current_supports, plot_possible_lines, view, location_supports, overall_trees):
     """A function to check whether there are any points along the line candidate (spanned up by the starting/end points elevation plus the support height) which are less than min_height away from the line.
 
     Args:
@@ -156,6 +162,9 @@ def no_height_obstructions(possible_line,height_gdf, current_supports, plot_poss
     # 2. get the ldh for each point along the line between start and end and put the im an array
     # define variables
     c_rope_length = geometry_utilities.distance_between_3d_points(line_start_point_array,line_end_point_array)
+    #exit the process if we have unrealistically low rope length
+    if c_rope_length < 5:
+        return None, None
     b_whole_section = start_point.distance(end_point)
     H_t_horizontal_force_tragseil = 80000 #improvised value 
     q_vertical_force = 15000 #improvised value 30kn?
@@ -177,39 +186,72 @@ def no_height_obstructions(possible_line,height_gdf, current_supports, plot_poss
     # plot the lines if true
     if plot_possible_lines and current_supports>0:
         # plot the failed lines
-        # ax.plot3D([point[0] for point in floor_points],[point[1] for point in floor_points], floor_height_below_line_points+sloped_line_to_floor_distances)
-        #ax.plot3D([start_point.x, end_point.x],[start_point.y, end_point.y],[start_point_height, end_point_height])
-
         pos = np.vstack(([point[0] for point in floor_points],[point[1] for point in floor_points], floor_height_below_line_points+sloped_line_to_floor_distances)).T
+        # only every 3rd point to kill the CPU a little less
+        pos = pos[::3]
         # create scatter object and fill in the data
         scatter = visuals.Markers()
         scatter.set_data(pos, edge_width=0, face_color=(1, 1, 0.5, 1), size=5)
         view.add(scatter)
 
+    # check if the line is above the ground
     if lowest_point_height>min_height:
         return current_supports, location_supports
     # and enter the next recursive loop if not
     else:
+        print(start_point.xy, end_point.xy)
         #1. get the point of contact
-        index = int(np.where(sloped_line_to_floor_distances == lowest_point_height)[0])
+        sloped_line_to_floor_distances_index = int(np.where(sloped_line_to_floor_distances == lowest_point_height)[0])
 
-        #2. "put a support on it" - add support height and flag this as supported
-        sloped_line_to_floor_distances[index]+= support_height
-        current_supports+=1
+        #2. Get all trees which are within 0.5-2 meter distance to the line in general
+        intermediate_support_candidates = overall_trees[(overall_trees.distance(possible_line)<2) & (overall_trees.distance(possible_line)>0.5)]
 
-        #3. create the new point and lines to/from it
-        new_support_point = points_along_line[index]
-        road_to_support_line = LineString([start_point, new_support_point])
-        support_to_anchor_line = LineString([new_support_point,end_point])
+        #3. stop if there are no candidates
+        if len(intermediate_support_candidates)<1:
+            return None, None
 
-        location_supports.append(floor_points[index])
+        # also stop if we have more than four supports - not viable
+        if current_supports>3:
+            return None, None
 
-        #4. redo the line height computation left and right recursively
-        # add the last argument to prevent adding the supports twice
-        current_supports, location_supports = no_height_obstructions(road_to_support_line,height_gdf, current_supports, plot_possible_lines, view, location_supports)
-        current_supports, location_supports = no_height_obstructions(support_to_anchor_line,height_gdf, current_supports, plot_possible_lines, view, location_supports)
+        #4. enumerate through list of candidates - sort by distance to the point of contact
+        point_of_contact = points_along_line[sloped_line_to_floor_distances_index]
+        distance_candidates =  intermediate_support_candidates.distance(point_of_contact)
+        distance_candidates = distance_candidates.sort_values(ascending=True)
 
-        return current_supports, location_supports
+        for index, candidate in enumerate(distance_candidates.index):
+            candidate_point = overall_trees.iloc[candidate].geometry
+
+            #5. create the new candidate point and lines to/from it
+            road_to_support_line = LineString([start_point, candidate_point])
+            support_to_anchor_line = LineString([candidate_point, end_point])
+
+            #3. create the new point and lines to/from it
+            # increment support
+            current_supports+=1
+            # get the location of the support point - why am Ii not able to do this with intermediate_support_candidates?
+            new_support_point = overall_trees.iloc[candidate].geometry
+            road_to_support_line = LineString([start_point, new_support_point])
+            support_to_anchor_line = LineString([new_support_point,end_point])
+            location_supports.append(new_support_point)
+
+            #4. redo the line height computation left and right recursively
+            # add the last argument to prevent adding the supports twice
+
+            current_supports, location_supports = no_height_obstructions(road_to_support_line,height_gdf, current_supports, plot_possible_lines, view, location_supports, overall_trees)
+            # weird double check - check first left segment, then right segment, only return supports if successfull
+            if (current_supports and location_supports) is not None:
+                current_supports, location_supports = no_height_obstructions(support_to_anchor_line,height_gdf, current_supports, plot_possible_lines, view, location_supports, overall_trees)
+                if (current_supports and location_supports) is not None:
+                    return current_supports, location_supports
+                else:
+                    # if this is the last iteration
+                    if index == len(distance_candidates.index)-1:
+                        return None, None
+                    else:
+                        continue
+            else:
+                return None, None
 
 
 def lastdurchhang_at_point(point, start_point, end_point, b_whole_section, H_t_horizontal_force_tragseil, q_vertical_force, c_rope_length, q_bar_rope_weight, q_delta_weight_difference_pull_rope_weight):
@@ -411,7 +453,7 @@ def generate_triple_angle(point, line_candidate, anchor_trees):
     min_outer_anchor_angle = 20
     max_outer_anchor_angle = 50
     max_center_tree_slope_angle = 3
-    max_anchor_distance = 20
+    max_anchor_distance = 30
 
     #1. get list of possible anchors -> anchor trees
     anchor_trees_working_copy = deepcopy(anchor_trees)
