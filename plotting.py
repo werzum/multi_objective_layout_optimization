@@ -5,6 +5,7 @@ import matplotlib.lines as mlines
 from shapely.geometry import Point
 from itertools import chain
 from vispy.scene import visuals
+import pandas as pd
 
 def plot_gdfs(gdfs):
     fig, ax = plt.subplots(figsize=(10, 10))
@@ -22,11 +23,17 @@ def plot_gdf_with_anchors_and_supports(gdfs, line_gdf):
 
     line_gdf.plot(alpha=0.5, ax=ax)
 
-    for keyword in ["possible_support_trees","possible_anchor_triples"]:
-        sublist = [item for sublist in line_gdf[keyword] for item in sublist]
-        b = [item for subliste in sublist for item in subliste]
-        c = gpd.GeoSeries(b)
-        c.plot(cmap="tab20", ax=ax)
+    for keyword in ["possible_support_trees"]:
+        b = pd.concat(line_gdf[keyword].values)
+        b.plot(cmap="tab20", ax=ax)
+
+    for keyword in ["possible_anchor_triples"]:
+        b = line_gdf[keyword]
+        # double unpacking here
+        c = list(chain.from_iterable(b))
+        d = list(chain.from_iterable(c))
+        d = gpd.GeoSeries(d)
+        d.plot(cmap="tab20", ax=ax)
     
     for keyword in ["location_of_int_supports"]:
         # filter the empty ones

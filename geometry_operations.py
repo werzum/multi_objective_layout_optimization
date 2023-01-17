@@ -8,6 +8,8 @@ import numpy as np
 import math
 import itertools
 
+import pandas as pd
+
 import geometry_utilities
 import plotting
 
@@ -33,14 +35,6 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
     Returns:
         _type_: _description_
     """    
-    possible_lines = []
-    slope_deviation = []
-    possible_anchor_triples = []
-    possible_support_trees = []
-    angle_between_supports = []
-    nr_of_supports = []
-    location_of_int_supports = []
-
     max_main_line_slope_deviation = 45
 
     if plot_possible_lines:
@@ -50,44 +44,42 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
     else:
         view = None
     
-    for point in road_points:
-        for target in target_trees.geometry:
-            possible_line = LineString([point, target])
-            possible_line_to_slope_angle = geometry_utilities.angle_between(possible_line, slope_line)
+    # generate the list of line candidates within max_slope_angle
+    line_candidate_list = list(itertools.product(road_points, target_trees.geometry))
+    line_candidate_list_combinations = [LineString(combination) for combination in line_candidate_list]
+    line_df = pd.DataFrame(data={"line_candidates":line_candidate_list_combinations})
+    print(len(line_df)," candidates initially")
 
-            if possible_line_to_slope_angle<max_main_line_slope_deviation:
-                
-                # compute the intermediate support trees betweeen the point and the target
-                support_tree_candidates = generate_support_trees(overall_trees, target, point, possible_line)
+    # filter by max_main_line_slope_deviation
+    line_df["slope_deviation"] = [geometry_utilities.angle_between(line, slope_line) for line in line_candidate_list_combinations]
+    line_df = line_df[line_df["slope_deviation"]<max_main_line_slope_deviation]
+    print(len(line_df)," after slope deviations")
 
-                # continue if there is at least one support tree candidate
-                if len(support_tree_candidates) > 0:
-                    # generate a list of line-triples that are within correct angles to the road point and line candidate
-                    triple_angle = generate_triple_angle(point, possible_line, anchor_trees)
+    # line_df = line_df.iloc[1:300]
 
-                    # if we have one or more valid anchor configurations, append this configuration to the line_gdf
-                    if triple_angle and len(triple_angle)>0:
-                        
-                        # and finally check for height obstructions and add supports if necessary
-                        returned_location_int_supports_init = []
-                        returned_number_supports, returned_location_int_supports = no_height_obstructions(possible_line, height_gdf, 0, plot_possible_lines, view, returned_location_int_supports_init, overall_trees)
+    # filter the candidates for support trees
+    # overall_trees, target, point, possible_line
+    line_df["possible_support_trees"] = [generate_support_trees(overall_trees,Point(line.coords[1]), Point(line.coords[0]), line) for line in line_df["line_candidates"]]
+    # add to df and filter empty entries
+    line_df = line_df[line_df["possible_support_trees"].apply(len)>0]
+    print(len(line_df)," after supports trees")
 
-                        if (returned_number_supports and returned_location_int_supports) is not None:
-                            #add the supports and their location
-                            nr_of_supports.append(returned_number_supports)
-                            location_of_int_supports.append(returned_location_int_supports)
-                            # add the corresponding values to the array
-                            angle_between_supports.append(compute_angle_between_supports(possible_line, height_gdf))
-                            possible_lines.append(possible_line)
-                            slope_deviation.append(possible_line_to_slope_angle)
-                            possible_anchor_triples.append(triple_angle)
-                            possible_support_trees.append([support_tree_candidates.geometry])
+    # filter the triple angles for good supports
+    line_df["possible_anchor_triples"] = [generate_triple_angle(Point(line.coords[0]), line, anchor_trees) for line in line_df["line_candidates"]]
+    line_df = line_df[line_df["possible_anchor_triples"].notnull()]
+    print(len(line_df)," after possible anchor triples")
 
-                        
-    start_point_dict = {}
-    for id,line in enumerate(possible_lines):
-        start_point_dict[id] = line.coords[0]
-    
+    # check if we have no height obstructions
+    line_df["number_of_supports"], line_df["location_of_int_supports"] = zip(*[no_height_obstructions(line, height_gdf, 0, plot_possible_lines, view, [], overall_trees) for line in line_df["line_candidates"]])
+
+    line_df = line_df[(line_df["number_of_supports"].notnull()) & (line_df["location_of_int_supports"].notnull())]
+
+    # compute the angle between the line and the supports
+    line_df["angle_between_supports"] = [compute_angle_between_supports(line, height_gdf) for line in line_df["line_candidates"]]
+
+    # create a dict of the coords of the starting points        
+    start_point_dict = dict([(key, value.coords[0]) for key, value in enumerate(line_df["line_candidates"])])
+
     if plot_possible_lines:
         height_gdf_small = height_gdf.iloc[::50, :]
         pos = np.vstack((height_gdf_small["x"], height_gdf_small["y"], height_gdf_small["elev"])).T
@@ -99,7 +91,7 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
         # add a colored 3D axis for orientation
         axis = visuals.XYZAxis(parent=view.scene)
 
-    return possible_lines, slope_deviation, possible_anchor_triples, possible_support_trees, angle_between_supports, start_point_dict, nr_of_supports, location_of_int_supports
+    return line_df, start_point_dict
 
 def compute_angle_between_supports(possible_line, height_gdf):
     """ Compute the angle between the start and end support of a cable road.
@@ -133,8 +125,12 @@ def no_height_obstructions(possible_line, height_gdf, current_supports, plot_pos
     Returns:
         _type_: _description_
     """    
+    print(current_supports, location_supports)
+    if None in (current_supports,location_supports):
+        return None, None
+
     support_height = 11
-    min_height = 1
+    min_height = 3
     start_point, end_point = Point(possible_line.coords[0]), Point(possible_line.coords[1])
 
     # find the elevation of the point in the height gdf closest to the line start point and end point
@@ -143,7 +139,7 @@ def no_height_obstructions(possible_line, height_gdf, current_supports, plot_pos
     end_point_height = fetch_point_elevation(end_point,height_gdf,max_deviation)+support_height
 
     # fetch the floor points along the line
-    points_along_line = generate_road_points(possible_line, interval = 1)
+    points_along_line = generate_road_points(possible_line, interval = 2)
     # remove first 15 points since they are on the road and throw off the computation
     #points_along_line = points_along_line[road_height_cutoff:]
     # and their height
@@ -205,6 +201,9 @@ def no_height_obstructions(possible_line, height_gdf, current_supports, plot_pos
             candidate_point = overall_trees.iloc[candidate].geometry
             new_support_point, road_to_support_line, support_to_anchor_line = create_candidate_points_and_lines(candidate, start_point, end_point, candidate_point, overall_trees)
 
+            # if current_supports is None:
+            #     print("test")
+
             # increment support count and add to list of supports
             current_supports+=1
             location_supports.append(new_support_point)
@@ -212,18 +211,23 @@ def no_height_obstructions(possible_line, height_gdf, current_supports, plot_pos
             #6. redo the line height computation left and right recursively
             current_supports, location_supports = no_height_obstructions(road_to_support_line,height_gdf, current_supports, plot_possible_lines, view, location_supports, overall_trees)
             # weird double check - check first left segment, then right segment, only return supports if successfull
-            if (current_supports and location_supports) is not None:
+            if None not in (current_supports,location_supports):
+                if current_supports>3:
+                    return None, None
                 current_supports, location_supports = no_height_obstructions(support_to_anchor_line,height_gdf, current_supports, plot_possible_lines, view, location_supports, overall_trees)
-                if (current_supports and location_supports) is not None:
-                    return current_supports, location_supports
-                else:
-                    # if this is the last iteration
-                    if index == len(distance_candidates.index)-1:
-                        return None, None
-                    else:
-                        continue
             else:
                 return None, None
+
+            if None in (current_supports,location_supports):
+                return None, None
+            if current_supports>3:
+                return None, None
+            else:
+                return current_supports, location_supports
+            # if this is the last iteration
+            if index == len(distance_candidates.index)-1:
+                return current_supports, location_supports
+
 
 
 def create_candidate_points_and_lines(candidate, start_point, end_point, candidate_point, overall_trees):

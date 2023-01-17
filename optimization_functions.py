@@ -10,7 +10,7 @@ def line_cost_function(line_length, uphill_yarding, large_yarder, intermediate_s
 
     Args:
         line_length (_type_): _description_
-        slope_deviation (_type_): _description_
+        slope_deviation (_type_): _description_"""  """
 
     Returns:
         _type_: _description_
@@ -22,18 +22,17 @@ def line_cost_function(line_length, uphill_yarding, large_yarder, intermediate_s
     yarder_size = large_yarder
 
     setup_time = math.e**(1.42
-                          + 0.00229*line_length
-                          + 0.03*intermediate_support_height  # not available now?
-                          #+ 0.256*corridor_type  # not easliy determineable -
-                          - 0.65*extraction_direction          # 1 for uphill, 0 for downhill
-                          + 0.11*yarder_size  # 1 for larger yarder, 0 for smaller 35kn
-                          + 0.491*extraction_direction*yarder_size)
+                + 0.00229*line_length
+                + 0.03*intermediate_support_height  # not available now?
+                - 0.65*extraction_direction          # 1 for uphill, 0 for downhill
+                + 0.11*yarder_size  # 1 for larger yarder, 0 for smaller 35kn
+                + 0.491*extraction_direction*yarder_size)
 
     takedown_time = math.e**(0.96
-                             + 0.00233*line_length
-                             - 0.31 * extraction_direction
-                             + 0.31 * number_intermediate_supports
-                             + 0.33 * yarder_size)
+                + 0.00233*line_length
+                - 0.31 * extraction_direction
+                + 0.31 * number_intermediate_supports
+                + 0.33 * yarder_size)
 
     install_time = setup_time+takedown_time
     line_cost = install_time*cost_man_hour
@@ -107,7 +106,6 @@ def calculate_productivity_cost(client_range, facility_range, aij, distance_carr
         x[...] = 0.043*aij[cli][fac]  # the distance from tree to cable road, aka lateral yarding distance
          # the yarding distance between carriage and support
         + 0.007*distance_carriage_support[cli][fac]
-         # +tree_volumes_list[cli]**-0.3 # the crown volume of the tree
         + 0.029*100  # the harvest intensity set to 100%
         + 0.038*angle_between_supports[fac]  # the angle between the supports of this cable road
 
