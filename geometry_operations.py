@@ -55,7 +55,7 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
     line_df = line_df[line_df["slope_deviation"]<max_main_line_slope_deviation]
     print(len(line_df)," after slope deviations")
 
-    # line_df = line_df.iloc[1:300]
+    # line_df = line_df.iloc[1:500]
 
     # filter the candidates for support trees
     # overall_trees, target, point, possible_line
@@ -70,9 +70,9 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
     print(len(line_df)," after possible anchor triples")
 
     # check if we have no height obstructions
-    line_df["number_of_supports"], line_df["location_of_int_supports"] = zip(*[no_height_obstructions(line, height_gdf, 0, plot_possible_lines, view, [], overall_trees) for line in line_df["line_candidates"]])
-
-    line_df = line_df[(line_df["number_of_supports"].notnull()) & (line_df["location_of_int_supports"].notnull())]
+    line_df["number_of_supports"], line_df["location_of_int_supports"] = zip(*[compute_required_supports(line, height_gdf, 0, plot_possible_lines, view, [], overall_trees) for line in line_df["line_candidates"]])
+    # and filter lines out without successful lines
+    line_df = line_df[line_df["number_of_supports"].apply(lambda x: x is not False)]
 
     # compute the angle between the line and the supports
     line_df["angle_between_supports"] = [compute_angle_between_supports(line, height_gdf) for line in line_df["line_candidates"]]
@@ -115,7 +115,7 @@ def compute_angle_between_supports(possible_line, height_gdf):
     # and finally compute the angle
     return geometry_utilities.angle_between_3d(start_point_xyz, end_point_xyz)
 
-def no_height_obstructions(possible_line, height_gdf, current_supports, plot_possible_lines, view, location_supports, overall_trees):
+def check_if_no_collisions(possible_line, height_gdf, plot_possible_lines, view):
     """A function to check whether there are any points along the line candidate (spanned up by the starting/end points elevation plus the support height) which are less than min_height away from the line.
 
     Args:
@@ -124,11 +124,7 @@ def no_height_obstructions(possible_line, height_gdf, current_supports, plot_pos
 
     Returns:
         _type_: _description_
-    """    
-    print(current_supports, location_supports)
-    if None in (current_supports,location_supports):
-        return None, None
-
+    """
     support_height = 11
     min_height = 3
     start_point, end_point = Point(possible_line.coords[0]), Point(possible_line.coords[1])
@@ -140,12 +136,9 @@ def no_height_obstructions(possible_line, height_gdf, current_supports, plot_pos
 
     # fetch the floor points along the line
     points_along_line = generate_road_points(possible_line, interval = 2)
-    # remove first 15 points since they are on the road and throw off the computation
-    #points_along_line = points_along_line[road_height_cutoff:]
     # and their height
     floor_height_below_line_points = [fetch_point_elevation(point,height_gdf,max_deviation) for point in points_along_line]
 
-    # get the distances of each point along the line to the line itself
     # 1. create arrays for start and end point
     line_start_point_array = np.array([start_point.x,start_point.y,start_point_height])
     line_end_point_array = np.array([end_point.x,end_point.y,end_point_height])
@@ -153,8 +146,7 @@ def no_height_obstructions(possible_line, height_gdf, current_supports, plot_pos
     # 2. get the rope lenght and compute ldh for every point along it
     c_rope_length = geometry_utilities.distance_between_3d_points(line_start_point_array,line_end_point_array)
     #exit the process if we have unrealistically low rope length
-    if c_rope_length < 5:
-        return None, None
+
     b_whole_section = start_point.distance(end_point)
     ldh_array = np.array([lastdurchhang_at_point(point, start_point, end_point, c_rope_length, b_whole_section) for point in points_along_line])
 
@@ -169,66 +161,96 @@ def no_height_obstructions(possible_line, height_gdf, current_supports, plot_pos
     lowest_point_height = min(sloped_line_to_floor_distances)
 
     # plot the lines if true
-    if plot_possible_lines and current_supports>0:
+    if plot_possible_lines:
         plotting.plot_lines(floor_points,floor_height_below_line_points, sloped_line_to_floor_distances, view)
+
+    return_values_dict = {"sloped_line_to_floor_distances":sloped_line_to_floor_distances,"points_along_line":points_along_line, "start_point":start_point, "end_point":end_point, "no_collisions":True}
+
+    #return false if line is too short
+    if c_rope_length < 5:
+        return_values_dict["no_collisions"]=False
+        return return_values_dict
 
     # check if the line is above the ground
     if lowest_point_height>min_height:
+        return return_values_dict
+    else:
+        return_values_dict["no_collisions"]=False
+        return return_values_dict
+
+def compute_required_supports(possible_line, height_gdf, current_supports, plot_possible_lines, view, location_supports, overall_trees):
+    """A function to check whether there are any points along the line candidate (spanned up by the starting/end points elevation plus the support height) which are less than min_height away from the line.
+
+    Args:
+        possible_line (_type_): _description_
+        height_gdf (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    # test if we have obstructions
+    no_collisions_dict = check_if_no_collisions(possible_line, height_gdf, plot_possible_lines, view)
+
+    if no_collisions_dict["no_collisions"]:
         return current_supports, location_supports
 
     # and enter the next recursive loop if not
     else:
         #1. get the point of contact
-        sloped_line_to_floor_distances_index = int(np.where(sloped_line_to_floor_distances == lowest_point_height)[0])
+        lowest_point_height = min(no_collisions_dict["sloped_line_to_floor_distances"])
+        sloped_line_to_floor_distances_index = int(np.where(no_collisions_dict["sloped_line_to_floor_distances"] == lowest_point_height)[0])
 
         #2. Get all trees which are within 0.5-2 meter distance to the line in general
         intermediate_support_candidates = overall_trees[(overall_trees.distance(possible_line)<2) & (overall_trees.distance(possible_line)>0.5)]
 
-        #3. stop if there are no candidates
-        if len(intermediate_support_candidates)<1:
-            return None, None
-
-        # also stop if we have more than four supports - not viable
-        if current_supports>3:
+        #3. stop if there are no candidates, also stop if we have more than four supports - not viable
+        if len(intermediate_support_candidates)<1 or current_supports>3:
             return None, None
 
         #4. enumerate through list of candidates - sort by distance to the point of contact
-        point_of_contact = points_along_line[sloped_line_to_floor_distances_index]
+        point_of_contact = no_collisions_dict["points_along_line"][sloped_line_to_floor_distances_index]
         distance_candidates =  intermediate_support_candidates.distance(point_of_contact)
         distance_candidates = distance_candidates.sort_values(ascending=True)
-        for index, candidate in enumerate(distance_candidates.index):
+
+        # loop through the candidates to check if one has no obstructions
+        for candidate in distance_candidates.index:
             #5. create the new point and lines to/from it
             candidate_point = overall_trees.iloc[candidate].geometry
-            new_support_point, road_to_support_line, support_to_anchor_line = create_candidate_points_and_lines(candidate, start_point, end_point, candidate_point, overall_trees)
+            new_support_point, road_to_support_line, support_to_anchor_line = create_candidate_points_and_lines(candidate, no_collisions_dict["start_point"], no_collisions_dict["end_point"], candidate_point, overall_trees)
 
-            # if current_supports is None:
-            #     print("test")
+            #6. no collisions left and right?
+            left_no_collisions_dict = check_if_no_collisions(road_to_support_line, height_gdf, plot_possible_lines, view)
+            if not left_no_collisions_dict["no_collisions"]:
+                continue
 
-            # increment support count and add to list of supports
-            current_supports+=1
-            location_supports.append(new_support_point)
-
-            #6. redo the line height computation left and right recursively
-            current_supports, location_supports = no_height_obstructions(road_to_support_line,height_gdf, current_supports, plot_possible_lines, view, location_supports, overall_trees)
-            # weird double check - check first left segment, then right segment, only return supports if successfull
-            if None not in (current_supports,location_supports):
-                if current_supports>3:
-                    return None, None
-                current_supports, location_supports = no_height_obstructions(support_to_anchor_line,height_gdf, current_supports, plot_possible_lines, view, location_supports, overall_trees)
-            else:
-                return None, None
-
-            if None in (current_supports,location_supports):
-                return None, None
-            if current_supports>3:
-                return None, None
-            else:
+            right_no_collisions_dict = check_if_no_collisions(support_to_anchor_line, height_gdf, plot_possible_lines, view)
+            if not right_no_collisions_dict["no_collisions"]:
+                continue
+            
+            # no collisions were found, return our current supports
+            if left_no_collisions_dict["no_collisions"] and right_no_collisions_dict["no_collisions"]:
+                current_supports+=1
+                location_supports.append(candidate_point)
                 return current_supports, location_supports
-            # if this is the last iteration
-            if index == len(distance_candidates.index)-1:
+        
+        # if we passed through the loop without finding suitable candidates, set the first candidate as support and find sub-supports recursively
+        current_supports+=1
+        first_candidate_point = overall_trees.iloc[distance_candidates.index[0]].geometry
+        location_supports.append(first_candidate_point)
+
+        # compute necessary supports to the left
+        current_supports, location_supports = compute_required_supports(support_to_anchor_line,height_gdf, current_supports, plot_possible_lines, view, location_supports, overall_trees)
+
+        # fewer than max supports? then check line to the right for suports
+        if current_supports and current_supports<4:
+            current_supports, location_supports = compute_required_supports(support_to_anchor_line,height_gdf, current_supports, plot_possible_lines, view, location_supports, overall_trees)
+            # still acceptale amounts of supports?
+            if current_supports and current_supports<4:
                 return current_supports, location_supports
-
-
+            else:
+                return False, False
+        else:
+            return False, False
 
 def create_candidate_points_and_lines(candidate, start_point, end_point, candidate_point, overall_trees):
     #5. create the new candidate point and lines to/from it
