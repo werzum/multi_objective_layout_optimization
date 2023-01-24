@@ -55,7 +55,7 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
     line_df = line_df[line_df["slope_deviation"]<max_main_line_slope_deviation]
     print(len(line_df)," after slope deviations")
 
-    # line_df = line_df.iloc[1:500]
+    # line_df = line_df.iloc[1:250]
 
     # filter the candidates for support trees
     # overall_trees, target, point, possible_line
@@ -70,9 +70,11 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
     print(len(line_df)," after possible anchor triples")
 
     # check if we have no height obstructions
-    line_df["number_of_supports"], line_df["location_of_int_supports"] = zip(*[compute_required_supports(line, height_gdf, 0, plot_possible_lines, view, [], overall_trees) for line in line_df["line_candidates"]])
+    pos = []
+    line_df["number_of_supports"], line_df["location_of_int_supports"] = zip(*[compute_required_supports(line, height_gdf, 0, plot_possible_lines, view, [], overall_trees, pos) for line in line_df["line_candidates"]])
     # and filter lines out without successful lines
     line_df = line_df[line_df["number_of_supports"].apply(lambda x: x is not False)]
+    print(len(line_df)," after checking for height obstructions")
 
     # compute the angle between the line and the supports
     line_df["angle_between_supports"] = [compute_angle_between_supports(line, height_gdf) for line in line_df["line_candidates"]]
@@ -81,11 +83,27 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
     start_point_dict = dict([(key, value.coords[0]) for key, value in enumerate(line_df["line_candidates"])])
 
     if plot_possible_lines:
-        height_gdf_small = height_gdf.iloc[::50, :]
-        pos = np.vstack((height_gdf_small["x"], height_gdf_small["y"], height_gdf_small["elev"])).T
+        height_gdf_small = height_gdf.iloc[::10, :]
+        # pos of lines
+        pos_lines = np.hstack((pos)).T
         # create scatter object and fill in the data
         scatter = visuals.Markers()
-        scatter.set_data(pos, edge_width=0, face_color=(1, 1, 1, .5), size=5)
+        scatter.set_data(pos_lines, edge_width=0, face_color=(1, 1, 0.5, 1), size=5)
+        view.add(scatter)
+        # possibility to connect lines, but doesnt really look good
+        # N,S = pos_lines.shape
+        # connect = np.empty((N*S-1,2), np.int32)
+        # connect[:, 0] = np.arange(N*S-1)
+        # connect[:, 1] = connect[:, 0] + 1
+        # for i in range(S, N*S, S):
+        #     connect[i-1, 1] = i-1 
+        # view.add(vispy.scene.Line(pos=pos_lines, connect=connect, width=5))
+
+        # pos of heightgdf
+        pos_height_gdf = np.vstack((height_gdf_small["x"], height_gdf_small["y"], height_gdf_small["elev"])).T
+        # create scatter object and fill in the data
+        scatter = visuals.Markers()
+        scatter.set_data(pos_height_gdf, edge_width=0, face_color=(1, 1, 1, .5), size=5)
         view.add(scatter)
         view.camera = 'turntable'  # or try 'arcball'
         # add a colored 3D axis for orientation
@@ -115,8 +133,9 @@ def compute_angle_between_supports(possible_line, height_gdf):
     # and finally compute the angle
     return geometry_utilities.angle_between_3d(start_point_xyz, end_point_xyz)
 
-def check_if_no_collisions(possible_line, height_gdf, plot_possible_lines, view):
+def check_if_no_collisions(possible_line, height_gdf, plot_possible_lines, view, pos):
     """A function to check whether there are any points along the line candidate (spanned up by the starting/end points elevation plus the support height) which are less than min_height away from the line.
+    Returns
 
     Args:
         possible_line (_type_): _description_
@@ -162,7 +181,7 @@ def check_if_no_collisions(possible_line, height_gdf, plot_possible_lines, view)
 
     # plot the lines if true
     if plot_possible_lines:
-        plotting.plot_lines(floor_points,floor_height_below_line_points, sloped_line_to_floor_distances, view)
+        plotting.plot_lines(floor_points,floor_height_below_line_points, sloped_line_to_floor_distances, view, pos)
 
     return_values_dict = {"sloped_line_to_floor_distances":sloped_line_to_floor_distances,"points_along_line":points_along_line, "start_point":start_point, "end_point":end_point, "no_collisions":True}
 
@@ -178,7 +197,7 @@ def check_if_no_collisions(possible_line, height_gdf, plot_possible_lines, view)
         return_values_dict["no_collisions"]=False
         return return_values_dict
 
-def compute_required_supports(possible_line, height_gdf, current_supports, plot_possible_lines, view, location_supports, overall_trees):
+def compute_required_supports(possible_line, height_gdf, current_supports, plot_possible_lines, view, location_supports, overall_trees,pos):
     """A function to check whether there are any points along the line candidate (spanned up by the starting/end points elevation plus the support height) which are less than min_height away from the line.
 
     Args:
@@ -189,7 +208,7 @@ def compute_required_supports(possible_line, height_gdf, current_supports, plot_
         _type_: _description_
     """
     # test if we have obstructions
-    no_collisions_dict = check_if_no_collisions(possible_line, height_gdf, plot_possible_lines, view)
+    no_collisions_dict = check_if_no_collisions(possible_line, height_gdf, plot_possible_lines, view, pos)
 
     if no_collisions_dict["no_collisions"]:
         return current_supports, location_supports
@@ -219,11 +238,11 @@ def compute_required_supports(possible_line, height_gdf, current_supports, plot_
             new_support_point, road_to_support_line, support_to_anchor_line = create_candidate_points_and_lines(candidate, no_collisions_dict["start_point"], no_collisions_dict["end_point"], candidate_point, overall_trees)
 
             #6. no collisions left and right?
-            left_no_collisions_dict = check_if_no_collisions(road_to_support_line, height_gdf, plot_possible_lines, view)
+            left_no_collisions_dict = check_if_no_collisions(road_to_support_line, height_gdf, plot_possible_lines, view, pos)
             if not left_no_collisions_dict["no_collisions"]:
                 continue
 
-            right_no_collisions_dict = check_if_no_collisions(support_to_anchor_line, height_gdf, plot_possible_lines, view)
+            right_no_collisions_dict = check_if_no_collisions(support_to_anchor_line, height_gdf, plot_possible_lines, view, pos)
             if not right_no_collisions_dict["no_collisions"]:
                 continue
             
@@ -239,11 +258,11 @@ def compute_required_supports(possible_line, height_gdf, current_supports, plot_
         location_supports.append(first_candidate_point)
 
         # compute necessary supports to the left
-        current_supports, location_supports = compute_required_supports(support_to_anchor_line,height_gdf, current_supports, plot_possible_lines, view, location_supports, overall_trees)
+        current_supports, location_supports = compute_required_supports(support_to_anchor_line,height_gdf, current_supports, plot_possible_lines, view, location_supports, overall_trees, pos)
 
         # fewer than max supports? then check line to the right for suports
         if current_supports and current_supports<4:
-            current_supports, location_supports = compute_required_supports(support_to_anchor_line,height_gdf, current_supports, plot_possible_lines, view, location_supports, overall_trees)
+            current_supports, location_supports = compute_required_supports(support_to_anchor_line,height_gdf, current_supports, plot_possible_lines, view, location_supports, overall_trees, pos)
             # still acceptale amounts of supports?
             if current_supports and current_supports<4:
                 return current_supports, location_supports
