@@ -1,102 +1,94 @@
 Timer unit: 1e-09 s
 
-Total time: 4.51727 s
+Total time: 2.70708 s
 File: /home/carlo/GitHub/MultiObjectOptimizationCableYarding/geometry_operations.py
-Function: generate_possible_lines at line 19
+Function: check_if_no_collisions at line 136
 
 Line #      Hits         Time  Per Hit   % Time  Line Contents
 ==============================================================
-    19                                           def generate_possible_lines(road_points, target_trees, anchor_trees, overall_trees, slope_line, height_gdf, plot_possible_lines):
-    20                                               """Compute which lines can be made from road_points to anchor_trees without having an angle greater than max_main_line_slope_deviation
-    21                                               First, we generate all possible lines between  each point along the road and all head anchors.
-    22                                               For those which do not deviate more than max_main_line_slope_deviation degrees from the slope line, we compute head anchor support trees along the lines.
-    23                                               If those are present, we compute triples of tail anchor support trees.
-    24                                               If those are present, valid configurations are appended to the respective lists.
-    25                                           
-    26                                           
-    27                                               Args:
-    28                                                   road_points (_type_): _description_
-    29                                                   target_trees (_type_): _description_
-    30                                                   anchor_trees (_type_): _description_
-    31                                                   slope_line (_type_): _description_
-    32                                                   max_main_line_slope_deviation (_type_): How much the central of three lines can deviate from the slope
-    33                                                   max_anchor_distance (_type_): How far away should the anchors be at most
-    34                                           
-    35                                               Returns:
-    36                                                   _type_: _description_
-    37                                               """    
-    38         1        672.0    672.0      0.0      max_main_line_slope_deviation = 45
-    39                                           
-    40         1        231.0    231.0      0.0      if plot_possible_lines:
-    41                                                   # Make a canvas and add simple view
-    42                                                   canvas = vispy.scene.SceneCanvas(keys='interactive', show=True)
-    43                                                   view = canvas.central_widget.add_view()
-    44                                               else:
-    45         1        144.0    144.0      0.0          view = None
-    46                                               
-    47                                               # generate the list of line candidates within max_slope_angle
-    48         1     167681.0 167681.0      0.0      line_candidate_list = list(itertools.product(road_points, target_trees.geometry))
-    49         1   25636987.0 25636987.0      0.6      line_candidate_list_combinations = [LineString(combination) for combination in line_candidate_list]
-    50         1   13025795.0 13025795.0      0.3      line_df = pd.DataFrame(data={"line_candidates":line_candidate_list_combinations})
-    51         1      57842.0  57842.0      0.0      print(len(line_df)," candidates initially")
-    52                                           
-    53                                               # filter by max_main_line_slope_deviation
-    54         1   38581604.0 38581604.0      0.9      line_df["slope_deviation"] = [geometry_utilities.angle_between(line, slope_line) for line in line_candidate_list_combinations]
-    55         1     470531.0 470531.0      0.0      line_df = line_df[line_df["slope_deviation"]<max_main_line_slope_deviation]
-    56         1      19071.0  19071.0      0.0      print(len(line_df)," after slope deviations")
-    57                                           
-    58         1      39089.0  39089.0      0.0      line_df = line_df.iloc[1:250]
-    59                                           
-    60                                               # filter the candidates for support trees
-    61                                               # overall_trees, target, point, possible_line
-    62         1 1680997622.0 1680997622.0     37.2      line_df["possible_support_trees"] = [generate_support_trees(overall_trees,Point(line.coords[1]), Point(line.coords[0]), line) for line in line_df["line_candidates"]]
-    63                                               # add to df and filter empty entries
-    64         1     988656.0 988656.0      0.0      line_df = line_df[line_df["possible_support_trees"].apply(len)>0]
-    65         1      57064.0  57064.0      0.0      print(len(line_df)," after supports trees")
-    66                                           
-    67                                               # filter the triple angles for good supports
-    68         1  506287442.0 506287442.0     11.2      line_df["possible_anchor_triples"] = [generate_triple_angle(Point(line.coords[0]), line, anchor_trees) for line in line_df["line_candidates"]]
-    69         1     695914.0 695914.0      0.0      line_df = line_df[line_df["possible_anchor_triples"].notnull()]
-    70         1      52936.0  52936.0      0.0      print(len(line_df)," after possible anchor triples")
-    71                                           
-    72                                               # check if we have no height obstructions
-    73         1        183.0    183.0      0.0      pos = []
-    74         1 2214149383.0 2214149383.0     49.0      line_df["number_of_supports"], line_df["location_of_int_supports"] = zip(*[compute_required_supports(line, height_gdf, 0, plot_possible_lines, view, [], overall_trees, pos) for line in line_df["line_candidates"]])
-    75                                               # and filter lines out without successful lines
-    76         1     600827.0 600827.0      0.0      line_df = line_df[line_df["number_of_supports"].apply(lambda x: x is not False)]
-    77         1      57621.0  57621.0      0.0      print(len(line_df)," after checking for height obstructions")
-    78                                           
-    79                                               # compute the angle between the line and the supports
-    80         1   35314380.0 35314380.0      0.8      line_df["angle_between_supports"] = [compute_angle_between_supports(line, height_gdf) for line in line_df["line_candidates"]]
-    81                                           
-    82                                               # create a dict of the coords of the starting points        
-    83         1      68323.0  68323.0      0.0      start_point_dict = dict([(key, value.coords[0]) for key, value in enumerate(line_df["line_candidates"])])
-    84                                           
-    85         1        285.0    285.0      0.0      if plot_possible_lines:
-    86                                                   height_gdf_small = height_gdf.iloc[::10, :]
-    87                                                   # pos of lines
-    88                                                   pos_lines = np.hstack((pos)).T
-    89                                                   # create scatter object and fill in the data
-    90                                                   scatter = visuals.Markers()
-    91                                                   scatter.set_data(pos_lines, edge_width=0, face_color=(1, 1, 0.5, 1), size=5)
-    92                                                   view.add(scatter)
-    93                                                   # possibility to connect lines, but doesnt really look good
-    94                                                   # N,S = pos_lines.shape
-    95                                                   # connect = np.empty((N*S-1,2), np.int32)
-    96                                                   # connect[:, 0] = np.arange(N*S-1)
-    97                                                   # connect[:, 1] = connect[:, 0] + 1
-    98                                                   # for i in range(S, N*S, S):
-    99                                                   #     connect[i-1, 1] = i-1 
-   100                                                   # view.add(vispy.scene.Line(pos=pos_lines, connect=connect, width=5))
-   101                                           
-   102                                                   # pos of heightgdf
-   103                                                   pos_height_gdf = np.vstack((height_gdf_small["x"], height_gdf_small["y"], height_gdf_small["elev"])).T
-   104                                                   # create scatter object and fill in the data
-   105                                                   scatter = visuals.Markers()
-   106                                                   scatter.set_data(pos_height_gdf, edge_width=0, face_color=(1, 1, 1, .5), size=5)
-   107                                                   view.add(scatter)
-   108                                                   view.camera = 'turntable'  # or try 'arcball'
-   109                                                   # add a colored 3D axis for orientation
-   110                                                   axis = visuals.XYZAxis(parent=view.scene)
-   111                                           
-   112         1        123.0    123.0      0.0      return line_df, start_point_dict
+   136                                           def check_if_no_collisions(possible_line, height_gdf, plot_possible_lines, view, pos):
+   137                                               """A function to check whether there are any points along the line candidate (spanned up by the starting/end points elevation plus the support height) which are less than min_height away from the line.
+   138                                               Returns
+   139                                           
+   140                                               Args:
+   141                                                   possible_line (_type_): _description_
+   142                                                   height_gdf (_type_): _description_
+   143                                           
+   144                                               Returns:
+   145                                                   _type_: _description_
+   146                                               """
+   147         3       2620.0    873.3      0.0      support_height = 11
+   148         3        380.0    126.7      0.0      min_height = 3
+   149         3     337279.0 112426.3      0.0      start_point, end_point = Point(possible_line.coords[0]), Point(possible_line.coords[1])
+   150                                           
+   151                                               # find the elevation of the point in the height gdf closest to the line start point and end point
+   152         3        595.0    198.3      0.0      max_deviation = 0.1
+   153         3   18339376.0 6113125.3      0.7      start_point_height = fetch_point_elevation(start_point,height_gdf,max_deviation)+support_height
+   154         3   16978776.0 5659592.0      0.6      end_point_height = fetch_point_elevation(end_point,height_gdf,max_deviation)+support_height
+   155                                           
+   156                                               # fetch the floor points along the line
+   157         3    2115692.0 705230.7      0.1      points_along_line = generate_road_points(possible_line, interval = 2)
+   158         3    2636618.0 878872.7      0.1      x_points, y_points = zip(*[(point.x, point.y) for point in points_along_line])
+   159         3      14364.0   4788.0      0.0      x_points = np.array(x_points)
+   160         3       6735.0   2245.0      0.0      y_points = np.array(y_points)
+   161                                           
+   162         3    2480804.0 826934.7      0.1      x_gdf = np.array(height_gdf.x)
+   163         3    2260593.0 753531.0      0.1      y_gdf = np.array(height_gdf.y)
+   164                                           
+   165                                               # create an x_points*x_gdf array where we test for each entry if it is between those values
+   166         3  521505362.0 173835120.7     19.3      condition_indices_x = np.logical_and(x_gdf[:,None]>x_points-1,x_gdf[:,None]<x_points+1)
+   167         3  534341812.0 178113937.3     19.7      condition_indices_y = np.logical_and(y_gdf[:,None]>y_points-1,y_gdf[:,None]<y_points+1)
+   168                                           
+   169                                               # and now find the entries that satisfy this and take the first one each
+   170         3 1596434962.0 532144987.3     59.0      floor_height_below_line_points = [height_gdf.loc[(condition_indices_x[:,index] & condition_indices_y[:,index]),"elev"].values[0] for index in range(len(x_points))]
+   171                                           
+   172                                               # and their height
+   173                                               # floor_height_below_line_points = [height_gdf.loc[(height_gdf.x.between(x_points[i]-1,x_points[i]+1))&(height_gdf.y.between(y_points[i]-1,y_points[i]+1)),"elev"].values[0] for i in range(len(x_points))]
+   174                                           
+   175                                               # for point in list_of_points:
+   176                                               #     height_gdf.loc[(height_gdf.x > point.x) & (height_gdf.x < point.x),"elev"]
+   177                                           
+   178                                               # height_gdf.loc[(height_gdf.x > point.x-max_deviation) & (height_gdf.x < point.x+max_deviation) &
+   179                                               #  (height_gdf.y < point.y+max_deviation) & (height_gdf.y > point.y-max_deviation),"elev"].values[0]
+   180                                           
+   181                                           
+   182                                               # floor_height_below_line_points = [fetch_point_elevation(point,height_gdf,max_deviation) for point in points_along_line]
+   183                                           
+   184                                               # 1. create arrays for start and end point
+   185         3     200350.0  66783.3      0.0      line_start_point_array = np.array([start_point.x,start_point.y,start_point_height])
+   186         3      47380.0  15793.3      0.0      line_end_point_array = np.array([end_point.x,end_point.y,end_point_height])
+   187                                           
+   188                                               # 2. get the rope lenght and compute ldh for every point along it
+   189         3     142087.0  47362.3      0.0      c_rope_length = geometry_utilities.distance_between_3d_points(line_start_point_array,line_end_point_array)
+   190                                               #exit the process if we have unrealistically low rope length
+   191                                           
+   192         3      55823.0  18607.7      0.0      b_whole_section = start_point.distance(end_point)
+   193         3    1004577.0 334859.0      0.0      ldh_array = np.array([lastdurchhang_at_point(point, start_point, end_point, c_rope_length, b_whole_section) for point in points_along_line])
+   194                                           
+   195                                               # 3. create an array of the floor points and their distance to the line (without slope)
+   196         3    2565871.0 855290.3      0.1      floor_points = list(zip([point.x for point in points_along_line], [point.y for point in points_along_line],floor_height_below_line_points))
+   197         3    5563069.0 1854356.3      0.2      line_to_floor_distances = [geometry_utilities.lineseg_dist(point,line_start_point_array, line_end_point_array) for point in floor_points]
+   198                                           
+   199                                               # and finally check the distances between each floor point and the ldh point
+   200         3       8413.0   2804.3      0.0      sloped_line_to_floor_distances = line_to_floor_distances - ldh_array
+   201                                           
+   202                                               # return current supports if we are far away enough from the ground
+   203         3      31054.0  10351.3      0.0      lowest_point_height = min(sloped_line_to_floor_distances)
+   204                                           
+   205                                               # plot the lines if true
+   206         3        431.0    143.7      0.0      if plot_possible_lines:
+   207                                                   plotting.plot_lines(floor_points,floor_height_below_line_points, sloped_line_to_floor_distances, view, pos)
+   208                                           
+   209         3       3745.0   1248.3      0.0      return_values_dict = {"sloped_line_to_floor_distances":sloped_line_to_floor_distances,"points_along_line":points_along_line, "start_point":start_point, "end_point":end_point, "no_collisions":True}
+   210                                           
+   211                                               #return false if line is too short
+   212         3       1207.0    402.3      0.0      if c_rope_length < 5:
+   213                                                   return_values_dict["no_collisions"]=False
+   214                                                   return return_values_dict
+   215                                           
+   216                                               # check if the line is above the ground
+   217         3        506.0    168.7      0.0      if lowest_point_height>min_height:
+   218         3        336.0    112.0      0.0          return return_values_dict
+   219                                               else:
+   220                                                   return_values_dict["no_collisions"]=False
+   221                                                   return return_values_dict

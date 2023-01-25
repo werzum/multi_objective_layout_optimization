@@ -155,8 +155,31 @@ def check_if_no_collisions(possible_line, height_gdf, plot_possible_lines, view,
 
     # fetch the floor points along the line
     points_along_line = generate_road_points(possible_line, interval = 2)
+    x_points, y_points = zip(*[(point.x, point.y) for point in points_along_line])
+    # x_points = np.array(x_points)
+    # y_points = np.array(y_points)
+
+    # x_gdf = np.array(height_gdf.x)
+    # y_gdf = np.array(height_gdf.y)
+
+    # # create an x_points*x_gdf array where we test for each entry if it is between those values
+    # condition_indices_x = np.logical_and(x_gdf[:,None]>x_points-1,x_gdf[:,None]<x_points+1)
+    # condition_indices_y = np.logical_and(y_gdf[:,None]>y_points-1,y_gdf[:,None]<y_points+1)
+
+    # # and now find the entries that satisfy this and take the first one each
+    # floor_height_below_line_points = [height_gdf.loc[(condition_indices_x[:,index] & condition_indices_y[:,index]),"elev"].values[0] for index in range(len(x_points))]
+
     # and their height
-    floor_height_below_line_points = [fetch_point_elevation(point,height_gdf,max_deviation) for point in points_along_line]
+    floor_height_below_line_points = [height_gdf.loc[(height_gdf.x.between(x_points[i]-max_deviation,x_points[i]+max_deviation))&(height_gdf.y.between(y_points[i]-max_deviation,y_points[i]+max_deviation)),"elev"].values[0] for i in range(len(x_points))]
+
+    # for point in list_of_points:
+    #     height_gdf.loc[(height_gdf.x > point.x) & (height_gdf.x < point.x),"elev"]
+
+    # height_gdf.loc[(height_gdf.x > point.x-max_deviation) & (height_gdf.x < point.x+max_deviation) &
+    #  (height_gdf.y < point.y+max_deviation) & (height_gdf.y > point.y-max_deviation),"elev"].values[0]
+
+
+    # floor_height_below_line_points = [fetch_point_elevation(point,height_gdf,max_deviation) for point in points_along_line]
 
     # 1. create arrays for start and end point
     line_start_point_array = np.array([start_point.x,start_point.y,start_point_height])
