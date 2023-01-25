@@ -55,7 +55,7 @@ def generate_possible_lines(road_points, target_trees, anchor_trees, overall_tre
     line_df = line_df[line_df["slope_deviation"]<max_main_line_slope_deviation]
     print(len(line_df)," after slope deviations")
 
-    # line_df = line_df.iloc[1:250]
+    line_df = line_df.iloc[1:250]
 
     # filter the candidates for support trees
     # overall_trees, target, point, possible_line
@@ -346,15 +346,10 @@ def generate_support_trees(overall_trees, target, point, possible_line):
     max_support_anchor_distance = 20
 
     # find those trees that are within the sideways distance to the proposed line
-    min_support_sideways_distance_trees = overall_trees.geometry.distance(possible_line) > min_support_sideways_distance
-    max_support_sideways_distance_trees = overall_trees.geometry.distance(possible_line) < max_support_sideways_distance
+    support_tree_candidates = overall_trees[overall_trees.geometry.distance(possible_line).between(min_support_sideways_distance,max_support_sideways_distance)]
 
     # find those trees that are within the right distance to the target tree
-    min_support_anchor_distance_trees = overall_trees.geometry.distance(target) > min_support_anchor_distance
-    max_support_anchor_distance_trees = overall_trees.geometry.distance(target) < max_support_anchor_distance
-
-    # shouldnt this be overall_ instead of target_?
-    support_tree_candidates = overall_trees[min_support_sideways_distance_trees * max_support_sideways_distance_trees * min_support_anchor_distance_trees * max_support_anchor_distance_trees]
+    support_tree_candidates = support_tree_candidates[support_tree_candidates.geometry.distance(target).between(min_support_anchor_distance,max_support_anchor_distance)]
 
     # select only those support tree candidates which are close to the roadside point than the target tree
     support_tree_candidates = support_tree_candidates[support_tree_candidates.geometry.distance(point) < target.distance(point)]
