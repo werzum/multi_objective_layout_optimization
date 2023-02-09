@@ -151,7 +151,7 @@ def calculate_deflections(this_cable_road):
     return y_x_deflections
 
 def lastdurchhang_at_point(
-    point, start_point, end_point, c_rope_length, b_whole_section
+    this_cable_road, point, s_current_tension
 ):
     """
     Calculates the lastdurchhang value at a given point.
@@ -170,25 +170,34 @@ def lastdurchhang_at_point(
     Returns:
     float: The lastdurchhang value at the given point.
     """
-    H_t_horizontal_force_tragseil = 80000  # improvised value
+    H_t_horizontal_force_tragseil = s_current_tension  # improvised value - need to do the parallelverchiebung here
     q_vertical_force = 15000  # improvised value 30kn?
     q_bar_rope_weight = 1.6  # improvised value 2?
     q_delta_weight_difference_pull_rope_weight = 0.6  # improvised value
     # compute distances and create the corresponding points
 
-    b1_section_1 = start_point.distance(point)
-    b2_section_2 = end_point.distance(point)
+    b1_section_1 = this_cable_road.start_point.distance(point)
+    b2_section_2 = this_cable_road.end_point.distance(point)
 
     lastdurchhang = (
-        b1_section_1 * b2_section_2 / (b_whole_section * H_t_horizontal_force_tragseil)
+        b1_section_1 * b2_section_2 / (this_cable_road.b_length_whole_section * H_t_horizontal_force_tragseil)
     ) * (
         q_vertical_force
-        + (c_rope_length * q_bar_rope_weight / 2)
+        + (this_cable_road.c_rope_length * q_bar_rope_weight / 2)
         + (
-            c_rope_length
+            this_cable_road.c_rope_length
             * q_delta_weight_difference_pull_rope_weight
-            / (4 * b_whole_section)
+            / (4 * this_cable_road.b_length_whole_section)
         )
         * (b2_section_2 - b1_section_1)
     )
     return lastdurchhang
+
+
+def euler_knicklast(tree_diameter, height_of_attachment):
+    E_module_wood = 80000
+    securit_factor = 3
+    withstood_force = ((math.pi**2*E_module_wood*math.pi*tree_diameter**4) / 
+    (height_of_attachment**2*64*securit_factor))
+
+    return withstood_force
