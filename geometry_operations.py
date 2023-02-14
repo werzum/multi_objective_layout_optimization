@@ -79,18 +79,14 @@ def generate_possible_lines(
     print(len(line_df), " after supports trees")
 
     # filter the triple angles for good supports
-    line_df["possible_anchor_triples", "center_tree_bhd"] = [
-        generate_triple_angle(Point(line.coords[0]), line, anchor_trees)
-        for line in line_df["line_candidates"]
-    ]
-    line_df = line_df[line_df["possible_anchor_triples"].notnull()]
-    print(len(line_df), " after possible anchor triples")
-
-    # compute the max supported force based on the BHD of the center tree
-    security_factor = 5
-    line_df["max_supported_force"] = (
-        (line_df["center_tree_bhd"] ** 2) * 10 / security_factor
+    line_df["triple_angles"], line_df["max_supported_force"] = zip(
+        *[
+            generate_triple_angle(Point(line.coords[0]), line, anchor_trees)
+            for line in line_df["line_candidates"]
+        ]
     )
+    line_df = line_df[line_df["triple_angles"].notnull()]
+    print(len(line_df), " after possible anchor triples")
 
     # check if we have no height obstructions - compute the supports we need according to line tension and anchor configs
     pos = []
@@ -847,19 +843,21 @@ def generate_triple_angle(point, line_candidate, anchor_trees):
     min_outer_anchor_angle = 20
     max_outer_anchor_angle = 50
     max_center_tree_slope_angle = 3
-    max_anchor_distance = 50
+    max_anchor_distance = 40
+    min_anchor_distane = 15
 
     # 1. get list of possible anchors -> anchor trees
     anchor_trees_working_copy = anchor_trees.copy()
 
     # 2. check which points are within distance
     anchor_trees_working_copy = anchor_trees_working_copy[
-        anchor_trees_working_copy.geometry.distance(point) < max_anchor_distance
+        (anchor_trees_working_copy.geometry.distance(point) <= max_anchor_distance)
+        & (anchor_trees_working_copy.geometry.distance(point) >= min_anchor_distane)
     ]
 
     # 3. create lines to all these possible connections
     if anchor_trees_working_copy.empty or len(anchor_trees_working_copy) < 3:
-        return
+        return None, None
 
     possible_anchor_lines = anchor_trees_working_copy.geometry.apply(
         lambda x: LineString([x, point])
@@ -874,7 +872,7 @@ def generate_triple_angle(point, line_candidate, anchor_trees):
     ].to_list()
 
     if len(possible_anchor_lines) < 3:
-        return
+        return None, None
 
     # 4. check first pairs: one within 10-30 angle to the other and one should be <5 degrees to the slope line
     pairwise_angle = [
@@ -893,11 +891,11 @@ def generate_triple_angle(point, line_candidate, anchor_trees):
 
     # skip if we dont have enough candidates
     if len(pairwise_angle) < 3:
-        return
+        return None, None
 
     # 5. check if the third support line is also within correct angle - within 2*min_outer_anch_angle and 2* max_anchor_angle for one point and within min_outer, max_outer for the other -> so two lines are not on the same side!
     triple_angle = []
-    center_tree_bhd = []
+    max_supported_force = []
     for x, y in pairwise_angle:
         for z in possible_anchor_lines:
             # make sure that we are not comparing a possible line with itself
@@ -925,14 +923,22 @@ def generate_triple_angle(point, line_candidate, anchor_trees):
                         for line in [x, y, z]
                     ]
                     center_line = triple_angle[-1][degrees.index(min(degrees))]
+
                     # get its end tree and retrive its BHD from the DF
                     this_center_tree_bhd = anchor_trees_working_copy[
                         anchor_trees_working_copy.geometry
                         == Point(center_line.coords[0])
-                    ]["BHD"]
-                    center_tree_bhd.append(this_center_tree_bhd)
+                    ]["BHD"].tolist()[0]
 
-    return triple_angle, center_tree_bhd
+                    # compute the max supported force based on the BHD of the center tree
+                    security_factor = 5
+                    this_max_supported_force = (
+                        (this_center_tree_bhd**2) * 10 / security_factor
+                    )
+
+                    max_supported_force.append(this_max_supported_force)
+
+    return triple_angle, max_supported_force
 
 
 def check_if_anchor_trees_hold(this_cable_road, anchor_triplets, max_supported_tension):
