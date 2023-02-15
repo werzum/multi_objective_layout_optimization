@@ -1,5 +1,6 @@
 import math
 
+
 def calculate_length_unloaded_skyline(this_cable_road):
     # calculate basic length
     this_cable_road.z_mi_height_center_span = (
@@ -150,9 +151,8 @@ def calculate_deflections(this_cable_road):
 
     return y_x_deflections
 
-def lastdurchhang_at_point(
-    this_cable_road, point, s_current_tension
-):
+
+def lastdurchhang_at_point(this_cable_road, point, s_current_tension):
     """
     Calculates the lastdurchhang value at a given point.
 
@@ -170,17 +170,23 @@ def lastdurchhang_at_point(
     Returns:
     float: The lastdurchhang value at the given point.
     """
-    H_t_horizontal_force_tragseil = s_current_tension  # improvised value - need to do the parallelverchiebung here
+    H_t_horizontal_force_tragseil = (
+        s_current_tension  # improvised value - need to do the parallelverchiebung here
+    )
     q_vertical_force = 15000  # improvised value 30kn?
     q_bar_rope_weight = 1.6  # improvised value 2?
     q_delta_weight_difference_pull_rope_weight = 0.6  # improvised value
     # compute distances and create the corresponding points
 
-    b1_section_1 = this_cable_road.start_point.distance(point)
-    b2_section_2 = this_cable_road.end_point.distance(point)
+    b1_section_1 = (
+        this_cable_road.start_point.distance(point) + 0.1
+    )  # added a little padding to prevent div by zero
+    b2_section_2 = this_cable_road.end_point.distance(point) + 0.1
 
     lastdurchhang = (
-        b1_section_1 * b2_section_2 / (this_cable_road.b_length_whole_section * H_t_horizontal_force_tragseil)
+        b1_section_1
+        * b2_section_2
+        / (this_cable_road.b_length_whole_section * H_t_horizontal_force_tragseil)
     ) * (
         q_vertical_force
         + (this_cable_road.c_rope_length * q_bar_rope_weight / 2)
@@ -197,7 +203,8 @@ def lastdurchhang_at_point(
 def euler_knicklast(tree_diameter, height_of_attachment):
     E_module_wood = 80000
     securit_factor = 3
-    withstood_force = ((math.pi**2*E_module_wood*math.pi*tree_diameter**4) / 
-    (height_of_attachment**2*64*securit_factor))
+    withstood_force = (math.pi**2 * E_module_wood * math.pi * tree_diameter**4) / (
+        height_of_attachment**2 * 64 * securit_factor
+    )
 
     return withstood_force

@@ -1,3 +1,4 @@
+from pprint import pprint
 from copy import deepcopy
 from shapely.geometry import LineString, Point
 import numpy as np
@@ -79,13 +80,13 @@ def generate_possible_lines(
     print(len(line_df), " after supports trees")
 
     # filter the triple angles for good supports
-    line_df["triple_angles"], line_df["max_supported_force"] = zip(
+    line_df["possible_anchor_triples"], line_df["max_supported_force"] = zip(
         *[
             generate_triple_angle(Point(line.coords[0]), line, anchor_trees)
             for line in line_df["line_candidates"]
         ]
     )
-    line_df = line_df[line_df["triple_angles"].notnull()]
+    line_df = line_df[line_df["possible_anchor_triples"].notnull()]
     print(len(line_df), " after possible anchor triples")
 
     # check if we have no height obstructions - compute the supports we need according to line tension and anchor configs
@@ -104,7 +105,7 @@ def generate_possible_lines(
                 overall_trees,
                 pos,
             )
-            for line in itertools.iterrows(line_df)
+            for index, line in line_df.iterrows()
         ]
     )
     # and filter lines out without successful lines
@@ -191,72 +192,34 @@ def compute_angle_between_supports(possible_line, height_gdf):
     return geometry_utilities.angle_between_3d(start_point_xyz, end_point_xyz)
 
 
-def compute_line_height(this_cable_road, height_gdf):
-    x_points, y_points = zip(
-        *[(point.x, point.y) for point in this_cable_road.points_along_line]
-    )
-
-    # get the first elevation point of the list which satisfies the max_deviation condition
-    this_cable_road.floor_height_below_line_points = [
-        height_gdf.loc[
-            (
-                height_gdf.x.between(
-                    x_points[i] - this_cable_road.max_deviation,
-                    x_points[i] + this_cable_road.max_deviation,
-                )
-            )
-            & (
-                height_gdf.y.between(
-                    y_points[i] - this_cable_road.max_deviation,
-                    y_points[i] + this_cable_road.max_deviation,
-                )
-            ),
-            "elev",
-        ].values[0]
-        for i in range(len(x_points))
-    ]
-
-    # create arrays for start and end point
-    this_cable_road.line_start_point_array = np.array(
-        [
-            this_cable_road.start_point.x,
-            this_cable_road.start_point.y,
-            this_cable_road.start_point_height,
-        ]
-    )
-    this_cable_road.line_end_point_array = np.array(
-        [
-            this_cable_road.end_point.x,
-            this_cable_road.end_point.y,
-            this_cable_road.end_point_height,
-        ]
-    )
-
-
-def create_cable_road_object(possible_line):
-    """Create a cr object that holds all the properties we need
-
-    Args:
-        possible_line (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
-    start_point, end_point = Point(possible_line.coords[0]), Point(
-        possible_line.coords[1]
-    )
-    this_cable_road = classes.Cable_Road(start_point, end_point)
-
-    return this_cable_road
-
-
 def initialize_line_tension(this_cable_road, current_supports):
     # set tension of the cable_road
     s_br_mindestbruchlast = 170000  # in newton
     this_cable_road.s_max_maximalspannkraft = s_br_mindestbruchlast / 3
-    this_cable_road = this_cable_road.s_max_maximalspannkraft * (
-        current_supports / current_supports + 1
+    this_cable_road.s_current_tension = this_cable_road.s_max_maximalspannkraft * (
+        current_supports + 1 / (current_supports + 2)
     )
+
+
+def calculate_deflections(this_cable_road):
+    # 1. calculate current deflections with a given tension
+    y_x_deflections = np.asarray(
+        [
+            mechanical_computations.lastdurchhang_at_point(
+                this_cable_road, point, this_cable_road.s_current_tension
+            )
+            for point in this_cable_road.points_along_line
+        ]
+    )
+
+    #  check the distances between each floor point and the ldh point
+    this_cable_road.sloped_line_to_floor_distances = (
+        this_cable_road.line_to_floor_distances - y_x_deflections
+    )
+
+    lowest_point_height = min(this_cable_road.sloped_line_to_floor_distances)
+
+    return lowest_point_height
 
 
 def check_if_no_collisions_overall_line(
@@ -266,7 +229,8 @@ def check_if_no_collisions_overall_line(
     pos,
     current_supports,
     anchor_triplets,
-    center_tree_bhd,
+    max_supported_force,
+    pre_tension,
 ):
     """A function to check whether there are any points along the line candidate (spanned up by the starting/end points elevation plus the support height) which are less than min_height away from the line.
     Returns the cable_road object, and sets the no_collisions property correspondingly
@@ -300,45 +264,53 @@ def check_if_no_collisions_overall_line(
     # y_x_deflections = mechanical_computations.calculate_deflections(this_cable_road)
 
     # Process of updating the tension and checking if we touch ground and anchors hold
-
-    this_cable_road.anchors_hold = True
-    this_cable_road.no_collisions = False
-
-    while this_cable_road.s_current_tension < this_cable_road.s_max_maximalspannkraft:
-        # 1. do the anchors hold? break the loop - this configuration doesnt work
-        if not check_if_anchor_trees_hold(
-            this_cable_road, anchor_triplets, center_tree_bhd
+    if not pre_tension:
+        while (
+            this_cable_road.s_current_tension < this_cable_road.s_max_maximalspannkraft
         ):
-            this_cable_road.anchors_hold = False
-            break
+            # 1. do the anchors hold? break the loop - this configuration doesnt work
+            if not check_if_anchor_trees_hold(
+                this_cable_road, max_supported_force, anchor_triplets
+            ):
+                this_cable_road.anchors_hold = False
+                break
 
-        # 1. calculate current deflections with a given tension
-        y_x_deflections = [
-            mechanical_computations.lastdurchhang_at_point(
-                this_cable_road, point, this_cable_road.s_current_tension
-            )
-            for point in this_cable_road.points_along_line
-        ]
+            lowest_point_height = calculate_deflections(this_cable_road)
 
-        #  check the distances between each floor point and the ldh point
-        this_cable_road.sloped_line_to_floor_distances = (
-            this_cable_road.line_to_floor_distances - y_x_deflections
-        )
+            # check if the line is above the ground and set it to false if we have a collision
+            if lowest_point_height > min_height:
+                # we found no collisions and exit the loop
+                this_cable_road.no_collisions = True
+                break
+            else:
+                this_cable_road.no_collisions = False
+                # break the loop before we go over the maximalspannkraft
+                if (
+                    this_cable_road.s_current_tension + 1000
+                    < this_cable_road.s_max_maximalspannkraft
+                ):
+                    this_cable_road.s_current_tension += 1000
+                else:
+                    break
 
-        lowest_point_height = min(this_cable_road.sloped_line_to_floor_distances)
-
+    # if we skipped over the computation because the tension is pre-set
+    if pre_tension:
         # check if the line is above the ground and set it to false if we have a collision
+        lowest_point_height = calculate_deflections(this_cable_road)
         if lowest_point_height > min_height:
-            this_cable_road.no_collisions = False
-        else:
             # we found no collisions and exit the loop
             this_cable_road.no_collisions = True
-            break
-
-        this_cable_road.s_current_tension += 1000
+        else:
+            this_cable_road.no_collisions = False
 
     # plot the lines if true
-    if plot_possible_lines:
+    if (
+        plot_possible_lines
+        and this_cable_road.floor_points
+        and this_cable_road.floor_height_below_line_points
+        and this_cable_road.anchors_hold
+        and this_cable_road.no_collisions
+    ):
         plotting.plot_lines(
             this_cable_road.floor_points,
             this_cable_road.floor_height_below_line_points,
@@ -368,7 +340,7 @@ def check_if_no_collisions_segments(this_cable_road):
     lowest_point_height = min(this_cable_road.sloped_line_to_floor_distances)
 
     # check if the line is above the ground and set it to false if we have a collision
-    if lowest_point_height > this_cable_road.min_height:
+    if lowest_point_height < this_cable_road.min_height:
         this_cable_road.no_collisions = False
     else:
         # we found no collisions and exit the loop
@@ -379,7 +351,7 @@ def check_if_support_withstands_tension(
     diameter_at_height,
     attached_at_height,
     loaded_cable_road,
-    empt_cable_road,
+    empty_cable_road,
     current_tension,
 ):
     """
@@ -388,10 +360,10 @@ def check_if_support_withstands_tension(
 
     # 1. construct tangents - from the left middle of the loaded cr to its endpoint
     full_tangent = LineString(
-        loaded_cable_road.line.centroid, loaded_cable_road.end_point
+        [loaded_cable_road.line.centroid, loaded_cable_road.end_point]
     )
     empt_tangent = LineString(
-        empt_cable_road.start_point, empt_cable_road.line.centroid
+        [empty_cable_road.start_point, empty_cable_road.line.centroid]
     )
 
     # get their angles
@@ -412,7 +384,7 @@ def check_if_support_withstands_tension(
     return max_force_of_support > force_on_support
 
 
-def compute_initial_cable_road(possible_line, height_gdf):
+def compute_initial_cable_road(possible_line, height_gdf, initial_tension=None):
     """Create a CR object and compute its initial properties like height, points along line etc
 
     Args:
@@ -422,7 +394,7 @@ def compute_initial_cable_road(possible_line, height_gdf):
     Returns:
         _type_: _description_
     """
-    this_cable_road = create_cable_road_object(possible_line)
+    this_cable_road = classes.Cable_Road(possible_line)
 
     this_cable_road.start_point_height = (
         fetch_point_elevation(
@@ -441,7 +413,7 @@ def compute_initial_cable_road(possible_line, height_gdf):
     this_cable_road.points_along_line = generate_road_points(possible_line, interval=2)
 
     # get the height of those points and set them as attributes to the CR object
-    compute_line_height(this_cable_road, height_gdf)
+    this_cable_road.compute_line_height(height_gdf)
 
     # generate floor points and their distances
     this_cable_road.floor_points = list(
@@ -452,22 +424,28 @@ def compute_initial_cable_road(possible_line, height_gdf):
         )
     )
 
-    this_cable_road.line_to_floor_distances = [
-        geometry_utilities.lineseg_dist(
-            point,
-            this_cable_road.line_start_point_array,
-            this_cable_road.line_end_point_array,
-        )
-        for point in this_cable_road.floor_points
-    ]
+    this_cable_road.line_to_floor_distances = np.asarray(
+        [
+            geometry_utilities.lineseg_dist(
+                point,
+                this_cable_road.line_start_point_array,
+                this_cable_road.line_end_point_array,
+            )
+            for point in this_cable_road.floor_points
+        ]
+    )
 
-    # get the rope lenght
+    # get the rope length
     this_cable_road.b_length_whole_section = this_cable_road.start_point.distance(
         this_cable_road.end_point
     )
+
     this_cable_road.c_rope_length = geometry_utilities.distance_between_3d_points(
         this_cable_road.line_start_point_array, this_cable_road.line_end_point_array
     )
+
+    if initial_tension:
+        this_cable_road.s_current_tension = initial_tension
 
     return this_cable_road
 
@@ -475,7 +453,7 @@ def compute_initial_cable_road(possible_line, height_gdf):
 def compute_required_supports(
     possible_line,
     anchor_triplets,
-    center_tree_bhd,
+    max_supported_force,
     height_gdf,
     current_supports,
     plot_possible_lines,
@@ -483,6 +461,7 @@ def compute_required_supports(
     location_supports,
     overall_trees,
     pos,
+    pre_tension=None,
 ):
     """A function to check whether there are any points along the line candidate (spanned up by the starting/end points
      elevation plus the support height) which are less than min_height away from the line.
@@ -496,7 +475,10 @@ def compute_required_supports(
     """
     this_cable_road = compute_initial_cable_road(possible_line, height_gdf)
 
-    initialize_line_tension(this_cable_road, current_supports)
+    if not pre_tension:
+        initialize_line_tension(this_cable_road, current_supports)
+    else:
+        this_cable_road.s_current_tension = pre_tension
 
     # tension the line and check if anchors hold and we have collisions
     check_if_no_collisions_overall_line(
@@ -506,14 +488,22 @@ def compute_required_supports(
         pos,
         current_supports,
         anchor_triplets,
-        center_tree_bhd,
+        max_supported_force,
+        pre_tension,
     )
 
     if this_cable_road.no_collisions and this_cable_road.anchors_hold:
         return current_supports, location_supports
 
+    # exit this line since anchors dont hold
+    if not this_cable_road.anchors_hold:
+        return False, False
+
+    if current_supports and current_supports < 4:
+        return False, False
     # enter the next recursive loop if not b creating supports
     else:
+        # pprint(vars(this_cable_road))
         # 1. get the point of contact
         lowest_point_height = min(this_cable_road.sloped_line_to_floor_distances)
         sloped_line_to_floor_distances_index = int(
@@ -540,7 +530,10 @@ def compute_required_supports(
         distance_candidates = distance_candidates.sort_values(ascending=True)
 
         # loop through the candidates to check if one has no obstructions
+        candidate_index = 0
         for candidate in distance_candidates.index:
+            # keep the index so we can access the candidate later
+            candidate_index = candidate
             candidate_tree = overall_trees.iloc[candidate]
 
             (
@@ -556,34 +549,40 @@ def compute_required_supports(
             )
 
             # create left and right sub_cableroad
-            left_cable_road = compute_initial_cable_road(possible_line, height_gdf)
-            right_cable_road = compute_initial_cable_road(possible_line, height_gdf)
+            left_cable_road = compute_initial_cable_road(
+                possible_line,
+                height_gdf,
+                initial_tension=this_cable_road.s_current_tension,
+            )
+            right_cable_road = compute_initial_cable_road(
+                possible_line,
+                height_gdf,
+                initial_tension=this_cable_road.s_current_tension,
+            )
 
             # iterate through the possible attachments of the support and see if we touch ground
-            for diameters_index in len(candidate_tree.hoehe):
+            for diameters_index in range(len(candidate_tree.height_series)):
                 support_withstands_tension = check_if_support_withstands_tension(
-                    candidate_tree.diameter[diameters_index],
-                    candidate_tree.hoehe[diameters_index],
+                    candidate_tree.diameter_series[diameters_index],
+                    candidate_tree.height_series[diameters_index],
                     left_cable_road,
                     right_cable_road,
-                    this_cable_road.current_tension,
+                    this_cable_road.s_current_tension,
                 )
                 if not support_withstands_tension:
-                    continue
+                    # next candidate - tension just gets worse with more height
+                    break
 
-                # 6. no collisions left and right?
-                check_if_no_collisions_segments(
-                    left_cable_road, height_gdf, plot_possible_lines, view, pos
-                )
+                # 6. no collisions left and right? go to next candidate if this one is already not working out
+                check_if_no_collisions_segments(left_cable_road)
                 if not left_cable_road.no_collisions:
                     continue
 
-                check_if_no_collisions_segments(
-                    right_cable_road, height_gdf, plot_possible_lines, view, pos
-                )
+                check_if_no_collisions_segments(right_cable_road)
 
-                if not right_cable_road.no_collisions:
-                    continue
+                if right_cable_road.no_collisions and left_cable_road.no_collisions:
+                    # we found a viable configuration - break out of this loop
+                    break
 
             # no collisions were found and support holds, return our current supports
             if (
@@ -596,6 +595,16 @@ def compute_required_supports(
                 return current_supports, location_supports
 
         # if we passed through the loop without finding suitable candidates, set the first candidate as support and find sub-supports recursively
+        # which of the crs worked?
+        if left_cable_road.no_collisions:
+            working_cr = left_cable_road
+        elif right_cable_road.no_collisions:
+            working_cr = right_cable_road
+        else:
+            # none worked, then we stop this candidate
+            return False, False
+
+        # proceed with the working cr and find sub-supports - fetch the candidate we last looked at
         current_supports += 1
         first_candidate_point = overall_trees.iloc[
             distance_candidates.index[0]
@@ -604,7 +613,9 @@ def compute_required_supports(
 
         # compute necessary supports to the left
         current_supports, location_supports = compute_required_supports(
-            support_to_anchor_line,
+            working_cr.line,
+            anchor_triplets,
+            max_supported_force,
             height_gdf,
             current_supports,
             plot_possible_lines,
@@ -612,25 +623,12 @@ def compute_required_supports(
             location_supports,
             overall_trees,
             pos,
+            working_cr.s_current_tension,
         )
 
-        # fewer than max supports? then check line to the right for suports
+        # fewer than max supports? then return the supports we found
         if current_supports and current_supports < 4:
-            current_supports, location_supports = compute_required_supports(
-                support_to_anchor_line,
-                height_gdf,
-                current_supports,
-                plot_possible_lines,
-                view,
-                location_supports,
-                overall_trees,
-                pos,
-            )
-            # still acceptable amounts of supports?
-            if current_supports and current_supports < 4:
-                return current_supports, location_supports
-            else:
-                return False, False
+            return current_supports, location_supports
         else:
             return False, False
 
@@ -941,17 +939,18 @@ def generate_triple_angle(point, line_candidate, anchor_trees):
     return triple_angle, max_supported_force
 
 
-def check_if_anchor_trees_hold(this_cable_road, anchor_triplets, max_supported_tension):
+def check_if_anchor_trees_hold(this_cable_road, max_supported_force, anchor_triplets):
     # get force at last support
     exerted_force = this_cable_road.s_current_tension
     # this_cable_road.h_sj_h_mj_horizontal_force_under_load_at_support
     # todo Parallelverschiebung to get actual force
+    force_on_anchor = exerted_force / 10  # for now
 
     # check if the supported tension is greater than the exerted force
     sufficient_anchors = [
         anchor_triplets[i]
-        for i in len(max_supported_tension)
-        if max_supported_tension[i] > exerted_force
+        for i in range(len(anchor_triplets))
+        if max_supported_force[i] > force_on_anchor
     ]
 
     if sufficient_anchors:
