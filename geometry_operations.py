@@ -1,9 +1,12 @@
 from shapely.geometry import LineString, Point, Polygon
+from shapely.geometry.base import BaseGeometry
 import numpy as np
 import geopandas as gpd
 
 
-def generate_road_points(road_geometry: LineString, interval: int) -> list[Point]:
+def generate_road_points(
+    road_geometry: LineString, interval: int
+) -> list[BaseGeometry]:
     """Generate a list of points with a given interval along the road geometry
 
     Args:
@@ -35,7 +38,7 @@ def compute_points_covered_by_geometry(
     contained_points = filter_gdf_by_contained_elements(points_gdf, geometry)
 
     if len(contained_points) < min_trees_covered:
-        return
+        raise ValueError("Not enough trees covered by this geometry")
     # filter only those points
     # and return and set of the covered points as well as the amount of trees covered
     return set(contained_points["id"].values), len(contained_points)
@@ -46,7 +49,7 @@ def compute_points_covered_per_row(
     row_gdf: gpd.GeoDataFrame,
     buffer_size: int,
     min_trees_covered: int,
-) -> gpd.GeoDataFrame:
+):
     """Compute how many points are covered per row.geometry in the points_gdf
     Args:
         points_gdf (_type_): A gdf with a list of point geometries
@@ -67,9 +70,7 @@ def compute_points_covered_per_row(
     )
 
 
-def filter_gdf_by_contained_elements(
-    gdf: gpd.GeoDataFrame, polygon: Polygon
-) -> gpd.GeoDataFrame:
+def filter_gdf_by_contained_elements(gdf: gpd.GeoDataFrame, polygon: Polygon):
     """Return only the points in the gdf which are covered by the polygon
 
     Args:
@@ -89,7 +90,7 @@ def filter_gdf_by_contained_elements(
 
 def compute_distances_facilities_clients(
     tree_gdf: gpd.GeoDataFrame, line_gdf: gpd.GeoDataFrame
-) -> tuple(np.ndarray, np.ndarray):
+) -> tuple[np.ndarray, np.ndarray]:
     """Create a numpy matrix with the distance between every tree and line
 
     Args:
@@ -120,3 +121,26 @@ def compute_distances_facilities_clients(
         np.asarray(tree_line_distances).transpose(),
         np.asarray(carriage_support_distances).transpose(),
     )
+
+
+def fetch_point_elevation(
+    point: Point, height_gdf: gpd.GeoDataFrame, max_deviation: float
+) -> float:
+    """
+    Fetches the elevation of a given point.
+
+    Args:
+    point (Point): The point for which the elevation is to be fetched.
+    height_gdf (GeoDataFrame): A GeoDataFrame containing the elevations.
+    max_deviation (float): The maximum deviation allowed while fetching the elevation.
+
+    Returns:
+    float: The elevation of the given point.
+    """
+    return height_gdf.loc[
+        (height_gdf.x > point.x - max_deviation)
+        & (height_gdf.x < point.x + max_deviation)
+        & (height_gdf.y < point.y + max_deviation)
+        & (height_gdf.y > point.y - max_deviation),
+        "elev",
+    ].values[0]

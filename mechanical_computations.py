@@ -4,7 +4,7 @@ import numpy as np
 import vispy.scene
 import geopandas as gpd
 
-import geometry_utilities, classes
+import geometry_utilities, geometry_operations, classes
 
 # high level functions
 
@@ -12,12 +12,12 @@ import geometry_utilities, classes
 def check_if_no_collisions_overall_line(
     this_cable_road: classes.Cable_Road,
     plot_possible_lines: bool,
-    view: vispy.scene.SceneCanvas,
+    view: vispy.scene.ViewBox,
     pos: list,
     current_supports: int,
     anchor_triplets: list,
-    max_supported_force: float,
-    pre_tension: bool,
+    max_supported_force: list[float],
+    pre_tension: None | float,
 ):
     """A function to check whether there are any points along the line candidate (spanned up by the starting/end points elevation plus the support height) which are less than min_height away from the line.
     Returns the cable_road object, and sets the no_collisions property correspondingly
@@ -48,7 +48,7 @@ def check_if_no_collisions_overall_line(
     # )
 
     # Zweifel Schritt 3 - calculate properties of skyline under load (ie deflection)
-    # y_x_deflections = mechanical_computations.calculate_deflections(this_cable_road)
+    # y_x_deflections = mechanical_computations.calculate_sloped_line_to_floor_distances(this_cable_road)
 
     # Process of updating the tension and checking if we touch ground and anchors hold
     if not pre_tension:
@@ -62,7 +62,9 @@ def check_if_no_collisions_overall_line(
                 this_cable_road.anchors_hold = False
                 break
 
-            lowest_point_height = calculate_deflections(this_cable_road)
+            calculate_sloped_line_to_floor_distances(this_cable_road)
+
+            lowest_point_height = min(this_cable_road.sloped_line_to_floor_distances)
 
             # check if the line is above the ground and set it to false if we have a collision
             if lowest_point_height > min_height:
@@ -82,8 +84,9 @@ def check_if_no_collisions_overall_line(
 
     # if we skipped over the computation because the tension is pre-set
     if pre_tension:
-        # check if the line is above the ground and set it to false if we have a collision
-        lowest_point_height = calculate_deflections(this_cable_road)
+        calculate_sloped_line_to_floor_distances(this_cable_road)
+        lowest_point_height = min(this_cable_road.sloped_line_to_floor_distances)
+
         if lowest_point_height > min_height:
             # we found no collisions and exit the loop
             this_cable_road.no_collisions = True
@@ -112,12 +115,14 @@ def check_if_no_collisions_segments(this_cable_road: classes.Cable_Road):
     this_cable_road.no_collisions = False
 
     # 1. calculate current deflections with a given tension
-    y_x_deflections = [
-        mechanical_computations.lastdurchhang_at_point(
-            this_cable_road, point, this_cable_road.s_current_tension
-        )
-        for point in this_cable_road.points_along_line
-    ]
+    y_x_deflections = np.asarray(
+        [
+            lastdurchhang_at_point(
+                this_cable_road, point, this_cable_road.s_current_tension
+            )
+            for point in this_cable_road.points_along_line
+        ]
+    )
 
     #  check the distances between each floor point and the ldh point
     this_cable_road.sloped_line_to_floor_distances = (
@@ -163,9 +168,7 @@ def check_if_support_withstands_tension(
 
     # get the supported force of the support tree
     # TBD this can also be done in advance
-    max_force_of_support = mechanical_computations.euler_knicklast(
-        diameter_at_height, attached_at_height
-    )
+    max_force_of_support = euler_knicklast(diameter_at_height, attached_at_height)
 
     # return true if the support can bear more than the exerted force
     return max_force_of_support > force_on_support
@@ -180,11 +183,11 @@ def initialize_line_tension(this_cable_road: classes.Cable_Road, current_support
     )
 
 
-def calculate_deflections(this_cable_road: classes.Cable_Road):
+def calculate_sloped_line_to_floor_distances(this_cable_road: classes.Cable_Road):
     # 1. calculate current deflections with a given tension
     y_x_deflections = np.asarray(
         [
-            mechanical_computations.lastdurchhang_at_point(
+            lastdurchhang_at_point(
                 this_cable_road, point, this_cable_road.s_current_tension
             )
             for point in this_cable_road.points_along_line
@@ -195,10 +198,6 @@ def calculate_deflections(this_cable_road: classes.Cable_Road):
     this_cable_road.sloped_line_to_floor_distances = (
         this_cable_road.line_to_floor_distances - y_x_deflections
     )
-
-    lowest_point_height = min(this_cable_road.sloped_line_to_floor_distances)
-
-    return lowest_point_height
 
 
 def compute_angle_between_supports(
@@ -217,10 +216,12 @@ def compute_angle_between_supports(
         possible_line.coords[1]
     )
     max_deviation = 0.1
-    start_point_xy_height = fetch_point_elevation(
+    start_point_xy_height = geometry_operations.fetch_point_elevation(
         start_point_xy, height_gdf, max_deviation
     )
-    end_point_xy_height = fetch_point_elevation(end_point_xy, height_gdf, max_deviation)
+    end_point_xy_height = geometry_operations.fetch_point_elevation(
+        end_point_xy, height_gdf, max_deviation
+    )
 
     # piece together the triple from the xy coordinates and the z (height)
     start_point_xyz = (
@@ -240,7 +241,7 @@ def compute_angle_between_supports(
 
 def check_if_anchor_trees_hold(
     this_cable_road: classes.Cable_Road,
-    max_supported_force: float,
+    max_supported_force: list[float],
     anchor_triplets: list,
 ) -> bool:
     # get force at last support
@@ -257,7 +258,7 @@ def check_if_anchor_trees_hold(
     ]
 
     if sufficient_anchors:
-        this_cable_road.anchor_triples = sufficient_anchors
+        this_cable_road.anchor_triplets = sufficient_anchors
         return True
     else:
         return False
@@ -383,36 +384,36 @@ def deflection_by_force_and_position(this_cable_road, point, force_at_point):
     return y_x_deflection_at_x
 
 
-def calculate_deflections(this_cable_road):
-    """Calculate array of deflections for each point in the skyline according to overlength
+# def calculate_sloped_line_to_floor_distances(this_cable_road):
+#     """Calculate array of deflections for each point in the skyline according to overlength
 
-    Args:
-        this_cable_road (_type_): _description_
+#     Args:
+#         this_cable_road (_type_): _description_
 
-    Returns:
-        _type_: _description_
-    """
-    # horizontal components of force as per 4.34 and 4.35
-    this_cable_road.h_mj_horizontal_force_under_load_at_center_span = (
-        this_cable_road.b_length_whole_section / this_cable_road.c_rope_length
-    ) * this_cable_road.t_v_j_bar_tensile_force_at_center_span
+#     Returns:
+#         _type_: _description_
+#     """
+#     # horizontal components of force as per 4.34 and 4.35
+#     this_cable_road.h_mj_horizontal_force_under_load_at_center_span = (
+#         this_cable_road.b_length_whole_section / this_cable_road.c_rope_length
+#     ) * this_cable_road.t_v_j_bar_tensile_force_at_center_span
 
-    this_cable_road.h_sj_h_mj_horizontal_force_under_load_at_support = (
-        this_cable_road.b_length_whole_section / this_cable_road.c_rope_length
-    ) * this_cable_road.t_i_bar_tensile_force_at_support
+#     this_cable_road.h_sj_h_mj_horizontal_force_under_load_at_support = (
+#         this_cable_road.b_length_whole_section / this_cable_road.c_rope_length
+#     ) * this_cable_road.t_i_bar_tensile_force_at_support
 
-    # are we getting x right?
-    horizontal_forces = [
-        horizontal_force_at_point(this_cable_road, point)
-        for point in this_cable_road.points_along_line
-    ]
-    # calculate the deflections as per force and position along the CR with 4.36
-    y_x_deflections = [
-        deflection_by_force_and_position(this_cable_road, point, force)
-        for point, force in zip(this_cable_road.points_along_line, horizontal_forces)
-    ]
+#     # are we getting x right?
+#     horizontal_forces = [
+#         horizontal_force_at_point(this_cable_road, point)
+#         for point in this_cable_road.points_along_line
+#     ]
+#     # calculate the deflections as per force and position along the CR with 4.36
+#     y_x_deflections = [
+#         deflection_by_force_and_position(this_cable_road, point, force)
+#         for point, force in zip(this_cable_road.points_along_line, horizontal_forces)
+#     ]
 
-    return y_x_deflections
+#     return y_x_deflections
 
 
 def lastdurchhang_at_point(this_cable_road, point, s_current_tension):

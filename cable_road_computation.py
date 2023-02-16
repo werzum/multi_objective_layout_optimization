@@ -1,14 +1,12 @@
-from pprint import pprint
-from copy import deepcopy
-from shapely.geometry import LineString, Point, Polygon
+from shapely.geometry import LineString, Point
 import numpy as np
 import itertools
 import pandas as pd
 import vispy.scene
-from vispy.scene import visuals
 import geopandas as gpd
+from pandas import DataFrame
 
-import geometry_utilities, classes
+import geometry_utilities, geometry_operations, mechanical_computations, classes, plotting
 
 # Main functions to compute the cable road which calls the other functions
 
@@ -21,7 +19,7 @@ def generate_possible_lines(
     slope_line: LineString,
     height_gdf: gpd.GeoDataFrame,
     plot_possible_lines: bool,
-):
+) -> tuple[DataFrame, dict]:
     """Compute which lines can be made from road_points to anchor_trees without having an angle greater than max_main_line_slope_deviation
     First, we generate all possible lines between  each point along the road and all head anchors.
     For those which do not deviate more than max_main_line_slope_deviation degrees from the slope line, we compute head anchor support trees along the lines.
@@ -53,7 +51,7 @@ def generate_possible_lines(
     line_candidate_list_combinations = [
         LineString(combination) for combination in line_candidate_list
     ]
-    line_df = pd.DataFrame(data={"line_candidates": line_candidate_list_combinations})
+    line_df = DataFrame(data={"line_candidates": line_candidate_list_combinations})
     print(len(line_df), " candidates initially")
 
     # filter by max_main_line_slope_deviation
@@ -112,12 +110,11 @@ def generate_possible_lines(
     print(len(line_df), " after checking for height obstructions")
 
     if len(line_df) < 1:
-        print("Returning False since there are no candidates anymore")
-        return False, False
+        raise ValueError("No candidates left")
 
     # compute the angle between the line and the supports
     line_df["angle_between_supports"] = [
-        compute_angle_between_supports(line, height_gdf)
+        mechanical_computations.compute_angle_between_supports(line, height_gdf)
         for line in line_df["line_candidates"]
     ]
 
@@ -127,35 +124,7 @@ def generate_possible_lines(
     )
 
     if plot_possible_lines:
-        height_gdf_small = height_gdf.iloc[::10, :]
-        # pos of lines
-        pos_lines = np.hstack((pos)).T
-        # create scatter object and fill in the data
-        scatter = visuals.Markers()
-        scatter.set_data(pos_lines, edge_width=0, face_color=(1, 1, 0.5, 1), size=5)
-        view.add(scatter)
-        # possibility to connect lines, but doesnt really look good
-        # N,S = pos_lines.shape
-        # connect = np.empty((N*S-1,2), np.int32)
-        # connect[:, 0] = np.arange(N*S-1)
-        # connect[:, 1] = connect[:, 0] + 1
-        # for i in range(S, N*S, S):
-        #     connect[i-1, 1] = i-1
-        # view.add(vispy.scene.Line(pos=pos_lines, connect=connect, width=5))
-
-        # pos of heightgdf
-        pos_height_gdf = np.vstack(
-            (height_gdf_small["x"], height_gdf_small["y"], height_gdf_small["elev"])
-        ).T
-        # create scatter object and fill in the data
-        scatter = visuals.Markers()
-        scatter.set_data(
-            pos_height_gdf, edge_width=0, face_color=(1, 1, 1, 0.5), size=5
-        )
-        view.add(scatter)
-        view.camera = "turntable"  # or try 'arcball'
-        # add a colored 3D axis for orientation
-        axis = visuals.XYZAxis(parent=view.scene)
+        plotting.plot_vispy_scene(height_gdf, view, pos)
 
     return line_df, start_point_dict
 
@@ -165,7 +134,7 @@ def compute_initial_cable_road(
     possible_line: classes.Cable_Road,
     height_gdf: gpd.GeoDataFrame,
     initial_tension=None,
-):
+) -> classes.Cable_Road:
     """Create a CR object and compute its initial properties like height, points along line etc
 
     Args:
@@ -191,7 +160,9 @@ def compute_initial_cable_road(
     )
 
     # fetch the floor points along the line
-    this_cable_road.points_along_line = generate_road_points(possible_line, interval=2)
+    this_cable_road.points_along_line = geometry_operations.generate_road_points(
+        possible_line.line, interval=2
+    )
 
     # get the height of those points and set them as attributes to the CR object
     this_cable_road.compute_line_height(height_gdf)
@@ -234,11 +205,11 @@ def compute_initial_cable_road(
 def compute_required_supports(
     possible_line: classes.Cable_Road,
     anchor_triplets: list,
-    max_supported_force: float,
+    max_supported_force: list[float],
     height_gdf: gpd.GeoDataFrame,
-    current_supports: list,
+    current_supports: int,
     plot_possible_lines: bool,
-    view: vispy.scene.SceneCanvas,
+    view: vispy.scene.ViewBox,
     location_supports: list,
     overall_trees: gpd.GeoDataFrame,
     pos: list,
@@ -257,12 +228,14 @@ def compute_required_supports(
     this_cable_road = compute_initial_cable_road(possible_line, height_gdf)
 
     if not pre_tension:
-        initialize_line_tension(this_cable_road, current_supports)
+        mechanical_computations.initialize_line_tension(
+            this_cable_road, current_supports
+        )
     else:
         this_cable_road.s_current_tension = pre_tension
 
     # tension the line and check if anchors hold and we have collisions
-    check_if_no_collisions_overall_line(
+    mechanical_computations.check_if_no_collisions_overall_line(
         this_cable_road,
         plot_possible_lines,
         view,
@@ -343,23 +316,27 @@ def compute_required_supports(
 
             # iterate through the possible attachments of the support and see if we touch ground
             for diameters_index in range(len(candidate_tree.height_series)):
-                support_withstands_tension = check_if_support_withstands_tension(
-                    candidate_tree.diameter_series[diameters_index],
-                    candidate_tree.height_series[diameters_index],
-                    left_cable_road,
-                    right_cable_road,
-                    this_cable_road.s_current_tension,
+                support_withstands_tension = (
+                    mechanical_computations.check_if_support_withstands_tension(
+                        candidate_tree.diameter_series[diameters_index],
+                        candidate_tree.height_series[diameters_index],
+                        left_cable_road,
+                        right_cable_road,
+                        this_cable_road.s_current_tension,
+                    )
                 )
                 if not support_withstands_tension:
                     # next candidate - tension just gets worse with more height
                     break
 
                 # 6. no collisions left and right? go to next candidate if this one is already not working out
-                check_if_no_collisions_segments(left_cable_road)
+                mechanical_computations.check_if_no_collisions_segments(left_cable_road)
                 if not left_cable_road.no_collisions:
                     continue
 
-                check_if_no_collisions_segments(right_cable_road)
+                mechanical_computations.check_if_no_collisions_segments(
+                    right_cable_road
+                )
 
                 if right_cable_road.no_collisions and left_cable_road.no_collisions:
                     # we found a viable configuration - break out of this loop
@@ -419,7 +396,7 @@ def compute_required_supports(
 
 def generate_triple_angle(
     point: Point, line_candidate: LineString, anchor_trees: gpd.GeoDataFrame
-) -> tuple[list, list]:
+) -> tuple[list, list] | tuple[None, None]:
     """Generate a list of line-triples that are within correct angles to the road point and slope line.
     Checks whether:
     - anchor trees are within (less than) correct distance
@@ -544,10 +521,10 @@ def generate_triple_angle(
 
 def generate_support_trees(
     overall_trees: gpd.GeoDataFrame,
-    target: gpd.GeoDataFrame,
+    target: Point,
     point: Point,
     possible_line: LineString,
-) -> gpd.GeoDataFrame:
+):
     """find trees in overall_trees along the last bit of the possible_line that are close to the line and can serve as support tree
 
     Args:
@@ -603,29 +580,3 @@ def create_candidate_points_and_lines(
     support_to_anchor_line = LineString([new_support_point, end_point])
 
     return new_support_point, road_to_support_line, support_to_anchor_line
-
-
-# Helper functions
-
-
-def fetch_point_elevation(
-    point: Point, height_gdf: gpd.GeoDataFrame, max_deviation: float
-) -> float:
-    """
-    Fetches the elevation of a given point.
-
-    Args:
-    point (Point): The point for which the elevation is to be fetched.
-    height_gdf (GeoDataFrame): A GeoDataFrame containing the elevations.
-    max_deviation (float): The maximum deviation allowed while fetching the elevation.
-
-    Returns:
-    float: The elevation of the given point.
-    """
-    return height_gdf.loc[
-        (height_gdf.x > point.x - max_deviation)
-        & (height_gdf.x < point.x + max_deviation)
-        & (height_gdf.y < point.y + max_deviation)
-        & (height_gdf.y > point.y - max_deviation),
-        "elev",
-    ].values[0]

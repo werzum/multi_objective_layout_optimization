@@ -1,5 +1,6 @@
 from shapely.geometry import LineString, Point
 import numpy as np
+import geopandas as gpd
 
 
 class Cable_Road:
@@ -7,8 +8,8 @@ class Cable_Road:
         """heights"""
         self.support_height = 11
         self.min_height = 3
-        self.start_point_height = 0
-        self.end_point_height = 0
+        self.start_point_height = 0.0
+        self.end_point_height = 0.0
         self.floor_height_below_line_points = []
         self.line_to_floor_distances = np.array([])
         self.sloped_line_to_floor_distances = np.array([])
@@ -21,17 +22,19 @@ class Cable_Road:
         self.line_start_point_array = []
         self.line_end_point_array = []
         self.max_deviation = 0.1
+        self.anchor_triplets = []
         """ Fixed cable road parameters """
         self.q_s_self_weight_center_span = 10
         self.q_load = 80000
-        self.c_rope_length = 0
-        self.b_length_whole_section = 0
+        self.c_rope_length = 0.0
+        self.b_length_whole_section = 0.0
+        self.s_max_maximalspannkraft = 0.0
         """ Modifiable collision parameters """
         self.no_collisions = True
         self.anchors_hold = True
-        self.s_current_tension = 0
+        self.s_current_tension = 0.0
 
-    def compute_line_height(self, height_gdf):
+    def compute_line_height(self, height_gdf: gpd.GeoDataFrame):
         x_points, y_points = zip(
             *[(point.x, point.y) for point in self.points_along_line]
         )
