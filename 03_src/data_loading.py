@@ -87,16 +87,35 @@ def parse_point(point_string):
     return Point(float(x), float(y))
 
 
+def parse_list_int(list_string):
+    removed_stopsigns = (
+        list_string.replace("[", "").replace("]", "").replace(",", "").split()
+    )
+    parsed_numbers = [int(float(x)) for x in removed_stopsigns]
+    return parsed_numbers
+
+
+def parse_list_float(list_string):
+    removed_stopsigns = (
+        list_string.replace("[", "").replace("]", "").replace(",", "").split()
+    )
+    parsed_numbers = [float(x) for x in removed_stopsigns]
+    return parsed_numbers
+
+
 def load_processed_gdfs():
-    with open("03_Data/Resources_Organized/tree_gdf_export.csv") as file:
+    with open("03_Data/Resources_Organized/Dataframes_Processed/tree_gdf.csv") as file:
         bestand = pd.read_csv(file)
 
-    with open("03_Data/Resources_Organized/height_df.csv") as file:
+    with open("03_Data/Resources_Organized/Dataframes_Processed/height_df.csv") as file:
         height = pd.read_csv(file)
 
     # Apply the function to the 'point' column using the apply method
     bestand["geometry"] = bestand["geometry"].apply(parse_point)
     height["geometry"] = height["geometry"].apply(parse_point)
+
+    bestand["height_series"] = bestand["height_series"].apply(parse_list_int)
+    bestand["diameter_series"] = bestand["diameter_series"].apply(parse_list_float)
 
     bestand = gpd.GeoDataFrame(bestand, geometry=bestand["geometry"])
     height = gpd.GeoDataFrame(height, geometry=height["geometry"])

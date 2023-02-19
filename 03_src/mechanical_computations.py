@@ -4,7 +4,7 @@ import numpy as np
 import vispy.scene
 import geopandas as gpd
 
-import geometry_utilities, geometry_operations, classes
+import geometry_utilities, geometry_operations, classes, plotting
 
 # high level functions
 
@@ -56,9 +56,11 @@ def check_if_no_collisions_overall_line(
             this_cable_road.s_current_tension < this_cable_road.s_max_maximalspannkraft
         ):
             # 1. do the anchors hold? break the loop - this configuration doesnt work
-            if not check_if_anchor_trees_hold(
+            if check_if_anchor_trees_hold(
                 this_cable_road, max_supported_force, anchor_triplets
             ):
+                this_cable_road.anchors_hold = True
+            else:
                 this_cable_road.anchors_hold = False
                 break
 
@@ -248,7 +250,7 @@ def check_if_anchor_trees_hold(
     exerted_force = this_cable_road.s_current_tension
     # this_cable_road.h_sj_h_mj_horizontal_force_under_load_at_support
     # todo Parallelverschiebung to get actual force
-    force_on_anchor = exerted_force / 10  # for now
+    force_on_anchor = exerted_force / 20  # for now
 
     # check if the supported tension is greater than the exerted force
     sufficient_anchors = [

@@ -1,0 +1,130 @@
+diff --git a/03_src/__pycache__/cable_road_computation.cpython-310.pyc b/03_src/__pycache__/cable_road_computation.cpython-310.pyc index 8743a95..0543f57 100644 Binary files 
+a/03_src/__pycache__/cable_road_computation.cpython-310.pyc and b/03_src/__pycache__/cable_road_computation.cpython-310.pyc differ diff --git 
+a/03_src/__pycache__/mechanical_computations.cpython-310.pyc b/03_src/__pycache__/mechanical_computations.cpython-310.pyc index dff56b1..cb99c0d 100644 Binary files 
+a/03_src/__pycache__/mechanical_computations.cpython-310.pyc and b/03_src/__pycache__/mechanical_computations.cpython-310.pyc differ diff --git a/03_src/cable_road_computation.py 
+b/03_src/cable_road_computation.py index df3ee7c..ac514a7 100644 --- a/03_src/cable_road_computation.py +++ b/03_src/cable_road_computation.py @@ -62,7 +62,7 @@ def 
+generate_possible_lines(
+     line_df = line_df[line_df["slope_deviation"] < max_main_line_slope_deviation] print(len(line_df), " after slope deviations")
+ 
+- line_df = line_df.iloc[::100] + line_df = line_df.iloc[::200]
+ 
+     # filter the candidates for support trees overall_trees, target, point, possible_line
+@@ -142,7 +142,7 @@ def compute_initial_cable_road( height_gdf (_type_): _description_
+ 
+     Returns: - _type_: _description_ + _type_: Cable_Road Objects """ this_cable_road = classes.Cable_Road(possible_line)
+ 
+@@ -161,7 +161,7 @@ def compute_initial_cable_road(
+ 
+     # fetch the floor points along the line
+     this_cable_road.points_along_line = geometry_operations.generate_road_points( - possible_line.line, interval=2 + this_cable_road.line, interval=2 )
+ 
+     # get the height of those points and set them as attributes to the CR object
+@@ -203,9 +203,9 @@ def compute_initial_cable_road(
+ 
+ 
+ def compute_required_supports( - possible_line: classes.Cable_Road, + possible_line: LineString, anchor_triplets: list, - max_supported_force: list[float], + max_supported_forces: 
+list[float],
+     height_gdf: gpd.GeoDataFrame, current_supports: int, plot_possible_lines: bool, @@ -225,7 +225,7 @@ def compute_required_supports( Returns: _type_: _description_ """ - 
+this_cable_road = compute_initial_cable_road(possible_line.line, height_gdf) + this_cable_road = compute_initial_cable_road(possible_line, height_gdf)
+ 
+     if not pre_tension: mechanical_computations.initialize_line_tension( @@ -249,7 +249,7 @@ def compute_required_supports( if this_cable_road.no_collisions and 
+     this_cable_road.anchors_hold:
+         return current_supports, location_supports
+ 
+- # exit this line since anchors dont hold + # exit this line since anchors dont hold and supports wont help with that if not this_cable_road.anchors_hold: return False, False
+ 
+@@ -284,12 +284,12 @@ def compute_required_supports( distance_candidates = distance_candidates.sort_values(ascending=True)
+ 
+         # loop through the candidates to check if one has no obstructions
+- candidate_index = 0 for candidate in distance_candidates.index: - # keep the index so we can access the candidate later - candidate_index = candidate + # fetch the candidate + # 
+need to add the height and force per tree here
+             candidate_tree = overall_trees.iloc[candidate]
+ 
++ # create lines and points left and right ( new_support_point, road_to_support_line, @@ -313,6 +313,7 @@ def compute_required_supports( height_gdf, 
+                 initial_tension=this_cable_road.s_current_tension,
+             ) + # do I also need to re-init max tension?
+ 
+             # iterate through the possible attachments of the support and see if we touch ground
+             for diameters_index in range(len(candidate_tree.height_series)): diff --git a/03_src/data_exploration.ipynb b/03_src/data_exploration.ipynb index 79e788b..3133cc8 100644 
+--- a/03_src/data_exploration.ipynb +++ b/03_src/data_exploration.ipynb @@ -2,7 +2,7 @@
+  "cells": [ { "cell_type": "code", - "execution_count": 1, + "execution_count": 12, "id": "e0075c2e", "metadata": {}, "outputs": [], @@ -36,7 +36,7 @@
+   },
+   { "cell_type": "code", - "execution_count": 11, + "execution_count": 13, "id": "a23086f6", "metadata": {}, "outputs": [], @@ -63,7 +63,7 @@
+   },
+   { "cell_type": "code", - "execution_count": 5, + "execution_count": 14, "id": "d986db5e", "metadata": {}, "outputs": [], @@ -79,26 +79,39 @@
+   },
+   { "cell_type": "code", - "execution_count": 6, + "execution_count": 15, "id": "f902d729", "metadata": {}, - "outputs": [], + "outputs": [ + { + "ename": "NameError", + "evalue": 
+"name 'fig' is not defined", + "output_type": "error", + "traceback": [ + "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m", + 
+"\u001b[0;31mNameError\u001b[0m Traceback (most recent call last)", + "Cell \u001b[0;32mIn[15], line 2\u001b[0m\n\u001b[1;32m 1\u001b[0m \u001b[39m# disconnect the interactive figure 
+so it doesnt eat up resources\u001b[39;00m\n\u001b[0;32m----> 2\u001b[0m fig\u001b[39m.\u001b[39mcanvas\u001b[39m.\u001b[39mmpl_disconnect(cid)\n", + "\u001b[0;31mNameError\u001b[0m: 
+name 'fig' is not defined" + ] + } + ],
+    "source": [ "# disconnect the interactive figure so it doesnt eat up resources\n", - "fig.canvas.mpl_disconnect(cid)" + "# fig.canvas.mpl_disconnect(cid)" ]
+   },
+   { + "attachments": {}, "cell_type": "markdown", "id": "64bd172e", "metadata": {}, "source": [ - "##### Creating extra_geometry_gpd from manual coordinates" + "##### Creating 
+extra-geometry from manual coordinates"
+    ]
+   },
+   { "cell_type": "code", - "execution_count": 7, + "execution_count": 16, "id": "22b2e3ee", "metadata": {}, "outputs": [ @@ -109,6 +122,17 @@ 
+       "/home/carlo/GitHub/MultiObjectOptimizationCableYarding/moo_env/lib/python3.10/site-packages/pandas/core/dtypes/cast.py:122: ShapelyDeprecationWarning: The array interface is 
+       deprecated and will no longer work in Shapely 2.0. Convert the '.coords' to a numpy array instead.\n", " arr = construct_1d_object_array_from_listlike(values)\n"
+      ] + }, + { + "data": { + "text/plain": [ + "geometry LINESTRING (-89.62860 -24.46250, -69.61890 -20...\n", + "Name: road, dtype: geometry" + ] + }, + "execution_count": 16, + 
+"metadata": {}, + "output_type": "execute_result"
+     }
+    ], "source": [ @@ -149,7 +173,7 @@
+   },
+   { "cell_type": "code", - "execution_count": 8, + "execution_count": 17, "id": "d9c8cccf", "metadata": {}, "outputs": [], @@ -169,7 +193,7 @@
+   },
+   { "cell_type": "code", - "execution_count": 9, + "execution_count": 18, "id": "d7f158b6", "metadata": {}, "outputs": [], @@ -202,21 +226,10 @@
+   },
+   { "cell_type": "code", - "execution_count": 10, + "execution_count": 20, "id": "398d9b49", "metadata": {}, - "outputs": [ - { - "data": { - "text/plain": [ - 
+"<matplotlib.collections.PathCollection at 0x7f408793ef20>" - ] - }, - "execution_count": 10, - "metadata": {}, - "output_type": "execute_result" - } - ], + "outputs": [],
+    "source": [ "slope_degree = 29\n", "\n", @@ -241,7 +254,7 @@
+   },
+   { "cell_type": "code", - "execution_count": 11, + "execution_count": 22, "id": "2912ae12", "metadata": {}, "outputs": [ @@ -280,7 +293,7 @@ "#target_trees_gdf_filtered_diameter = 
+     target_trees_gdf[target_trees_gdf[\"BHD\"]>min_talanker_diameter]\n", "# skipping the filtering since we do this later\n", "target_trees_gdf_filtered_diameter = 
+     target_trees_gdf\n",
+- "target_trees_gdf_filtered_diameter.plot()\n", + "# target_trees_gdf_filtered_diameter.plot()\n", "\n", "# not yet filtering them\n", "anchor_trees_gdf_filtered_diameter = 
+     anchor_trees_gdf"
+@@ -296,24 +309,30 @@
+   },
+   { "cell_type": "code", - "execution_count": 69, + "execution_count": 28, "id": "ab88c0f0", "metadata": {}, "outputs": [ { - "ename": "TypeError", - "evalue": "tuple expected at 
+most 1 argument, got 2", - "output_type": "error", - "traceback": [ - "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m", - 
+"\u001b[0;31mTypeError\u001b[0m Traceback (most recent call last)", - "Cell \u001b[0;32mIn[69], line 1\u001b[0m\n\u001b[0;32m----> 1\u001b[0m 
+reload(geometry_operations)\n\u001b[1;32m 2\u001b[0m reload(geometry_utilities)\n\u001b[1;32m 3\u001b[0m reload(plotting)\n", - "File 
+\u001b[0;32m/usr/lib/python3.10/importlib/__init__.py:169\u001b[0m, in \u001b[0;36mreload\u001b[0;34m(module)\u001b[0m\n\u001b[1;32m 167\u001b[0m \u001b[39mif\u001b[39;00m spec 
+\u001b[39mis\u001b[39;00m \u001b[39mNone\u001b[39;00m:\n\u001b[1;32m 168\u001b[0m \u001b[39mraise\u001b[39;00m 
+\u001b[39mModuleNotFoundError\u001b[39;00m(\u001b[39mf\u001b[39m\u001b[39m\"\u001b[39m\u001b[39mspec not found for the module 
+\u001b[39m\u001b[39m{\u001b[39;00mname\u001b[39m!r}\u001b[39;00m\u001b[39m\"\u001b[39m, name\u001b[39m=\u001b[39mname)\n\u001b[0;32m--> 169\u001b[0m 
+_bootstrap\u001b[39m.\u001b[39;49m_exec(spec, module)\n\u001b[1;32m 170\u001b[0m \u001b[39m# The module may have replaced itself in sys.modules!\u001b[39;00m\n\u001b[1;32m 
+171\u001b[0m \u001b[39mreturn\u001b[39;00m sys\u001b[39m.\u001b[39mmodules[name]\n", - "File \u001b[0;32m<frozen importlib._bootstrap>:619\u001b[0m, in 
+\u001b[0;36m_exec\u001b[0;34m(spec, module)\u001b[0m\n", - "File \u001b[0;32m<frozen importlib._bootstrap_external>:883\u001b[0m, in \u001b[0;36mexec_module\u001b[0;34m(self, 
+module)\u001b[0m\n", - "File \u001b[0;32m<frozen importlib._bootstrap>:241\u001b[0m, in \u001b[0;36m_call_with_frames_removed\u001b[0;34m(f, *args, **kwds)\u001b[0m\n", - "File 
+\u001b[0;32m~/GitHub/MultiObjectOptimizationCableYarding/geometry_operations.py:92\u001b[0m\n\u001b[1;32m 85\u001b[0m contained_points \u001b[39m=\u001b[39m 
+gdf[coverage_series]\n\u001b[1;32m 87\u001b[0m \u001b[39mreturn\u001b[39;00m contained_points\n\u001b[1;32m 90\u001b[0m \u001b[39mdef\u001b[39;00m 
+\u001b[39mcompute_distances_facilities_clients\u001b[39m(\n\u001b[1;32m 91\u001b[0m tree_gdf: gpd\u001b[39m.\u001b[39mGeoDataFrame, line_gdf: 
+gpd\u001b[39m.\u001b[39mGeoDataFrame\n\u001b[0;32m---> 92\u001b[0m ) \u001b[39m-\u001b[39m\u001b[39m>\u001b[39m \u001b[39mtuple\u001b[39;49m(np\u001b[39m.\u001b[39;49mndarray, 
+np\u001b[39m.\u001b[39;49mndarray):\n\u001b[1;32m 93\u001b[0m \u001b[39m \u001b[39m\u001b[39m\"\"\"Create a numpy matrix with the distance between every tree and 
+line\u001b[39;00m\n\u001b[1;32m 94\u001b[0m \n\u001b[1;32m 95\u001b[0m \u001b[39m Args:\u001b[39;00m\n\u001b[0;32m (...)\u001b[0m\n\u001b[1;32m 100\u001b[0m \u001b[39m _type_: A 
+numpy matrix of the costs/distances\u001b[39;00m\n\u001b[1;32m 101\u001b[0m \u001b[39m \"\"\"\u001b[39;00m\n\u001b[1;32m 102\u001b[0m \u001b[39m# compute the distance to each tree 
+for every row\u001b[39;00m\n", - "\u001b[0;31mTypeError\u001b[0m: tuple expected at most 1 argument, got 2" + "name": "stderr", + "output_type": "stream", + "text": [ + 
+"/home/carlo/GitHub/MultiObjectOptimizationCableYarding/moo_env/lib/python3.10/site-packages/pandas/core/dtypes/cast.py:122: ShapelyDeprecationWarning: The array interface is 
+deprecated and will no longer work in Shapely 2.0. Convert the '.coords' to a numpy array instead.\n", + " arr = construct_1d_object_array_from_listlike(values)\n" + ] + }, + { + 
+"name": "stdout", + "output_type": "stream", + "text": [ + "10112 candidates initially\n", + "9681 after slope deviations\n", + "27 after supports trees\n", + "12 after possible 
+anchor triples\n", + "130.0836706659917\n", + "0.0\n", + "157.00344309536246\n", + "0.0\n"
+      ]
+     }
+    ], @@ -323,6 +342,7 @@ "reload(plotting)\n", "reload(classes)\n", "reload(cable_road_computation)\n", + "reload(mechanical_computations)\n", "plot_possible_lines = True\n", "\n", 
+     "# expression for debugging\n",
+diff --git a/03_src/mechanical_computations.py b/03_src/mechanical_computations.py index 2199ba5..84a51d2 100644 --- a/03_src/mechanical_computations.py +++ 
+b/03_src/mechanical_computations.py @@ -56,9 +56,11 @@ def check_if_no_collisions_overall_line(
+             this_cable_road.s_current_tension < this_cable_road.s_max_maximalspannkraft ):
+             # 1. do the anchors hold? break the loop - this configuration doesnt work
+- if not check_if_anchor_trees_hold( + if check_if_anchor_trees_hold( this_cable_road, max_supported_force, anchor_triplets ): + this_cable_road.anchors_hold = True + else: 
+                 this_cable_road.anchors_hold = False break
+ 
+@@ -248,7 +250,7 @@ def check_if_anchor_trees_hold( exerted_force = this_cable_road.s_current_tension
+     # this_cable_road.h_sj_h_mj_horizontal_force_under_load_at_support todo Parallelverschiebung to get actual force
+- force_on_anchor = exerted_force / 10 # for now + force_on_anchor = exerted_force / 20 # for now
+ 
+     # check if the supported tension is greater than the exerted force
+     sufficient_anchors = [
