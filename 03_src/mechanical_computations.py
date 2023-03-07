@@ -29,6 +29,7 @@ def check_if_no_collisions_overall_line(
     Returns:
         _type_: _description_
     """
+    print("checking if no collisions overall line")
     min_height = 3
 
     # exit the process if we have unrealistically low rope length
@@ -95,7 +96,7 @@ def check_if_no_collisions_overall_line(
         else:
             this_cable_road.no_collisions = False
 
-    # plot the lines if true
+    # plot the lines if we have a successful candidate
     if (
         plot_possible_lines
         and this_cable_road.floor_points
@@ -103,13 +104,8 @@ def check_if_no_collisions_overall_line(
         and this_cable_road.anchors_hold
         and this_cable_road.no_collisions
     ):
-        plotting.plot_lines(
-            this_cable_road.floor_points,
-            this_cable_road.floor_height_below_line_points,
-            this_cable_road.sloped_line_to_floor_distances,
-            view,
-            pos,
-        )
+        print("plotting", this_cable_road)
+        plotting.plot_lines(this_cable_road, pos)
 
 
 def check_if_no_collisions_segments(this_cable_road: classes.Cable_Road):
@@ -177,6 +173,7 @@ def check_if_support_withstands_tension(
 
 
 def initialize_line_tension(this_cable_road: classes.Cable_Road, current_supports: int):
+    print("initialize_line_tension")
     # set tension of the cable_road
     s_br_mindestbruchlast = 170000  # in newton
     this_cable_road.s_max_maximalspannkraft = s_br_mindestbruchlast / 3

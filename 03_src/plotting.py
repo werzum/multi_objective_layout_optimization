@@ -117,18 +117,11 @@ def plot_p_median_results(
     for item in line_triples:
         unwrapped_triples.append(gpd.GeoSeries(sum(item, [])))
 
-    # ugly decomprehension again
-    unwrapped_support_trees = []
-    for support_tree in support_trees:
-        sublist = [item for sublist in support_tree for item in sublist]
-        c = gpd.GeoSeries(sublist)
-        unwrapped_support_trees.append(c)
-
     # add the trees with respective color to which factory they belong to the map
     for i in range(len(arr_points)):
         gdf = gpd.GeoDataFrame(arr_points[i])
         anchor_lines_gdf = gpd.GeoDataFrame(geometry=unwrapped_triples[i])
-        support_trees_gdf = unwrapped_support_trees[i]
+        support_trees_gdf = support_trees[i]
 
         label = f"coverage_points by y{fac_sites[i]}"
         legend_elements.append(Patch(label=label))
@@ -237,18 +230,15 @@ def plot_pymoo_results(
 
 
 def plot_lines(
-    floor_points,
-    floor_height_below_line_points,
-    sloped_line_to_floor_distances,
-    view,
+    this_cable_road,
     pos,
 ):
-    # plot the failed lines
     pos.append(
         (
-            [point[0] for point in floor_points],
-            [point[1] for point in floor_points],
-            floor_height_below_line_points + sloped_line_to_floor_distances,
+            [point[0] for point in this_cable_road.floor_points],
+            [point[1] for point in this_cable_road.floor_points],
+            this_cable_road.floor_height_below_line_points
+            + this_cable_road.sloped_line_to_floor_distances,
         )
     )
 
