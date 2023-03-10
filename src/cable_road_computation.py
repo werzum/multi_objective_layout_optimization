@@ -6,7 +6,13 @@ import vispy.scene
 import geopandas as gpd
 from pandas import DataFrame
 
-import geometry_utilities, geometry_operations, mechanical_computations, classes, plotting
+from src import (
+    geometry_utilities,
+    geometry_operations,
+    mechanical_computations,
+    classes,
+    plotting,
+)
 
 # Main functions to compute the cable road which calls the other functions
 
@@ -225,7 +231,7 @@ def compute_required_supports(
     Returns:
         _type_: _description_
     """
-    print("compute_required_supports")
+    # print("compute_required_supports")
     this_cable_road = compute_initial_cable_road(possible_line, height_gdf)
 
     if not pre_tension:
@@ -274,7 +280,7 @@ def compute_required_supports(
 
         # loop through the candidates to check if one has no obstructions
         for candidate in distance_candidates.index:
-            print("looping through distance candidates")
+            # print("looping through distance candidates")
             # fetch the candidate
 
             (

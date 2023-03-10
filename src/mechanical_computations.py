@@ -4,7 +4,7 @@ import numpy as np
 import vispy.scene
 import geopandas as gpd
 
-import geometry_utilities, geometry_operations, classes, plotting
+from src import geometry_utilities, geometry_operations, classes, plotting
 
 # high level functions
 
@@ -35,21 +35,6 @@ def check_if_no_collisions_overall_line(
     # exit the process if we have unrealistically low rope length
     if this_cable_road.c_rope_length < 5:
         this_cable_road.no_collisions = False
-
-    # Remove the Zweifel computation for now and reli on the old-fashioned
-    # Zweifel Schritt 1 - length of skyline without load
-    # mechanical_computations.calculate_length_unloaded_skyline(this_cable_road)
-
-    # Zweifel Schritt 2 - length of skyline with load
-    # mechanical_computations.calculate_length_loaded_skyline(this_cable_road)
-
-    # increase tension by predefined amount
-    # this_cable_road.t_v_j_bar_tensile_force_at_center_span = (
-    #    this_cable_road.t_v_j_bar_tensile_force_at_center_span + 10
-    # )
-
-    # Zweifel Schritt 3 - calculate properties of skyline under load (ie deflection)
-    # y_x_deflections = mechanical_computations.calculate_sloped_line_to_floor_distances(this_cable_road)
 
     # Process of updating the tension and checking if we touch ground and anchors hold
     if not pre_tension:
@@ -115,9 +100,7 @@ def check_if_no_collisions_segments(this_cable_road: classes.Cable_Road):
     # 1. calculate current deflections with a given tension
     y_x_deflections = np.asarray(
         [
-            lastdurchhang_at_point(
-                this_cable_road, point, this_cable_road.s_current_tension
-            )
+            lastdurchhang_at_point(this_cable_road, point)
             for point in this_cable_road.points_along_line
         ]
     )
@@ -159,14 +142,13 @@ def check_if_support_withstands_tension(
     # get their angles
     angle_tangents = geometry_utilities.angle_between(full_tangent, empt_tangent)
 
-    # compute the exerted force with trigonometr"""  """
+    # compute the exerted force with trigonometry
     # gegenkathete = hpotenuse*sin(angle/2)
-    # doppeltes Dreieck - gegenkathete*2
-    force_on_support = (current_tension * math.sin(angle_tangents / 2)) * 2
+    force_on_support = parallelverschiebung(current_tension, angle_tangents)
 
     # get the supported force of the support tree
-    # TBD this can also be done in advance
-    max_force_of_support = euler_knicklast(diameter_at_height, attached_at_height)
+    # TBD this can also be done in advance - attached at height+2 to accomodate stütze itself
+    max_force_of_support = euler_knicklast(diameter_at_height, attached_at_height + 2)
 
     # return true if the support can bear more than the exerted force
     return max_force_of_support > force_on_support
@@ -186,9 +168,7 @@ def calculate_sloped_line_to_floor_distances(this_cable_road: classes.Cable_Road
     # 1. calculate current deflections with a given tension
     y_x_deflections = np.asarray(
         [
-            lastdurchhang_at_point(
-                this_cable_road, point, this_cable_road.s_current_tension
-            )
+            lastdurchhang_at_point(this_cable_road, point)
             for point in this_cable_road.points_along_line
         ]
     )
@@ -236,6 +216,14 @@ def compute_angle_between_supports(
 
     # and finally compute the angle
     return geometry_utilities.angle_between_3d(start_point_xyz, end_point_xyz)
+
+
+def parallelverschiebung(force, angle):
+    # resulting_force = force * math.sin(0.5 * angle)
+    # note - the angle is converted to radians for the np.sin function
+    resulting_force = (force * np.sin(np.deg2rad(0.5 * angle))) * 2
+    # print(resulting_force)
+    return resulting_force
 
 
 def check_if_anchor_trees_hold(
@@ -415,7 +403,37 @@ def deflection_by_force_and_position(this_cable_road, point, force_at_point):
 #     return y_x_deflections
 
 
-def lastdurchhang_at_point(this_cable_road, point, s_current_tension):
+def pestal_load_path(cable_road, point):
+    # H_t_horizontal_force_tragseil = (Tensile_force_at_center*(horizontal_width/lenght_of_cable_road)
+    # os ht the correct force though?
+
+    T_0_basic_tensile_force = cable_road.s_current_tension
+    q_s_rope_weight = 1.6
+    q_vertical_force = 15000
+
+    h_height_difference = abs(
+        cable_road.end_point_height - cable_road.start_point_height
+    )
+
+    T_bar_tensile_force_at_center_span = T_0_basic_tensile_force + q_s_rope_weight * (
+        (h_height_difference / 2)
+    )
+
+    H_t_horizontal_force_tragseil = T_bar_tensile_force_at_center_span * (
+        cable_road.b_length_whole_section / cable_road.c_rope_length
+    )  # improvised value - need to do the parallelverchiebung here
+
+    x = cable_road.start_point.distance(point)
+
+    y_deflection_at_point = (
+        (x * (cable_road.b_length_whole_section - x))
+        / (H_t_horizontal_force_tragseil * cable_road.b_length_whole_section)
+    ) * (q_vertical_force + ((cable_road.c_rope_length * q_s_rope_weight) / 2))
+
+    return y_deflection_at_point
+
+
+def lastdurchhang_at_point(this_cable_road, point):
     """
     Calculates the lastdurchhang value at a given point.
 
@@ -434,7 +452,7 @@ def lastdurchhang_at_point(this_cable_road, point, s_current_tension):
     float: The lastdurchhang value at the given point.
     """
     H_t_horizontal_force_tragseil = (
-        s_current_tension  # improvised value - need to do the parallelverchiebung here
+        this_cable_road.s_current_tension  # improvised value - need to do the parallelverchiebung here
     )
     q_vertical_force = 15000  # improvised value 30kn?
     q_bar_rope_weight = 1.6  # improvised value 2?
@@ -465,7 +483,7 @@ def lastdurchhang_at_point(this_cable_road, point, s_current_tension):
 
 def euler_knicklast(tree_diameter, height_of_attachment):
     E_module_wood = 80000
-    securit_factor = 3
+    securit_factor = 5
     withstood_force = (math.pi**2 * E_module_wood * math.pi * tree_diameter**4) / (
         height_of_attachment**2 * 64 * securit_factor
     )
