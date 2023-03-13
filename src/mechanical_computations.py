@@ -3,6 +3,7 @@ from shapely.geometry import LineString, Point, Polygon
 import numpy as np
 import vispy.scene
 import geopandas as gpd
+import matplotlib.pyplot as plt
 
 from src import geometry_utilities, geometry_operations, classes, plotting
 
@@ -241,68 +242,122 @@ def check_if_anchor_trees_hold(
     # get the xz centroid of the cable road based on the x of the centroid and the height of the middle point
     centroid_xz = Point(
         [
-            this_cable_road.line.centroid.coords[0],
-            this_cable_road.sloped_line_to_floor_distances[
-                (len(this_cable_road.sloped_line_to_floor_distances) - 1) // 2
-            ],
+            this_cable_road.line.centroid.coords[0][0],
+            geometry_operations.fetch_point_elevation(
+                this_cable_road.line.centroid, height_gdf, 1
+            ),
         ]
     )
 
-    # end point of the cr tower
-    end_point_xz = Point(
-        [this_cable_road.end_point.coords[0], this_cable_road.end_point_height]
+    # start point of the cr tower
+    start_point_xz = Point(
+        [this_cable_road.start_point.coords[0][0], this_cable_road.start_point_height]
     )
 
-    cr_loaded_tangent = LineString([centroid_xz, end_point_xz])
+    cr_loaded_tangent = LineString([centroid_xz, start_point_xz])
 
     for index in range(len(anchor_triplets)):
-        anchor_end_point = Point(anchor_triplets[index][1].coords[0])
+        this_anchor_line = anchor_triplets[index][1]
+        anchor_start_point = Point(this_anchor_line.coords[0])
+
         # 1. construct tangents - from the left middle of the loaded cr to its endpoint
         anchor_xz_point = Point(
-            anchor_end_point.coords[0],
-            geometry_operations.fetch_point_elevation(anchor_end_point, height_gdf, 1),
+            anchor_start_point.coords[0][0],
+            geometry_operations.fetch_point_elevation(
+                anchor_start_point, height_gdf, 1
+            ),
         )
 
-        anchor_tangent = LineString([end_point_xz, anchor_xz_point])
+        anchor_tangent = LineString([anchor_xz_point, start_point_xz])
+        # get their angles
+        angle_tangents = 180 - geometry_utilities.angle_between(
+            cr_loaded_tangent, anchor_tangent
+        )
+
+        # compute the exerted force with trigonometry
+        # gegenkathete = hpotenuse*sin(angle/2)
+        force_on_support = parallelverschiebung(exerted_force, angle_tangents)
+        force_on_anchor = exerted_force - force_on_support
+
+        if max_supported_force[index] > force_on_anchor:
+            # do I need to build up a list?
+            this_cable_road.anchor_triplets = anchor_triplets[index]
+            return True
+    return False
+
+
+def check_if_anchor_trees_hold_and_plot(
+    this_cable_road: classes.Cable_Road,
+    max_supported_force: list[float],
+    anchor_triplets: list,
+    height_gdf: gpd.GeoDataFrame,
+    ax: plt.Axes,
+    ax2: plt.Axes,
+) -> bool:
+    # get force at last support
+    exerted_force = this_cable_road.s_current_tension
+
+    # get the xz centroid of the cable road based on the x of the centroid and the height of the middle point
+    centroid_xz = Point(
+        [
+            this_cable_road.line.centroid.coords[0][0],
+            geometry_operations.fetch_point_elevation(
+                this_cable_road.line.centroid, height_gdf, 1
+            ),
+        ]
+    )
+
+    # start point of the cr tower
+    start_point_xz = Point(
+        [this_cable_road.start_point.coords[0][0], this_cable_road.start_point_height]
+    )
+
+    cr_loaded_tangent = LineString([centroid_xz, start_point_xz])
+
+    ax.clear()
+    ax.set_ylim(-60, 20)
+    ax.set_xlim(-100, 20)
+    ax.plot(*cr_loaded_tangent.xy, color="red")
+
+    for index in [0]:
+        this_anchor_line = anchor_triplets[index][1]
+        anchor_start_point = Point(this_anchor_line.coords[0])
+
+        # 1. construct tangents - from the left middle of the loaded cr to its endpoint
+        anchor_xz_point = Point(
+            anchor_start_point.coords[0][0],
+            geometry_operations.fetch_point_elevation(
+                anchor_start_point, height_gdf, 1
+            ),
+        )
+
+        anchor_tangent = LineString([anchor_xz_point, start_point_xz])
+        ax.plot(*anchor_tangent.xy)
 
         # get their angles
         angle_tangents = 180 - geometry_utilities.angle_between(
             cr_loaded_tangent, anchor_tangent
         )
-        print(angle_tangents)
 
         # compute the exerted force with trigonometry
         # gegenkathete = hpotenuse*sin(angle/2)
         force_on_support = parallelverschiebung(exerted_force, angle_tangents)
 
         force_on_anchor = exerted_force - force_on_support
-        print(exerted_force)
-        print(force_on_anchor)
-        print(force_on_support)
-        print(max_supported_force)
+
+        ax2.clear()
+        ax2_container = ax2.bar(
+            ["Exerted Force", "Force on Anchor", "Force on Support"],
+            [exerted_force, force_on_anchor, force_on_support],
+        )
+
+        ax2.bar_label(ax2_container)
+        ax2.set_ylim(0, 10000)
         if max_supported_force[index] > force_on_anchor:
             # do I need to build up a list?
             this_cable_road.anchor_triplets = anchor_triplets[index]
             return True
-
     return False
-
-    # this_cable_road.h_sj_h_mj_horizontal_force_under_load_at_support
-    # todo Parallelverschiebung to get actual force
-    force_on_anchor = exerted_force / 20  # for now
-
-    # check if the supported tension is greater than the exerted force
-    sufficient_anchors = [
-        anchor_triplets[i]
-        for i in range(len(anchor_triplets))
-        if max_supported_force[i] > force_on_anchor
-    ]
-
-    if sufficient_anchors:
-        this_cable_road.anchor_triplets = sufficient_anchors
-        return True
-    else:
-        return False
 
 
 def pestal_load_path(cable_road, point):
