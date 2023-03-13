@@ -137,10 +137,7 @@ def fetch_point_elevation(
     Returns:
     float: The elevation of the given point.
     """
-    return height_gdf.loc[
-        (height_gdf.x > point.x - max_deviation)
-        & (height_gdf.x < point.x + max_deviation)
-        & (height_gdf.y < point.y + max_deviation)
-        & (height_gdf.y > point.y - max_deviation),
-        "elev",
-    ].values[0]
+    return height_gdf[
+        (height_gdf["x"].between(point.x - max_deviation, point.x + max_deviation))
+        & (height_gdf["y"].between(point.y - max_deviation, point.y + max_deviation))
+    ]["elev"].values[0]
