@@ -293,14 +293,19 @@ def check_if_anchor_trees_hold_and_plot(
     height_gdf: gpd.GeoDataFrame,
     ax: plt.Axes,
     ax2: plt.Axes,
+    ax3: plt.Axes,
 ) -> bool:
     # get force at last support
     exerted_force = this_cable_road.s_current_tension
 
     # get the xz centroid of the cable road based on the x of the centroid and the height of the middle point
+    centroid_xy_distance = this_cable_road.line.centroid.distance(
+        this_cable_road.start_point
+    )
+    # and rotate the centroid at our sideways-x-axis relative to the start point
     centroid_xz = Point(
         [
-            this_cable_road.line.centroid.coords[0][0],
+            this_cable_road.start_point.coords[0][0] - centroid_xy_distance,
             geometry_operations.fetch_point_elevation(
                 this_cable_road.line.centroid, height_gdf, 1
             ),
@@ -308,11 +313,11 @@ def check_if_anchor_trees_hold_and_plot(
     )
 
     # start point of the cr tower
-    start_point_xz = Point(
+    tower_xz_point = Point(
         [this_cable_road.start_point.coords[0][0], this_cable_road.start_point_height]
     )
 
-    cr_loaded_tangent = LineString([centroid_xz, start_point_xz])
+    cr_loaded_tangent = LineString([centroid_xz, tower_xz_point])
 
     ax.clear()
     ax.set_ylim(-60, 20)
@@ -321,17 +326,20 @@ def check_if_anchor_trees_hold_and_plot(
 
     for index in [0]:
         this_anchor_line = anchor_triplets[index][1]
+        anchor_start_point_xy_distance = tower_xz_point.distance(
+            Point(this_anchor_line.coords[0])
+        )
         anchor_start_point = Point(this_anchor_line.coords[0])
 
         # 1. construct tangents - from the left middle of the loaded cr to its endpoint
         anchor_xz_point = Point(
-            anchor_start_point.coords[0][0],
+            tower_xz_point.coords[0][0] + anchor_start_point_xy_distance,
             geometry_operations.fetch_point_elevation(
                 anchor_start_point, height_gdf, 1
             ),
         )
 
-        anchor_tangent = LineString([anchor_xz_point, start_point_xz])
+        anchor_tangent = LineString([anchor_xz_point, tower_xz_point])
         ax.plot(*anchor_tangent.xy)
 
         # get their angles
@@ -343,7 +351,19 @@ def check_if_anchor_trees_hold_and_plot(
         # gegenkathete = hpotenuse*sin(angle/2)
         force_on_support = parallelverschiebung(exerted_force, angle_tangents)
 
-        force_on_anchor = exerted_force - force_on_support
+        force_on_anchor = construct_tower_force_parallelogram(
+            tower_xz_point, exerted_force, angle_tangents
+        )
+
+        ax3.clear()
+        ax3.set_xlim(-1000, 1000)
+        # plot the points
+        ax3.plot(*s_max_point.xy, "o", color="black")
+        ax3.plot(*s_a_point.xy, "o", color="green")
+        ax3.plot(*a_3_point.xy, "o", color="red")
+        ax3.plot(*a_4_point.xy, "o", color="red")
+        ax3.plot(*a_5_point.xy, "o", color="blue")
+        ax3.plot(*anchor_xz_point.xy, "o", color="pink")
 
         ax2.clear()
         ax2_container = ax2.bar(
@@ -358,6 +378,62 @@ def check_if_anchor_trees_hold_and_plot(
             this_cable_road.anchor_triplets = anchor_triplets[index]
             return True
     return False
+
+
+def construct_tower_force_parallelogram(
+    tower_xz_point: Point, exerted_force: float, angle_tangents: float
+):
+    """Constructs a parallelogram with the anchor point as its base, the force on the anchor as its height and the angle between the anchor tangent and the cr tangent as its angle. Based on Stampfer Forstmaschinen und Holzbringung Heft P. 17
+
+    Args:
+        tower_xz_point (_type_): the central sideways-viewed top of the anchor
+        exerted_force (_type_): _description_
+        angle_tangents (_type_): _description_
+    """
+
+    # direction of force from point and with angle
+    s_max_point = Point(
+        [
+            tower_xz_point.coords[0][0]
+            - exerted_force * np.cos(np.deg2rad(angle_tangents)),
+            tower_xz_point.coords[0][1]
+            - exerted_force * np.sin(np.deg2rad(angle_tangents)),
+        ]
+    )
+    # x distance from s_max to anchor
+    s_max_to_anchor = abs(s_max_point.coords[0][0] - tower_xz_point.coords[0][0])
+    # shifting anchor by this distance to the right to get s_a
+    s_a_point = Point(
+        [
+            tower_xz_point.coords[0][0] + s_max_to_anchor,
+            tower_xz_point.coords[0][1],
+        ]
+    )
+
+    # shifting s_max y down by s_max distance to get a_3
+    s_max_length = s_max_point.distance(tower_xz_point)
+    a_3_point = Point(
+        [s_max_point.coords[0][0], s_max_point.coords[0][1] - s_max_length]
+    )
+
+    # shifting s_a down by s_a_distance
+    s_a_length = s_a_point.distance(tower_xz_point)
+    a_4_point = Point([s_a_point.coords[0][0], s_a_point.coords[0][1] - s_a_length])
+
+    # generating s_5 by getting y distance of anchor to a_3
+    y_distance_anchor_to_a_3 = abs(tower_xz_point.coords[0][1] - a_3_point.coords[0][1])
+    # and shifting a_4 down by this difference
+    a_5_point = Point(
+        [
+            tower_xz_point.coords[0][0],
+            a_4_point.coords[0][1] - y_distance_anchor_to_a_3,
+        ]
+    )
+
+    # now resulting force = distance from anchor to a_5#
+    force_on_anchor = tower_xz_point.distance(a_5_point)
+
+    return force_on_anchor
 
 
 def pestal_load_path(cable_road, point):
