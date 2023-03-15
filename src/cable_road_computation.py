@@ -253,6 +253,7 @@ def compute_required_supports(
         anchor_triplets,
         max_supported_forces,
         pre_tension,
+        height_gdf,
     )
 
     if this_cable_road.no_collisions and this_cable_road.anchors_hold:

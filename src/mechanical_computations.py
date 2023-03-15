@@ -352,18 +352,8 @@ def check_if_anchor_trees_hold_and_plot(
         force_on_support = parallelverschiebung(exerted_force, angle_tangents)
 
         force_on_anchor = construct_tower_force_parallelogram(
-            tower_xz_point, exerted_force, angle_tangents
+            tower_xz_point, exerted_force, angle_tangents, ax=ax3
         )
-
-        ax3.clear()
-        ax3.set_xlim(-1000, 1000)
-        # plot the points
-        ax3.plot(*s_max_point.xy, "o", color="black")
-        ax3.plot(*s_a_point.xy, "o", color="green")
-        ax3.plot(*a_3_point.xy, "o", color="red")
-        ax3.plot(*a_4_point.xy, "o", color="red")
-        ax3.plot(*a_5_point.xy, "o", color="blue")
-        ax3.plot(*anchor_xz_point.xy, "o", color="pink")
 
         ax2.clear()
         ax2_container = ax2.bar(
@@ -381,7 +371,10 @@ def check_if_anchor_trees_hold_and_plot(
 
 
 def construct_tower_force_parallelogram(
-    tower_xz_point: Point, exerted_force: float, angle_tangents: float
+    tower_xz_point: Point,
+    exerted_force: float,
+    angle_tangents: float,
+    ax: plt.Axes = None,
 ):
     """Constructs a parallelogram with the anchor point as its base, the force on the anchor as its height and the angle between the anchor tangent and the cr tangent as its angle. Based on Stampfer Forstmaschinen und Holzbringung Heft P. 17
 
@@ -432,6 +425,19 @@ def construct_tower_force_parallelogram(
 
     # now resulting force = distance from anchor to a_5#
     force_on_anchor = tower_xz_point.distance(a_5_point)
+
+    if ax:
+        ax.clear()
+        ax.set_xlim(-10000, 10000)
+        ax.set_ylim(-15000, 1000)
+
+        # plot the points
+        ax.plot(*s_max_point.xy, "o", color="black")
+        ax.plot(*s_a_point.xy, "o", color="green")
+        ax.plot(*a_3_point.xy, "o", color="red")
+        ax.plot(*a_4_point.xy, "o", color="red")
+        ax.plot(*a_5_point.xy, "o", color="blue")
+        # ax.plot(*anchor_xz_point.xy, "o", color="pink")
 
     return force_on_anchor
 
