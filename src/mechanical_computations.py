@@ -437,6 +437,17 @@ def construct_tower_force_parallelogram(
         ax.plot(*a_3_point.xy, "o", color="red")
         ax.plot(*a_4_point.xy, "o", color="red")
         ax.plot(*a_5_point.xy, "o", color="blue")
+
+        for lines in [
+            [s_max_point, tower_xz_point],
+            [s_a_point, tower_xz_point],
+            [a_3_point, s_max_point],
+            [a_4_point, s_a_point],
+            [a_5_point, tower_xz_point],
+            [a_5_point, a_3_point],
+            [a_5_point, a_4_point],
+        ]:
+            ax.plot(*LineString(lines).xy, color="black")
         # ax.plot(*anchor_xz_point.xy, "o", color="pink")
 
     return force_on_anchor
