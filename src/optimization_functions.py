@@ -108,8 +108,25 @@ def add_facility_client_variables(model, facility_range, client_range):
 
 
 def calculate_productivity_cost(
-    client_range, facility_range, aij, distance_carriage_support, angle_between_supports
-):
+    client_range: range,
+    facility_range: range,
+    aij: np.array,
+    distance_carriage_support: np.array,
+    average_steepness: float,
+) -> np.array:
+    """Calculate the cost of each client-facility combination based on the productivity model by Gaffariyan, Stampfer, Sessions 2013
+
+    Args:
+        client_range (Range): range of clients
+        facility_range (Range): range of facilities
+        aij (np.array): Matrix of distances between clients and facilities
+        distance_carriage_support (np.array): Distance between carriage and support
+        average_steepness (float): Average steepness of the area
+
+    Returns:
+        np.array: matrix of costs for each client-facility combination
+    """
+
     productivity_cost_matrix = np.empty([len(client_range), len(facility_range)])
     # iterate ove the matrix and calculate the cost for each entry
     it = np.nditer(
@@ -124,9 +141,7 @@ def calculate_productivity_cost(
         # the yarding distance between carriage and support
         +0.007 * distance_carriage_support[cli][fac]
         +0.029 * 100  # the harvest intensity set to 100%
-        +0.038 * angle_between_supports[
-            fac
-        ]  # the angle between the supports of this cable road
+        +0.038 * average_steepness
 
     return productivity_cost_matrix
 

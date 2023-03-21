@@ -3,6 +3,8 @@ from shapely.geometry.base import BaseGeometry
 import numpy as np
 import geopandas as gpd
 
+import geometry_utilities
+
 
 def generate_road_points(
     road_geometry: LineString, interval: int
@@ -141,3 +143,45 @@ def fetch_point_elevation(
         (height_gdf["x"].between(point.x - max_deviation, point.x + max_deviation))
         & (height_gdf["y"].between(point.y - max_deviation, point.y + max_deviation))
     ]["elev"].values[0]
+
+
+def compute_average_terrain_steepness(
+    line_gdf: gpd.GeoDataFrame, height_gdf: gpd.GeoDataFrame
+) -> float:
+    """
+    Computes the average terrain steepness of a given line.
+
+    Args:
+    line_gdf (GeoDataFrame): A GeoDataFrame containing the line.
+    height_gdf (GeoDataFrame): A GeoDataFrame containing the elevations.
+
+    Returns:
+    float: The average terrain steepness of the given line.
+    """
+
+    averages = []
+
+    for index, row in line_gdf.iterrows():
+        line = row.geometry
+        xy_start_point = Point(line.coords[0])
+        xy_end_point = Point(line.coords[1])
+
+        xz_start_point = Point(
+            xy_start_point.coords[0][0],
+            fetch_point_elevation(xy_start_point, height_gdf, 1),
+        )
+
+        # generate x distance by getting x coordinate and adding the distance between the start and end point to maximive the view
+        xz_end_point = Point(
+            xz_start_point.coords[0][0] + xy_start_point.distance(xy_end_point),
+            fetch_point_elevation(xy_end_point, height_gdf, 1),
+        )
+
+        xz_line = LineString([xz_start_point, xz_end_point])
+        horizontal_line = LineString([Point(0, 0), Point(100, 0)])
+        # print(geometry_utilities.angle_between(xz_line, horizontal_line))
+        averages.append(geometry_utilities.angle_between(xz_line, horizontal_line))
+
+    average_terrain_steepness = sum(averages) / len(averages)
+
+    return average_terrain_steepness
