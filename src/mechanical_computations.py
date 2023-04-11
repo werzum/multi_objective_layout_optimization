@@ -39,49 +39,22 @@ def check_if_no_collisions_overall_line(
         this_cable_road.no_collisions = False
 
     # Process of updating the tension and checking if we touch ground and anchors hold
-    if not pre_tension:
-        while (
-            this_cable_road.s_current_tension < this_cable_road.s_max_maximalspannkraft
-        ):
-            # 1. do the anchors hold? break the loop - this configuration doesnt work
-            if check_if_anchor_trees_hold(
-                this_cable_road, max_supported_force, anchor_triplets, height_gdf
-            ):
-                this_cable_road.anchors_hold = True
-            else:
-                this_cable_road.anchors_hold = False
-                break
 
-            calculate_sloped_line_to_floor_distances(this_cable_road)
+    # 0. set the current to max tension
+    this_cable_road.s_current_tension = this_cable_road.s_max_maximalspannkraft
 
-            lowest_point_height = min(this_cable_road.sloped_line_to_floor_distances)
+    # 1. check if anchor trees hold the applied tension
+    this_cable_road.anchors_hold = check_if_anchor_trees_hold(
+        this_cable_road, max_supported_force, anchor_triplets, height_gdf
+    )
 
-            # check if the line is above the ground and set it to false if we have a collision
-            if lowest_point_height > min_height:
-                # we found no collisions and exit the loop
-                this_cable_road.no_collisions = True
-                break
-            else:
-                this_cable_road.no_collisions = False
-                # break the loop before we go over the maximalspannkraft
-                if (
-                    this_cable_road.s_current_tension + 1000
-                    < this_cable_road.s_max_maximalspannkraft
-                ):
-                    this_cable_road.s_current_tension += 1000
-                else:
-                    break
+    # 2. Test if the CR touches the ground
+    calculate_sloped_line_to_floor_distances(this_cable_road)
 
-    # if we skipped over the computation because the tension is pre-set
-    if pre_tension:
-        calculate_sloped_line_to_floor_distances(this_cable_road)
-        lowest_point_height = min(this_cable_road.sloped_line_to_floor_distances)
+    lowest_point_height = min(this_cable_road.sloped_line_to_floor_distances)
 
-        if lowest_point_height > min_height:
-            # we found no collisions and exit the loop
-            this_cable_road.no_collisions = True
-        else:
-            this_cable_road.no_collisions = False
+    # check if the line is above the ground and set it to false if we have a collision
+    this_cable_road.no_collisions = lowest_point_height > min_height
 
     # plot the lines if we have a successful candidate
     if (
@@ -230,73 +203,18 @@ def parallelverschiebung(force, angle):
     return resulting_force
 
 
-def check_if_anchor_trees_hold(
+def check_if_tower_and_anchor_trees_hold(
     this_cable_road: classes.Cable_Road,
     max_supported_force: list[float],
     anchor_triplets: list,
     height_gdf: gpd.GeoDataFrame,
+    ax: plt.Axes = None,
+    ax2: plt.Axes = None,
+    ax3: plt.Axes = None,
 ) -> bool:
     # get force at last support
     exerted_force = this_cable_road.s_current_tension
-
-    # get the xz centroid of the cable road based on the x of the centroid and the height of the middle point
-    centroid_xz = Point(
-        [
-            this_cable_road.line.centroid.coords[0][0],
-            geometry_operations.fetch_point_elevation(
-                this_cable_road.line.centroid, height_gdf, 1
-            ),
-        ]
-    )
-
-    # start point of the cr tower
-    start_point_xz = Point(
-        [this_cable_road.start_point.coords[0][0], this_cable_road.start_point_height]
-    )
-
-    cr_loaded_tangent = LineString([centroid_xz, start_point_xz])
-
-    for index in range(len(anchor_triplets)):
-        this_anchor_line = anchor_triplets[index][1]
-        anchor_start_point = Point(this_anchor_line.coords[0])
-
-        # 1. construct tangents - from the left middle of the loaded cr to its endpoint
-        anchor_xz_point = Point(
-            anchor_start_point.coords[0][0],
-            geometry_operations.fetch_point_elevation(
-                anchor_start_point, height_gdf, 1
-            ),
-        )
-
-        anchor_tangent = LineString([anchor_xz_point, start_point_xz])
-        # get their angles
-        angle_tangents = 180 - geometry_utilities.angle_between(
-            cr_loaded_tangent, anchor_tangent
-        )
-
-        # compute the exerted force with trigonometry
-        # gegenkathete = hpotenuse*sin(angle/2)
-        force_on_support = parallelverschiebung(exerted_force, angle_tangents)
-        force_on_anchor = exerted_force - force_on_support
-
-        if max_supported_force[index] > force_on_anchor:
-            # do I need to build up a list?
-            this_cable_road.anchor_triplets = anchor_triplets[index]
-            return True
-    return False
-
-
-def check_if_anchor_trees_hold_and_plot(
-    this_cable_road: classes.Cable_Road,
-    max_supported_force: list[float],
-    anchor_triplets: list,
-    height_gdf: gpd.GeoDataFrame,
-    ax: plt.Axes,
-    ax2: plt.Axes,
-    ax3: plt.Axes,
-) -> bool:
-    # get force at last support
-    exerted_force = this_cable_road.s_current_tension
+    maximum_tower_force = 150000
 
     # get the xz centroid of the cable road based on the x of the centroid and the height of the middle point
     centroid_xy_distance = this_cable_road.line.centroid.distance(
@@ -319,10 +237,11 @@ def check_if_anchor_trees_hold_and_plot(
 
     cr_loaded_tangent = LineString([centroid_xz, tower_xz_point])
 
-    ax.clear()
-    ax.set_ylim(-60, 20)
-    ax.set_xlim(-100, 20)
-    ax.plot(*cr_loaded_tangent.xy, color="red")
+    if ax:
+        ax.clear()
+        ax.set_ylim(-60, 20)
+        ax.set_xlim(-100, 20)
+        ax.plot(*cr_loaded_tangent.xy, color="red")
 
     for index in [0]:
         this_anchor_line = anchor_triplets[index][1]
@@ -340,33 +259,36 @@ def check_if_anchor_trees_hold_and_plot(
         )
 
         anchor_tangent = LineString([anchor_xz_point, tower_xz_point])
-        ax.plot(*anchor_tangent.xy)
 
         # get their angles
         angle_tangents = 180 - geometry_utilities.angle_between(
             cr_loaded_tangent, anchor_tangent
         )
 
-        # compute the exerted force with trigonometry
-        # gegenkathete = hpotenuse*sin(angle/2)
-        force_on_support = parallelverschiebung(exerted_force, angle_tangents)
+        # gegenkathete = hpotenuse*sin(angle/2) for plotting
+        force_on_anchor = parallelverschiebung(exerted_force, angle_tangents)
 
-        force_on_anchor = construct_tower_force_parallelogram(
+        force_on_tower = construct_tower_force_parallelogram(
             tower_xz_point, exerted_force, angle_tangents, ax=ax3
         )
 
-        ax2.clear()
-        ax2_container = ax2.bar(
-            ["Exerted Force", "Force on Anchor", "Force on Support"],
-            [exerted_force, force_on_anchor, force_on_support],
-        )
+        if ax:
+            ax.plot(*anchor_tangent.xy)
 
-        ax2.bar_label(ax2_container)
-        ax2.set_ylim(0, 10000)
-        if max_supported_force[index] > force_on_anchor:
-            # do I need to build up a list?
-            this_cable_road.anchor_triplets = anchor_triplets[index]
-            return True
+            ax2.clear()
+            ax2_container = ax2.bar(
+                ["Exerted Force", "Force on Tower", "Force on Support"],
+                [exerted_force, force_on_tower, force_on_anchor],
+            )
+
+            ax2.bar_label(ax2_container)
+            ax2.set_ylim(0, 100000)
+
+        if force_on_tower < maximum_tower_force:
+            if max_supported_force[index] > force_on_anchor:
+                # do I need to build up a list?
+                this_cable_road.anchor_triplets = anchor_triplets[index]
+                return True
     return False
 
 
@@ -428,8 +350,8 @@ def construct_tower_force_parallelogram(
 
     if ax:
         ax.clear()
-        ax.set_xlim(-10000, 10000)
-        ax.set_ylim(-15000, 1000)
+        ax.set_xlim(-100000, 100000)
+        ax.set_ylim(-150000, 10000)
 
         # plot the points
         ax.plot(*s_max_point.xy, "o", color="black")
@@ -453,7 +375,14 @@ def construct_tower_force_parallelogram(
     return force_on_anchor
 
 
-def pestal_load_path(cable_road, point):
+def pestal_load_path(cable_road: classes.Cable_Road, point: Point):
+    """Calculates the load path of the cable road based on the pestal method
+
+    Args:
+        cable_road (classes.Cable_Road): the cable road
+        point (Point): the point to calculate the load path for
+    """
+
     # H_t_horizontal_force_tragseil = (Tensile_force_at_center*(horizontal_width/lenght_of_cable_road)
     # os ht the correct force though?
 
