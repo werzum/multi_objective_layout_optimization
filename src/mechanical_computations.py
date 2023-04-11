@@ -13,13 +13,13 @@ from src import geometry_utilities, geometry_operations, classes, plotting
 def check_if_no_collisions_overall_line(
     this_cable_road: classes.Cable_Road,
     plot_possible_lines: bool,
-    view: vispy.scene.ViewBox,
-    pos: list,
     current_supports: int,
     anchor_triplets: list,
     max_supported_force: list[float],
     pre_tension: None | float,
     height_gdf: gpd.GeoDataFrame,
+    view: vispy.scene.ViewBox | None,
+    pos: list | None,
 ):
     """A function to check whether there are any points along the line candidate (spanned up by the starting/end points elevation plus the support height) which are less than min_height away from the line.
     Returns the cable_road object, and sets the no_collisions property correspondingly
@@ -38,17 +38,7 @@ def check_if_no_collisions_overall_line(
     if this_cable_road.c_rope_length < 5:
         this_cable_road.no_collisions = False
 
-    # Process of updating the tension and checking if we touch ground and anchors hold
-
-    # 0. set the current to max tension
-    this_cable_road.s_current_tension = this_cable_road.s_max_maximalspannkraft
-
-    # 1. check if anchor trees hold the applied tension
-    this_cable_road.anchors_hold = check_if_anchor_trees_hold(
-        this_cable_road, max_supported_force, anchor_triplets, height_gdf
-    )
-
-    # 2. Test if the CR touches the ground
+    # 1. Test if the CR touches the ground
     calculate_sloped_line_to_floor_distances(this_cable_road)
 
     lowest_point_height = min(this_cable_road.sloped_line_to_floor_distances)
@@ -63,6 +53,7 @@ def check_if_no_collisions_overall_line(
         and this_cable_road.floor_height_below_line_points
         and this_cable_road.anchors_hold
         and this_cable_road.no_collisions
+        and pos
     ):
         print("plotting", this_cable_road)
         plotting.plot_lines(this_cable_road, pos)
@@ -212,9 +203,16 @@ def check_if_tower_and_anchor_trees_hold(
     ax2: plt.Axes = None,
     ax3: plt.Axes = None,
 ) -> bool:
+    """Check if the tower and its anchors support the exerted forces. First we generate a sideways view of the configuration,
+    and then check for every anchor triplet what force is applied to the tower and anchor.
+    If both factors are within allowable limits, set the successful anchor triplet to the cable road and exit, else try with the rest of the triplets.
+
+    Returns:
+        _type_: _description_
+    """
     # get force at last support
     exerted_force = this_cable_road.s_current_tension
-    maximum_tower_force = 150000
+    maximum_tower_force = 200000
 
     # get the xz centroid of the cable road based on the x of the centroid and the height of the middle point
     centroid_xy_distance = this_cable_road.line.centroid.distance(
@@ -243,7 +241,7 @@ def check_if_tower_and_anchor_trees_hold(
         ax.set_xlim(-100, 20)
         ax.plot(*cr_loaded_tangent.xy, color="red")
 
-    for index in [0]:
+    for index in range(len(anchor_triplets)):
         this_anchor_line = anchor_triplets[index][1]
         anchor_start_point_xy_distance = tower_xz_point.distance(
             Point(this_anchor_line.coords[0])
@@ -285,10 +283,11 @@ def check_if_tower_and_anchor_trees_hold(
             ax2.set_ylim(0, 100000)
 
         if force_on_tower < maximum_tower_force:
-            if max_supported_force[index] > force_on_anchor:
+            if force_on_anchor < max_supported_force[index]:
                 # do I need to build up a list?
                 this_cable_road.anchor_triplets = anchor_triplets[index]
                 return True
+
     return False
 
 

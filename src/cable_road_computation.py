@@ -101,16 +101,17 @@ def generate_possible_lines(
                 line["possible_anchor_triples"],
                 line["max_supported_force"],
                 height_gdf,
-                0,
-                plot_possible_lines,
-                view,
                 [],
                 overall_trees,
+                plot_possible_lines,
+                view,
                 pos,
+                0,
             )
             for index, line in line_df.iterrows()
         ]
     )
+
     # and filter lines out without successful lines
     line_df = line_df[line_df["number_of_supports"].apply(lambda x: x is not False)]
     print(len(line_df), " after checking for height obstructions")
@@ -214,11 +215,11 @@ def compute_required_supports(
     max_supported_forces: list[float],
     height_gdf: gpd.GeoDataFrame,
     current_supports: int,
-    plot_possible_lines: bool,
-    view: vispy.scene.ViewBox,
-    location_supports: list,
     overall_trees: gpd.GeoDataFrame,
-    pos: list,
+    location_supports: list,
+    plot_possible_lines: bool = False,
+    view: vispy.scene.ViewBox | None = None,
+    pos: list | None = None,
     pre_tension=None,
 ):
     """A function to check whether there are any points along the line candidate (spanned up by the starting/end points
@@ -241,19 +242,41 @@ def compute_required_supports(
     else:
         this_cable_road.s_current_tension = pre_tension
 
-    print(this_cable_road.s_current_tension)
+    print("Tension to begin with is", this_cable_road.s_current_tension)
+
+    tower_and_anchors_hold = False
+    while tower_and_anchors_hold == False:
+        tower_and_anchors_hold = (
+            mechanical_computations.check_if_tower_and_anchor_trees_hold(
+                this_cable_road, max_supported_forces, anchor_triplets, height_gdf
+            )
+        )
+        # decrement by 10kn increments
+        if not tower_and_anchors_hold:
+            this_cable_road.s_current_tension -= 10000
+
+        print(this_cable_road.s_current_tension)
+
+    # if we found a tension that is high enough and anchors support it, we continue
+    min_cr_tension = 50000
+    if tower_and_anchors_hold and this_cable_road.s_current_tension > min_cr_tension:
+        this_cable_road.anchors_hold = True
+    else:
+        return False, False
+
+    print("After the iterative process it is now", this_cable_road.s_current_tension)
 
     # tension the line and check if anchors hold and we have collisions
     mechanical_computations.check_if_no_collisions_overall_line(
         this_cable_road,
         plot_possible_lines,
-        view,
-        pos,
         current_supports,
         anchor_triplets,
         max_supported_forces,
         pre_tension,
         height_gdf,
+        view,
+        pos,
     )
 
     if this_cable_road.no_collisions and this_cable_road.anchors_hold:
@@ -271,6 +294,7 @@ def compute_required_supports(
         return False, False
     # enter the next recursive loop if not b creating supports
     else:
+        print("Need to find supports")
         # get the distance candidates
         distance_candidates = setup_support_candidates(
             this_cable_road, overall_trees, current_supports, possible_line
