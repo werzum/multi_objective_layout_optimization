@@ -125,10 +125,11 @@ def initialize_line_tension(this_cable_road: classes.Cable_Road, current_support
     print("initialize_line_tension")
     # set tension of the cable_road
     s_br_mindestbruchlast = 170000  # in newton
-    this_cable_road.s_max_maximalspannkraft = s_br_mindestbruchlast / 3
-    this_cable_road.s_current_tension = this_cable_road.s_max_maximalspannkraft * (
-        current_supports + 1 / (current_supports + 2)
-    )
+    this_cable_road.s_max_maximalspannkraft = s_br_mindestbruchlast / 2
+    this_cable_road.s_current_tension = this_cable_road.s_max_maximalspannkraft
+    # this_cable_road.s_current_tension = this_cable_road.s_max_maximalspannkraft * (
+    #     current_supports + 1 / (current_supports + 2)
+    # )
 
 
 def calculate_sloped_line_to_floor_distances(this_cable_road: classes.Cable_Road):
