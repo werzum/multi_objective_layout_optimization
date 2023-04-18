@@ -2,6 +2,8 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 
+from shapely.geometry import Point, LineString
+
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 import matplotlib.lines as mlines
@@ -10,6 +12,10 @@ from itertools import chain
 from shapely.geometry import Point
 from vispy.scene import visuals
 import vispy
+
+import plotly.graph_objects as go
+
+import mechanical_computations, cable_road_computation
 
 
 def plot_gdfs(gdfs):
@@ -273,3 +279,126 @@ def plot_vispy_scene(
     view.camera = "turntable"  # or try 'arcball'
     # add a colored 3D axis for orientation
     axis = visuals.XYZAxis(parent=view.scene)
+
+
+def plot_cr_relief(sample_cable_road):
+    x_sample_cr = [point[0] for point in sample_cable_road.floor_points]
+    y_sample_cr = [point[1] for point in sample_cable_road.floor_points]
+    z_floor_height = sample_cable_road.floor_height_below_line_points
+    z_line_to_floor = (
+        sample_cable_road.floor_height_below_line_points
+        + sample_cable_road.line_to_floor_distances
+    )
+    z_sloped = (
+        sample_cable_road.floor_height_below_line_points
+        + sample_cable_road.sloped_line_to_floor_distances
+    )
+
+    fig = go.Figure()
+    fig = fig.add_trace(
+        go.Scatter3d(
+            x=x_sample_cr,
+            y=y_sample_cr,
+            z=z_floor_height,
+            mode="lines",
+            line=dict(color="blue", width=2),
+            name="Relief",
+        )
+    )
+    fig.add_trace(
+        go.Scatter3d(
+            x=x_sample_cr,
+            y=y_sample_cr,
+            z=z_line_to_floor,
+            mode="lines",
+            line=dict(color="red", width=2),
+            name="Straight Line Distance",
+        )
+    )
+    fig.add_trace(
+        go.Scatter3d(
+            x=x_sample_cr,
+            y=y_sample_cr,
+            z=z_sloped,
+            mode="lines",
+            line=dict(color="green", width=2),
+            name="Sloped Distance",
+        )
+    )
+
+    fig.update_layout(
+        title="Detail View of Single Cable Road Path under Load", width=1200, height=800
+    )
+    # fig.write_html("02_Figures/Cable_Road_3d.html")
+    fig.show("notebook_connected")
+
+
+def plot_supported_cr_relief(sample_cable_road, line_gdf, height_gdf, index):
+    fig = go.Figure()
+
+    # get the relief and plot it
+    x_sample_cr = [point[0] for point in sample_cable_road.floor_points]
+    y_sample_cr = [point[1] for point in sample_cable_road.floor_points]
+    z_floor_height = sample_cable_road.floor_height_below_line_points
+    fig = fig.add_trace(
+        go.Scatter3d(
+            x=x_sample_cr,
+            y=y_sample_cr,
+            z=z_floor_height,
+            mode="lines",
+            line=dict(color="blue", width=2),
+            name="Relief",
+        )
+    )
+
+    # get the waypoints
+    start_point = Point(line_gdf.iloc[index].geometry.coords[0])
+    end_point = line_gdf.iloc[index].geometry.coords[1]
+    supports = line_gdf.iloc[index].location_of_int_supports
+
+    # for all individual road segments
+    waypoints = [start_point, *supports, end_point]
+    for previous, current in zip(waypoints, waypoints[1:]):
+        # sample_line = line_gdf.iloc[index].geometry
+        sample_line = LineString([previous, current])
+        sample_cable_road = cable_road_computation.compute_initial_cable_road(
+            sample_line, height_gdf
+        )
+        sample_cable_road.s_current_tension = line_gdf.iloc[index].current_tension
+        mechanical_computations.calculate_sloped_line_to_floor_distances(
+            sample_cable_road
+        )
+        x_sample_cr = [point[0] for point in sample_cable_road.floor_points]
+        y_sample_cr = [point[1] for point in sample_cable_road.floor_points]
+        z_floor_height = sample_cable_road.floor_height_below_line_points
+        z_line_to_floor = (
+            sample_cable_road.floor_height_below_line_points
+            + sample_cable_road.line_to_floor_distances
+        )
+        z_sloped = (
+            sample_cable_road.floor_height_below_line_points
+            + sample_cable_road.sloped_line_to_floor_distances
+        )
+
+        # fig = px.line_3d(x=x_sample_cr, y=y_sample_cr, z=z_floor_height)
+        # fig.add_trace(go.Scatter3d(x=x_sample_cr, y=y_sample_cr, z=z_line_to_floor, mode='lines', line=dict(color='red', width=2), name='Straight Line Distance'))
+        fig.add_trace(
+            go.Scatter3d(
+                x=x_sample_cr,
+                y=y_sample_cr,
+                z=z_sloped,
+                mode="lines",
+                line=dict(width=3),
+                name=f"Cable Road {index}",
+            )
+        )
+
+    fig.update_traces(marker={"size": 0.75})
+    fig.update_layout(
+        margin=dict(l=0, r=0, b=0, t=0),
+        width=1000,
+        height=800,
+        title="Relief Map with possible Cable Roads",
+    )
+
+    fig.show("notebook_connected")
