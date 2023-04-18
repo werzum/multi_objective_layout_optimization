@@ -90,35 +90,170 @@ def check_if_no_collisions_segments(this_cable_road: classes.Cable_Road):
 def check_if_support_withstands_tension(
     diameter_at_height: float,
     attached_at_height: int,
-    loaded_cable_road: classes.Cable_Road,
-    empty_cable_road: classes.Cable_Road,
+    left_cable_road: classes.Cable_Road,
+    right_cable_road: classes.Cable_Road,
     current_tension: float,
-):
+) -> bool:
     """
-    This function calculates the exerted force on a support tree, based on the tension in a loaded cable road and the angle between it and an empty cable road. The calculation uses trigonometry and the sine function to determine the force on the support. The maximum force that the support can bear is then determined using a Euler buckling calculation. The function returns True if the support can handle more force than is being exerted on it, and False otherwise.
+    This function calculates the exerted force on a support tree, based on the tension in a loaded cable road
+    #and the angle between it and an empty cable road.
+    The calculation uses trigonometry and the sine function to determine the force on the support.
+    The maximum force that the support can bear is then determined using a Euler buckling calculation.
+    The function returns True if the support can handle more force than is being exerted on it, and False otherwise.
     """
 
-    # 1. construct tangents - from the left middle of the loaded cr to its endpoint
-    full_tangent = LineString(
-        [loaded_cable_road.line.centroid, loaded_cable_road.end_point]
-    )
-    empt_tangent = LineString(
-        [empty_cable_road.start_point, empty_cable_road.line.centroid]
+    ### Calculate the force on the support for the left cable road
+
+    # end point of left CR in XZ view
+    # height is the floor height plus support height
+    left_end_point = Point(
+        [
+            left_cable_road.end_point.coords[0][0],
+            left_cable_road.floor_height_below_line_points[-1]
+            + left_cable_road.support_height,
+        ]
     )
 
-    # get their angles
-    angle_tangents = geometry_utilities.angle_between(full_tangent, empt_tangent)
+    # get the load that is put on the CR and find the closest index along the CR - this corresponds to S* in Stampfers instructions
+    # unit length = 10m = 1kn of tension
+    offset = 2  # offset accounts for 0 distance point and first point, which is usually only 0.3m away
+    tension = left_cable_road.s_current_tension // 10000
+    index = int(tension // 2) + offset
+
+    # height is the floor height plus line to floor distance, x is the end point x coords - xy distance of end point to nth point along line
+    xy_distance = left_cable_road.end_point.distance(
+        left_cable_road.points_along_line[-index]
+    )
+    left_angle_point = Point(
+        [
+            left_cable_road.end_point.coords[0][0] - xy_distance,
+            left_cable_road.floor_height_below_line_points[-index]
+            + left_cable_road.line_to_floor_distances[-index],
+        ]
+    )
+
+    left_angle_point_sloped = Point(
+        [
+            left_cable_road.end_point.coords[0][0] - xy_distance,
+            left_cable_road.floor_height_below_line_points[-index]
+            + left_cable_road.sloped_line_to_floor_distances[-index],
+        ]
+    )
+    # distances between end point, angle point and angle point sloped
+    left_end_point_to_angle_point = left_end_point.distance(left_angle_point)
+    left_angle_point_to_angle_point_sloped = left_angle_point.distance(
+        left_angle_point_sloped
+    )
+    # angle between two vectors is tan⁻1(gegenkatete/ankatete)
+    left_angle = math.degrees(
+        math.atan(
+            left_angle_point_to_angle_point_sloped / left_end_point_to_angle_point
+        )
+    )
+
+    ### and the right side of the support, from the start point now
+    right_start_point = Point(
+        [
+            right_cable_road.start_point.coords[0][0],
+            right_cable_road.floor_height_below_line_points[-1]
+            + right_cable_road.support_height,
+        ]
+    )
+
+    # get the load that is put on the CR and find the closest index along the CR
+    offset = 0  # offset set to 0 because we are starting from the start point
+    tension = right_cable_road.s_current_tension // 10000
+    index = int(tension // 2) + offset
+
+    # height is the floor height plus line to floor distance, x is the end point x coords - xy distance of end point to nth point along line
+    xy_distance = right_cable_road.start_point.distance(
+        right_cable_road.points_along_line[index]
+    )
+
+    right_angle_point = Point(
+        [
+            right_cable_road.start_point.coords[0][0] + xy_distance,
+            right_cable_road.floor_height_below_line_points[index]
+            + right_cable_road.line_to_floor_distances[index],
+        ]
+    )
+
+    right_angle_point_sloped = Point(
+        [
+            right_cable_road.start_point.coords[0][0] + xy_distance,
+            right_cable_road.floor_height_below_line_points[index]
+            + right_cable_road.sloped_line_to_floor_distances[index],
+        ]
+    )
+    # distances between end point, angle point and angle point sloped
+    right_start_point_to_angle_point = right_start_point.distance(right_angle_point)
+    right_angle_point_to_angle_point_sloped = right_angle_point.distance(
+        right_angle_point_sloped
+    )
+    # angle between two vectors is tan⁻1(gegenkatete/ankatete)
+    right_angle = math.degrees(
+        math.atan(
+            right_angle_point_to_angle_point_sloped / right_start_point_to_angle_point
+        )
+    )
 
     # compute the exerted force with trigonometry
     # gegenkathete = hpotenuse*sin(angle/2)
-    force_on_support = parallelverschiebung(current_tension, angle_tangents)
+    force_on_support_left = parallelverschiebung(current_tension, left_angle)
+    force_on_support_right = parallelverschiebung(current_tension, right_angle)
 
     # get the supported force of the support tree
     # TBD this can also be done in advance - attached at height+2 to accomodate stütze itself
     max_force_of_support = euler_knicklast(diameter_at_height, attached_at_height + 2)
 
+    print(force_on_support_left, force_on_support_right)
     # return true if the support can bear more than the exerted force
-    return max_force_of_support > force_on_support
+    return max_force_of_support > max(force_on_support_left, force_on_support_right)
+
+
+def compute_angle_between_lines(line1, line2, height_gdf):
+    start_point_xy, end_point_xy = Point(line1.coords[0]), Point(line2.coords[1])
+
+    max_deviation = 0.1
+    start_point_xy_height = geometry_operations.fetch_point_elevation(
+        start_point_xy, height_gdf, max_deviation
+    )
+    end_point_xy_height = geometry_operations.fetch_point_elevation(
+        end_point_xy, height_gdf, max_deviation
+    )
+
+    # piece together the triple from the xy coordinates and the z (height)
+    start_point_xyz = (
+        start_point_xy.coords[0][0],
+        start_point_xy.coords[0][1],
+        start_point_xy_height,
+    )
+    end_point_xyz = (
+        end_point_xy.coords[0][0],
+        end_point_xy.coords[0][1],
+        end_point_xy_height,
+    )
+
+    # and finally compute the angle
+
+    # get the xz centroid of the cable road based on the x of the centroid and the height of the middle point
+    centroid_xy_distance = line1.centroid.distance(this_cable_road.start_point)
+    # and rotate the centroid at our sideways-x-axis relative to the start point
+    centroid_xz = Point(
+        [
+            this_cable_road.start_point.coords[0][0] - centroid_xy_distance,
+            geometry_operations.fetch_point_elevation(
+                this_cable_road.line.centroid, height_gdf, 1
+            ),
+        ]
+    )
+
+    # start point of the cr tower
+    tower_xz_point = Point(
+        [this_cable_road.start_point.coords[0][0], this_cable_road.start_point_height]
+    )
+
+    return geometry_utilities.angle_between_3d(start_point_xyz, end_point_xyz)
 
 
 def initialize_line_tension(this_cable_road: classes.Cable_Road, current_supports: int):
@@ -247,6 +382,8 @@ def check_if_tower_and_anchor_trees_hold(
         anchor_start_point_xy_distance = tower_xz_point.distance(
             Point(this_anchor_line.coords[0])
         )
+
+        print("anchor_start_point_xy_distance", anchor_start_point_xy_distance)
         anchor_start_point = Point(this_anchor_line.coords[0])
 
         # 1. construct tangents - from the left middle of the loaded cr to its endpoint
@@ -283,6 +420,9 @@ def check_if_tower_and_anchor_trees_hold(
             ax2.bar_label(ax2_container)
             ax2.set_ylim(0, 100000)
 
+        print("force on anchor", force_on_anchor)
+        print("force on twoer", force_on_tower)
+        print(maximum_tower_force)
         if force_on_tower < maximum_tower_force:
             if force_on_anchor < max_supported_force[index]:
                 # do I need to build up a list?
@@ -317,6 +457,10 @@ def construct_tower_force_parallelogram(
     )
     # x distance from s_max to anchor
     s_max_to_anchor = abs(s_max_point.coords[0][0] - tower_xz_point.coords[0][0])
+
+    print("s_max_to_anchor", s_max_point.distance(tower_xz_point))
+    print("smax to rges", tower_xz_point.coords[0][0] - s_max_point.coords[0][0])
+
     # shifting anchor by this distance to the right to get s_a
     s_a_point = Point(
         [

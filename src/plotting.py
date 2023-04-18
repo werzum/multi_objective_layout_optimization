@@ -15,7 +15,7 @@ import vispy
 
 import plotly.graph_objects as go
 
-import mechanical_computations, cable_road_computation
+from src import mechanical_computations, cable_road_computation
 
 
 def plot_gdfs(gdfs):

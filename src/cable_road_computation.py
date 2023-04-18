@@ -211,6 +211,20 @@ def compute_initial_cable_road(
     if initial_tension:
         this_cable_road.s_current_tension = initial_tension
 
+        # and calculate the sloped ltfd
+        y_x_deflections = np.asarray(
+            [
+                mechanical_computations.pestal_load_path(this_cable_road, point)
+                for point in this_cable_road.points_along_line
+            ],
+            dtype=np.float32,
+        )
+
+        #  check the distances between each floor point and the ldh point
+        this_cable_road.sloped_line_to_floor_distances = (
+            this_cable_road.line_to_floor_distances - y_x_deflections
+        )
+
     return this_cable_road
 
 
@@ -320,7 +334,19 @@ def compute_required_supports(
             ) = create_sideways_cableroads(
                 overall_trees, this_cable_road, candidate, height_gdf
             )
-            # do I also need to re-init max tension?
+
+            # check if the candidate is too close to the anchor
+            if (
+                min(
+                    len(road_to_support_cable_road.points_along_line),
+                    len(support_to_anchor_cable_road.points_along_line),
+                )
+                < 4
+            ):
+                print(
+                    "candidate too close to anchor, skipping in check if no coll overall line sideways CR"
+                )
+                continue
 
             # iterate through the possible attachments of the support and see if we touch ground
             for diameters_index in range(len(candidate_tree.height_series)):
@@ -518,6 +544,7 @@ def generate_triple_angle(
 
     # 5. check if the third support line is also within correct angle - within 2*min_outer_anch_angle and 2* max_anchor_angle for one point and within min_outer, max_outer for the other -> so two lines are not on the same side!
     triple_angle = []
+    triple_angle_temp = []
     max_supported_force = []
     for x, y in pairwise_angle:
         for z in possible_anchor_lines:
@@ -538,14 +565,13 @@ def generate_triple_angle(
                 )
 
                 if (a, b):
-                    triple_angle.append([x, y, z])
-
+                    triple_angle_temp.append([x, y, z])
                     # find the line with the smallest angle
                     degrees = [
                         geometry_utilities.angle_between(line, line_candidate)
                         for line in [x, y, z]
                     ]
-                    center_line = triple_angle[-1][degrees.index(min(degrees))]
+                    center_line = triple_angle_temp[-1][degrees.index(min(degrees))]
 
                     # get its end tree and retrive its BHD from the DF
                     this_center_tree_bhd = anchor_trees_working_copy[
@@ -559,7 +585,13 @@ def generate_triple_angle(
                         (this_center_tree_bhd**2) * 10 * 1000 / security_factor
                     )
 
-                    max_supported_force.append(this_max_supported_force)
+                    # omit adding a triple angle to the list if we already have one with the same max supported force. We are only looking at the center tree for forces,
+                    # so we can omit the other options
+                    if this_max_supported_force in max_supported_force:
+                        continue
+                    else:
+                        triple_angle.append([x, y, z])
+                        max_supported_force.append(this_max_supported_force)
 
     return triple_angle, max_supported_force
 
