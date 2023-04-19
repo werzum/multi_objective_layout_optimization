@@ -209,8 +209,8 @@ def check_if_support_withstands_tension(
     # TBD this can also be done in advance - attached at height+2 to accomodate stütze itself
     max_force_of_support = euler_knicklast(diameter_at_height, attached_at_height + 2)
 
-    # if force_on_support_left == 0:
-    #     print(left_angle)
+    if force_on_support_left == 0:
+        print(left_angle)
 
     print(force_on_support_left, force_on_support_right)
     # return true if the support can bear more than the exerted force
@@ -355,17 +355,18 @@ def check_if_tower_and_anchor_trees_hold(
     # get force at last support
     exerted_force = this_cable_road.s_current_tension
     maximum_tower_force = 200000
+    scaling_factor = 1000
 
-    # get the xz centroid of the cable road based on the x of the centroid and the height of the middle point
-    centroid_xy_distance = this_cable_road.line.centroid.distance(
-        this_cable_road.start_point
-    )
+    # get the s max distance we apply to scale the line
+    s_max_tension_distance = exerted_force / scaling_factor
     # and rotate the centroid at our sideways-x-axis relative to the start point
     centroid_xz = Point(
         [
-            this_cable_road.start_point.coords[0][0] - centroid_xy_distance,
-            geometry_operations.fetch_point_elevation(
-                this_cable_road.line.centroid, height_gdf, 1
+            this_cable_road.start_point.coords[0][0] - s_max_tension_distance,
+            geometry_operations.fetch_point_elevation(  # fetch the point that is the max tension distance away from the tower point
+                this_cable_road.points_along_line[int(s_max_tension_distance // 2)],
+                height_gdf,
+                1,
             ),
         ]
     )
@@ -411,7 +412,7 @@ def check_if_tower_and_anchor_trees_hold(
         force_on_anchor = parallelverschiebung(exerted_force, angle_tangents)
 
         force_on_tower = construct_tower_force_parallelogram(
-            tower_xz_point, exerted_force, angle_tangents, ax=ax3
+            tower_xz_point, exerted_force, scaling_factor, angle_tangents, ax=ax3
         )
 
         if ax:
@@ -441,6 +442,7 @@ def check_if_tower_and_anchor_trees_hold(
 def construct_tower_force_parallelogram(
     tower_xz_point: Point,
     exerted_force: float,
+    scaling_factor: int,
     angle_tangents: float,
     ax: plt.Axes = None,
 ):
@@ -451,6 +453,8 @@ def construct_tower_force_parallelogram(
         exerted_force (_type_): _description_
         angle_tangents (_type_): _description_
     """
+    # scale down the force
+    exerted_force = exerted_force / scaling_factor
 
     # direction of force from point and with angle
     s_max_point = Point(
@@ -495,13 +499,13 @@ def construct_tower_force_parallelogram(
         ]
     )
 
-    # now resulting force = distance from anchor to a_5#
-    force_on_anchor = tower_xz_point.distance(a_5_point)
+    # now resulting force = distance from anchor to a_5*scaling factor
+    force_on_anchor = (tower_xz_point.distance(a_5_point)) * 100
 
     if ax:
         ax.clear()
-        ax.set_xlim(-100000, 100000)
-        ax.set_ylim(-150000, 10000)
+        ax.set_xlim(-300, 300)
+        ax.set_ylim(-500, 10)
 
         # plot the points
         ax.plot(*s_max_point.xy, "o", color="black")
