@@ -96,7 +96,7 @@ def check_if_support_withstands_tension(
 ) -> bool:
     """
     This function calculates the exerted force on a support tree, based on the tension in a loaded cable road
-    #and the angle between it and an empty cable road.
+    and the angle between it and an empty cable road.
     The calculation uses trigonometry and the sine function to determine the force on the support.
     The maximum force that the support can bear is then determined using a Euler buckling calculation.
     The function returns True if the support can handle more force than is being exerted on it, and False otherwise.
@@ -119,6 +119,8 @@ def check_if_support_withstands_tension(
     offset = 2  # offset accounts for 0 distance point and first point, which is usually only 0.3m away
     tension = left_cable_road.s_current_tension // 10000
     index = int(tension // 2) + offset
+    # ensure that we don't go out of bounds
+    index = min(len(left_cable_road.points_along_line), index)
 
     # height is the floor height plus line to floor distance, x is the end point x coords - xy distance of end point to nth point along line
     xy_distance = left_cable_road.end_point.distance(
@@ -185,6 +187,7 @@ def check_if_support_withstands_tension(
             + right_cable_road.sloped_line_to_floor_distances[index],
         ]
     )
+
     # distances between end point, angle point and angle point sloped
     right_start_point_to_angle_point = right_start_point.distance(right_angle_point)
     right_angle_point_to_angle_point_sloped = right_angle_point.distance(
@@ -205,6 +208,9 @@ def check_if_support_withstands_tension(
     # get the supported force of the support tree
     # TBD this can also be done in advance - attached at height+2 to accomodate stütze itself
     max_force_of_support = euler_knicklast(diameter_at_height, attached_at_height + 2)
+
+    # if force_on_support_left == 0:
+    #     print(left_angle)
 
     print(force_on_support_left, force_on_support_right)
     # return true if the support can bear more than the exerted force
