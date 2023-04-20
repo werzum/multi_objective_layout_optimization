@@ -25,11 +25,18 @@ def check_if_no_collisions_overall_line(
     Returns the cable_road object, and sets the no_collisions property correspondingly
 
     Args:
-        possible_line (_type_): _description_
-        height_gdf (_type_): _description_
+        this_cable_road (classes.Cable_Road): The cable_road object to check
+        plot_possible_lines (bool): Whether to plot the lines
+        current_supports (int): The number of supports
+        anchor_triplets (list): The possibker_triplets
+        max_supported_force (list[float]): The list of max_supported_forces by the supports
+        pre_tension (None | float): The pre_tension of the cr
+        height_gdf (gpd.GeoDataFrame): The height_gdf
+        view (vispy.scene.ViewBox | None): The view object for plotting
+        pos (list | None): The pos object for plotting
 
     Returns:
-        _type_: _description_
+        Nothing, just modifies the cable_road object
     """
     print("checking if no collisions overall line")
     min_height = 3
@@ -100,6 +107,16 @@ def check_if_support_withstands_tension(
     The calculation uses trigonometry and the sine function to determine the force on the support.
     The maximum force that the support can bear is then determined using a Euler buckling calculation.
     The function returns True if the support can handle more force than is being exerted on it, and False otherwise.
+
+    Args:
+        diameter_at_height (float): The diameter of the support tree at the height of the support
+        attached_at_height (int): The height at which the support is attached to the cable road
+        left_cable_road (classes.Cable_Road): The cable road left of the support
+        right_cable_road (classes.Cable_Road): The cable road right of the support
+        current_tension (float): The tension in the loaded cable road
+    Returns:
+        bool: True if the support can handle more force than is being exerted on it, and False otherwise.
+
     """
 
     ### Calculate the force on the support for the left cable road
@@ -120,7 +137,7 @@ def check_if_support_withstands_tension(
     tension = left_cable_road.s_current_tension // 10000
     index = int(tension // 2) + offset
     # ensure that we don't go out of bounds
-    index = min(len(left_cable_road.points_along_line), index)
+    index = min(len(left_cable_road.points_along_line) - 1, index)
 
     # height is the floor height plus line to floor distance, x is the end point x coords - xy distance of end point to nth point along line
     xy_distance = left_cable_road.end_point.distance(
@@ -166,6 +183,7 @@ def check_if_support_withstands_tension(
     offset = 0  # offset set to 0 because we are starting from the start point
     tension = right_cable_road.s_current_tension // 10000
     index = int(tension // 2) + offset
+    index = min(len(right_cable_road.points_along_line) - 1, index)
 
     # height is the floor height plus line to floor distance, x is the end point x coords - xy distance of end point to nth point along line
     xy_distance = right_cable_road.start_point.distance(
@@ -208,16 +226,27 @@ def check_if_support_withstands_tension(
     # get the supported force of the support tree
     # TBD this can also be done in advance - attached at height+2 to accomodate stütze itself
     max_force_of_support = euler_knicklast(diameter_at_height, attached_at_height + 2)
+    print("left angle", left_angle)
+    print("right angle", right_angle)
 
-    if force_on_support_left == 0:
-        print(left_angle)
-
-    print(force_on_support_left, force_on_support_right)
+    print("forces on lr support", force_on_support_left, force_on_support_right)
     # return true if the support can bear more than the exerted force
     return max_force_of_support > max(force_on_support_left, force_on_support_right)
 
 
-def compute_angle_between_lines(line1, line2, height_gdf):
+def compute_angle_between_lines(
+    line1: LineString, line2: LineString, height_gdf: gpd.GeoDataFrame
+):
+    """Computes the angle between two lines.
+
+    Args:
+        line1 (LineString): The first line.
+        line2 (LineString): The second line.
+        height_gdf (GeoDataFrame): The GeoDataFrame containing the height data.
+
+    Returns:
+        angle (Float): The angle in degrees
+    """
     start_point_xy, end_point_xy = Point(line1.coords[0]), Point(line2.coords[1])
 
     max_deviation = 0.1
@@ -240,25 +269,6 @@ def compute_angle_between_lines(line1, line2, height_gdf):
         end_point_xy_height,
     )
 
-    # and finally compute the angle
-
-    # get the xz centroid of the cable road based on the x of the centroid and the height of the middle point
-    centroid_xy_distance = line1.centroid.distance(this_cable_road.start_point)
-    # and rotate the centroid at our sideways-x-axis relative to the start point
-    centroid_xz = Point(
-        [
-            this_cable_road.start_point.coords[0][0] - centroid_xy_distance,
-            geometry_operations.fetch_point_elevation(
-                this_cable_road.line.centroid, height_gdf, 1
-            ),
-        ]
-    )
-
-    # start point of the cr tower
-    tower_xz_point = Point(
-        [this_cable_road.start_point.coords[0][0], this_cable_road.start_point_height]
-    )
-
     return geometry_utilities.angle_between_3d(start_point_xyz, end_point_xyz)
 
 
@@ -274,7 +284,14 @@ def initialize_line_tension(this_cable_road: classes.Cable_Road, current_support
 
 
 def calculate_sloped_line_to_floor_distances(this_cable_road: classes.Cable_Road):
-    # 1. calculate current deflections with a given tension
+    """Calculate the distances between the line and the floor based on pointwise deflections.
+
+    Args:
+        this_cable_road (classes.Cable_Road): This cable road.
+
+    Returns: Nothing, just updates the cable road object.
+    """
+    # Calculate current deflections with a given tension
     y_x_deflections = np.asarray(
         [
             pestal_load_path(this_cable_road, point)
@@ -329,6 +346,14 @@ def compute_angle_between_supports(
 
 
 def parallelverschiebung(force, angle):
+    """Compute the force that is exerted on the tower and anchor depending on the angle between the tower and the anchor.
+
+    Args:
+        force (float): The force that is exerted on the tower.
+        angle (float): The angle between the tower and the anchor.
+    Returns:
+        resulting_force (float): The force that is exerted on the tower and anchor.
+    """
     # resulting_force = force * math.sin(0.5 * angle)
     # note - the angle is converted to radians for the np.sin function
     resulting_force = (force * np.sin(np.deg2rad(0.5 * angle))) * 2
@@ -350,21 +375,26 @@ def check_if_tower_and_anchor_trees_hold(
     If both factors are within allowable limits, set the successful anchor triplet to the cable road and exit, else try with the rest of the triplets.
 
     Returns:
-        _type_: _description_
+        anchors_hold (bool): True if the anchors hold, False if not.
     """
     # get force at last support
     exerted_force = this_cable_road.s_current_tension
     maximum_tower_force = 200000
     scaling_factor = 1000
 
-    # get the s max distance we apply to scale the line
+    # get the s max distance we apply to scale the line - ensure we dont go OOB
     s_max_tension_distance = exerted_force / scaling_factor
+    index = min(
+        len(this_cable_road.points_along_line) - 1, int(s_max_tension_distance // 2)
+    )
+
+    print("index comparison", len(this_cable_road.points_along_line) - 1, index)
     # and rotate the centroid at our sideways-x-axis relative to the start point
     centroid_xz = Point(
         [
             this_cable_road.start_point.coords[0][0] - s_max_tension_distance,
             geometry_operations.fetch_point_elevation(  # fetch the point that is the max tension distance away from the tower point
-                this_cable_road.points_along_line[int(s_max_tension_distance // 2)],
+                this_cable_road.points_along_line[index],
                 height_gdf,
                 1,
             ),

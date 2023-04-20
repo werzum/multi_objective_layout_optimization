@@ -251,7 +251,6 @@ def compute_required_supports(
     Returns:
         _type_: _description_
     """
-    # print("compute_required_supports")
     this_cable_road = compute_initial_cable_road(possible_line, height_gdf)
 
     if not pre_tension:
@@ -299,7 +298,6 @@ def compute_required_supports(
     )
 
     if this_cable_road.no_collisions and this_cable_road.anchors_hold:
-        print(current_supports)
         print("successful on first try")
         return return_sucessful(current_supports, location_supports, this_cable_road)
 
@@ -736,16 +734,16 @@ def create_sideways_cableroads(overall_trees, this_cable_road, candidate, height
 
 
 def test_collisions_left_right(
-    cable_roads,
-    current_supports,
-    location_supports,
-    overall_trees,
-    pos,
-    plot_possible_lines,
-    view,
-    anchor_triplets,
-    max_supported_forces,
-    height_gdf,
+    cable_roads: list[classes.Cable_Road],
+    current_supports: int,
+    location_supports: list[Point],
+    anchor_triplets: list[list[Point]],
+    max_supported_forces: list[float],
+    overall_trees: gpd.GeoDataFrame,
+    height_gdf: gpd.GeoDataFrame,
+    plot_possible_lines: bool = False,
+    view: vispy.scene.ViewBox | None = None,
+    pos: list | None = None,
 ):
     """test if the left and right cr have collisions and return the new support locations if not
 
@@ -779,10 +777,10 @@ def test_collisions_left_right(
                 max_supported_forces,
                 height_gdf,
                 current_supports,
+                overall_trees,
+                location_supports,
                 plot_possible_lines,
                 view,
-                location_supports,
-                overall_trees,
                 pos,
                 cable_road.s_current_tension,
             )
