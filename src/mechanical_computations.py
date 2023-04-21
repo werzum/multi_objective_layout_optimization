@@ -345,7 +345,7 @@ def compute_angle_between_supports(
     return geometry_utilities.angle_between_3d(start_point_xyz, end_point_xyz)
 
 
-def parallelverschiebung(force, angle):
+def parallelverschiebung(force: float, angle: float) -> float:
     """Compute the force that is exerted on the tower and anchor depending on the angle between the tower and the anchor.
 
     Args:
@@ -388,7 +388,6 @@ def check_if_tower_and_anchor_trees_hold(
         len(this_cable_road.points_along_line) - 1, int(s_max_tension_distance // 2)
     )
 
-    print("index comparison", len(this_cable_road.points_along_line) - 1, index)
     # and rotate the centroid at our sideways-x-axis relative to the start point
     centroid_xz = Point(
         [
@@ -459,6 +458,7 @@ def check_if_tower_and_anchor_trees_hold(
 
         print("force on anchor", force_on_anchor)
         print("force on twoer", force_on_tower)
+        print("max supported force by anchor", max_supported_force[index])
         print(maximum_tower_force)
         if force_on_tower < maximum_tower_force:
             if force_on_anchor < max_supported_force[index]:
@@ -475,13 +475,17 @@ def construct_tower_force_parallelogram(
     scaling_factor: int,
     angle_tangents: float,
     ax: plt.Axes = None,
-):
+) -> float:
     """Constructs a parallelogram with the anchor point as its base, the force on the anchor as its height and the angle between the anchor tangent and the cr tangent as its angle. Based on Stampfer Forstmaschinen und Holzbringung Heft P. 17
 
     Args:
         tower_xz_point (_type_): the central sideways-viewed top of the anchor
         exerted_force (_type_): _description_
+        scaling_factor (_type_): scaling down the force to preserve the geometric method
         angle_tangents (_type_): _description_
+
+    Returns:
+        float: the force applied the tower
     """
     # scale down the force
     exerted_force = exerted_force / scaling_factor

@@ -15,7 +15,12 @@ import vispy
 
 import plotly.graph_objects as go
 
-from src import mechanical_computations, cable_road_computation
+from src import (
+    mechanical_computations,
+    cable_road_computation,
+    classes,
+    geometry_operations,
+)
 
 
 def plot_gdfs(gdfs):
@@ -281,7 +286,20 @@ def plot_vispy_scene(
     axis = visuals.XYZAxis(parent=view.scene)
 
 
-def plot_cr_relief(sample_cable_road):
+def plot_cr_relief(
+    sample_cable_road: classes.Cable_Road,
+    line_gdf: gpd.GeoDataFrame,
+    height_gdf: gpd.GeoDataFrame,
+    index: int,
+):
+    """Plot the relief of a single cable road with a scatterplot of relief, line and floor points.
+
+    Args:
+        sample_cable_road (classes.Cable_Road): _description_
+        line_gdf (gpd.GeoDataFrame): _description_
+        height_gdf (gpd.GeoDataFrame): _description_
+        index (int): _description_
+    """
     x_sample_cr = [point[0] for point in sample_cable_road.floor_points]
     y_sample_cr = [point[1] for point in sample_cable_road.floor_points]
     z_floor_height = sample_cable_road.floor_height_below_line_points
@@ -323,6 +341,31 @@ def plot_cr_relief(sample_cable_road):
             mode="lines",
             line=dict(color="green", width=2),
             name="Sloped Distance",
+        )
+    )
+
+    anchor_point = Point(line_gdf.iloc[index].possible_anchor_triples[0][2].coords)
+    anchor_line = LineString([anchor_point, sample_cable_road.start_point])
+    anchor_cable_road = cable_road_computation.compute_initial_cable_road(
+        anchor_line, height_gdf
+    )
+
+    x_anchor_cr = [point[0] for point in anchor_cable_road.floor_points]
+    y_anchor_cr = [point[1] for point in anchor_cable_road.floor_points]
+    z_floor_height = anchor_cable_road.floor_height_below_line_points
+    z_line_to_floor = (
+        anchor_cable_road.floor_height_below_line_points
+        + anchor_cable_road.line_to_floor_distances
+    )
+
+    fig.add_trace(
+        go.Scatter3d(
+            x=x_anchor_cr,
+            y=y_anchor_cr,
+            z=z_line_to_floor,
+            mode="lines",
+            line=dict(color="yellow", width=2),
+            name="Anchor Cable",
         )
     )
 

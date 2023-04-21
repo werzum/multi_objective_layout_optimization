@@ -658,8 +658,11 @@ def create_candidate_points_and_lines(
 
 
 def setup_support_candidates(
-    this_cable_road, overall_trees, current_supports, possible_line
-):
+    this_cable_road: classes.Cable_Road,
+    overall_trees: gpd.GeoDataFrame,
+    current_supports: int,
+    possible_line: LineString,
+) -> bool | gpd.GeoDataFrame:
     print("Setting up support candidates")
 
     # 1. get the point of contact
@@ -684,6 +687,7 @@ def setup_support_candidates(
     point_of_contact = this_cable_road.points_along_line[
         sloped_line_to_floor_distances_index
     ]
+
     distance_candidates = intermediate_support_candidates.distance(point_of_contact)
     distance_candidates = distance_candidates.sort_values(ascending=True)
 
