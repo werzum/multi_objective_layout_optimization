@@ -341,8 +341,14 @@ def compute_angle_between_supports(
         end_point_xy_height,
     )
 
-    # and finally compute the angle
-    return geometry_utilities.angle_between_3d(start_point_xyz, end_point_xyz)
+    # a line from the start point to the end point
+    vector_start_end = np.subtract(start_point_xyz, end_point_xyz)
+    # a line from the start point to the end point on the same height as the start point
+    vector_line_floor = np.subtract(
+        start_point_xyz, (end_point_xyz[0], end_point_xyz[1], start_point_xyz[2])
+    )
+    # compute the angle between the line and the x-axis
+    return geometry_utilities.angle_between_3d(vector_start_end, vector_line_floor)
 
 
 def parallelverschiebung(force: float, angle: float) -> float:

@@ -1,0 +1,658 @@
+<!--
+ * Copyright (c) 2015 Mountainstorm
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ * Original from https://github.com/mountainstorm/jquery.graphviz.svg/blob/master/demo.html
+ -->
+<html>
+	<head>
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.4/css/bootstrap.min.css">
+		<!-- <link rel="stylesheet" href="css/graphviz.svg.css"> -->
+	</head>
+
+	<style>
+        #instructions {
+            color: #000000;
+            position: absolute;
+            z-index: 100;
+            bottom: 0px;
+            left: 0px;
+        }
+    </style>
+	<body>
+		<h4 id="instructions">Click node to highlight; Shift-scroll to zoom; Esc to unhighlight</h4>
+		<div id="graph" style="width: 100%; height: 100%; overflow: scroll;"></div>
+
+		<script type="text/javascript" src="https://code.jquery.com/jquery-2.1.3.min.js"></script>
+		<script type="text/javascript" src="https://cdn.rawgit.com/jquery/jquery-mousewheel/master/jquery.mousewheel.min.js"></script>
+		<script type="text/javascript" src="https://cdn.rawgit.com/jquery/jquery-color/master/jquery.color.js"></script>
+		<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.4/js/bootstrap.min.js"></script>
+		<script type="text/javascript">!function(t){"use strict";String.prototype.startsWith=function(t){return 0==this.indexOf(t)},String.prototype.endsWith=function(t){return-1!==this.indexOf(t,this.length-t.length)};var e=function(t,e){this.type=null,this.options=null,this.enabled=null,this.$element=null,this.init("graphviz.svg",t,e)};e.VERSION="1.0.1",e.GVPT_2_PX=32.5,e.DEFAULTS={url:null,svg:null,shrink:"0.125pt",tooltips:{init:function(e){var i=t(this);i.tooltip({container:e,placement:"auto left",animation:!1,viewport:null}).on("hide.bs.tooltip",function(){if(i.attr("data-tooltip-keepvisible"))return!1})},show:function(){var e=t(this);e.attr("data-tooltip-keepvisible",!0),e.tooltip("show")},hide:function(){var e=t(this);e.removeAttr("data-tooltip-keepvisible"),e.tooltip("hide")},update:function(){var e=t(this);e.attr("data-tooltip-keepvisible")&&e.tooltip("show")}},zoom:!0,highlight:{selected:function(t,e){return t},unselected:function(t,e){return jQuery.Color(t).transition(e,.9)}},ready:null},e.prototype.init=function(e,i,n){if(this.enabled=!0,this.type=e,this.$element=t(i),this.options=this.getOptions(n),n.url){var o=this;t.get(n.url,null,function(e){var i=t("svg",e);o.$element.html(document.adoptNode(i[0])),o.setup()},"xml")}else n.svg&&this.$element.html(n.svg),this.setup()},e.prototype.getDefaults=function(){return e.DEFAULTS},e.prototype.getOptions=function(e){return(e=t.extend({},this.getDefaults(),this.$element.data(),e)).shrink&&("object"!=typeof e.shrink&&(e.shrink={x:e.shrink,y:e.shrink}),e.shrink.x=this.convertToPx(e.shrink.x),e.shrink.y=this.convertToPx(e.shrink.y)),e},e.prototype.setup=function(){var e=this.options,i=t(this.$element.children("svg")),n=i.children("g:first");this.$svg=i,this.$graph=n,this.$background=n.children("polygon:first"),this.$nodes=n.children(".node"),this.$edges=n.children(".edge"),this._nodesByName={},this._edgesByName={},this.$element.addClass("graphviz-svg"),this.$background.length&&this.$element.css("background",this.$background.attr("fill"));var o=this;this.$nodes.each(function(){o.setupNodesEdges(t(this),!0)}),this.$edges.each(function(){o.setupNodesEdges(t(this),!1)});var r=this.$graph.children("title");this.$graph.attr("data-name",r.text()),r.remove(),e.zoom&&this.setupZoom(),e.ready&&e.ready.call(this)},e.prototype.setupNodesEdges=function(e,i){var n=this,o=this.options;e.find("polygon, ellipse, path").each(function(){var e=t(this);e.data("graphviz.svg.color",{fill:e.attr("fill"),stroke:e.attr("stroke")}),i&&o.shrink&&n.scaleNode(e)});var r,s,h=e.children("title");if(h[0]){var a=h.text().replace(/:[snew][ew]?/g,"");e.attr("data-name",a),h.remove(),i?this._nodesByName[a]=e[0]:this._edgesByName[a]=e[0];for(var l=e[0].previousSibling;l&&8!=l.nodeType;)l=l.previousSibling;if(null!=l&&8==l.nodeType){var p=(r=l.nodeValue.trim(),(s=document.createElement("div")).innerHTML=r,s.childNodes[0].nodeValue);p!=a&&e.attr("data-comment",p)}}e.children("a").filter(function(){return t(this).attr("xlink:title")}).each(function(){var e=t(this);e.attr("title",e.attr("xlink:title")),e.removeAttr("xlink:title"),o.tooltips&&o.tooltips.init.call(this,n.$element)})},e.prototype.setupZoom=function(){var t=this,e=this.$element,i=this.$svg;this.zoom={width:i.attr("width"),height:i.attr("height"),percentage:null},this.scaleView(100),e.mousewheel(function(n){if(n.shiftKey){var o=t.zoom.percentage;(o-=n.deltaY*n.deltaFactor)<100&&(o=100);var r=n.pageX-i.offset().left,s=n.pageY-i.offset().top,h=r/i.width(),a=s/i.height(),l=n.pageX-e.offset().left,p=n.pageY-e.offset().top;return t.scaleView(o),e.scrollLeft(h*i.width()+.5-l),e.scrollTop(a*i.height()+.5-p),!1}})},e.prototype.scaleView=function(t){var e=this,i=this.$svg;i.attr("width",t+"%"),i.attr("height",t+"%"),this.zoom.percentage=t,this.$nodes.add(this.$edges).children("a[title]").each(function(){e.options.tooltips.update.call(this)})},e.prototype.scaleNode=function(t){var e=this.options.shrink.x,i=this.options.shrink.y,n=t.prop("tagName");if("ellipse"==n)t.attr("rx",parseFloat(t.attr("rx"))-e),t.attr("ry",parseFloat(t.attr("ry"))-i);else if("polygon"==n){var o=t[0].getBBox(),r=o.x+o.width/2,s=o.y+o.height/2,h=t.attr("points").split(" "),a="";for(var l in h){var p=h[l].split(","),d=parseFloat(p[0]),u=parseFloat(p[1]);a+=(r-d)/(o.width/2)*e+d+","+((s-u)/(o.height/2)*i+u)+" "}t.attr("points",a)}},e.prototype.convertToPx=function(t){var i=t;if("string"==typeof t){var n=t.length,o=1;t.endsWith("px")?n-=2:t.endsWith("pt")&&(n-=2,o=e.GVPT_2_PX),i=parseFloat(t.substring(0,n))*o}return i},e.prototype.findEdge=function(t,e,i){var n=[];for(var o in this._edgesByName){var r=e(t,o);r&&(i&&i.push(this._edgesByName[o]),n.push(r))}return n},e.prototype.findLinked=function(e,i,n,o){var r=t(e),s=null;i&&(s=o);var h=this.findEdge(r.attr("data-name"),n,s);for(var a in h){var l=this._nodesByName[h[a]];o.is(l)||(o.push(l),this.findLinked(l,i,n,o))}},e.prototype.colorElement=function(e,i){var n=this.$element.css("background");e.find("polygon, ellipse, path").each(function(){var e=t(this),o=e.data("graphviz.svg.color");o.fill&&"path"!=e.prop("tagName")&&e.attr("fill",i(o.fill,n)),o.stroke&&e.attr("stroke",i(o.stroke,n))})},e.prototype.restoreElement=function(e){e.find("polygon, ellipse, path").each(function(){var e=t(this),i=e.data("graphviz.svg.color");i.fill&&e.attr("fill",i.fill),i.stroke&&e.attr("stroke",i.stroke)})},e.prototype.nodes=function(){return this.$nodes},e.prototype.edges=function(){return this.$edges},e.prototype.nodesByName=function(){return this._nodesByName},e.prototype.edgesByName=function(){return this._edgesByName},e.prototype.linkedTo=function(e,i){var n=t();return this.findLinked(e,i,function(t,e){var i=null,n="->"+t;return e.endsWith(n)&&(i=e.substring(0,e.length-n.length)),i},n),n},e.prototype.linkedFrom=function(e,i){var n=t();return this.findLinked(e,i,function(t,e){var i=null,n=t+"->";return e.startsWith(n)&&(i=e.substring(n.length)),i},n),n},e.prototype.linked=function(e,i){var n=t();return this.findLinked(e,i,function(t,e){return"^"+name+"--(.*)$"},n),this.findLinked(e,i,function(t,e){return"^(.*)--"+name+"$"},n),n},e.prototype.tooltip=function(e,i){var n=this.options;e.each(function(){t(this).children("a[title]").each(function(){i?n.tooltips.show.call(this):n.tooltips.hide.call(this)})})},e.prototype.bringToFront=function(t){t.detach().appendTo(this.$graph)},e.prototype.sendToBack=function(t){this.$background.length?$element.insertAfter(this.$background):t.detach().prependTo(this.$graph)},e.prototype.highlight=function(e,i){var n=this,o=this.options,r=this.$nodes.add(this.$edges);e&&e.length>0?(r.not(e).each(function(){n.colorElement(t(this),o.highlight.unselected),n.tooltip(t(this))}),e.each(function(){n.colorElement(t(this),o.highlight.selected)}),i&&this.tooltip(e,!0)):(r.each(function(){n.restoreElement(t(this))}),this.tooltip(r))},e.prototype.destroy=function(){var t=this;this.hide(function(){t.$element.off("."+t.type).removeData(t.type)})};var i=t.fn.graphviz;t.fn.graphviz=function(i){return this.each(function(){var n=t(this),o=n.data("graphviz.svg"),r="object"==typeof i&&i;!o&&/destroy/.test(i)||(o||n.data("graphviz.svg",o=new e(this,r)),"string"==typeof i&&o[i]())})},t.fn.graphviz.Constructor=e,t.fn.graphviz.noConflict=function(){return t.fn.graphviz=i,this}}(jQuery);</script>
+		<script type="text/javascript">
+ 			$(document).ready(function(){
+                $("#graph").graphviz({
+                    svg: `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 2.43.0 (0)
+ -->
+<!-- Title: G Pages: 1 -->
+<svg width="5791pt" height="778pt"
+ viewBox="0.00 0.00 5791.00 777.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 773.92)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-4,4 -4,-773.92 5787,-773.92 5787,4 -4,4"/>
+<g id="clust1" class="cluster">
+<title>cluster_G</title>
+<path fill="#808080" fill-opacity="0.094118" stroke="black" d="M20,-8C20,-8 5763,-8 5763,-8 5769,-8 5775,-14 5775,-20 5775,-20 5775,-749.92 5775,-749.92 5775,-755.92 5769,-761.92 5763,-761.92 5763,-761.92 20,-761.92 20,-761.92 14,-761.92 8,-755.92 8,-749.92 8,-749.92 8,-20 8,-20 8,-14 14,-8 20,-8"/>
+</g>
+<g id="clust2" class="cluster">
+<title>cluster_src__cable_road_computation</title>
+<path fill="#808080" fill-opacity="0.094118" stroke="black" d="M3424,-296.22C3424,-296.22 5049,-296.22 5049,-296.22 5055,-296.22 5061,-302.22 5061,-308.22 5061,-308.22 5061,-741.92 5061,-741.92 5061,-747.92 5055,-753.92 5049,-753.92 5049,-753.92 3424,-753.92 3424,-753.92 3418,-753.92 3412,-747.92 3412,-741.92 3412,-741.92 3412,-308.22 3412,-308.22 3412,-302.22 3418,-296.22 3424,-296.22"/>
+<text text-anchor="middle" x="4236.5" y="-738.72" font-family="Times,serif" font-size="14.00">src.cable_road_computation</text>
+</g>
+<g id="clust3" class="cluster">
+<title>cluster_src__classes</title>
+<path fill="#808080" fill-opacity="0.094118" stroke="black" d="M5081,-296.22C5081,-296.22 5271,-296.22 5271,-296.22 5277,-296.22 5283,-302.22 5283,-308.22 5283,-308.22 5283,-376.96 5283,-376.96 5283,-382.96 5277,-388.96 5271,-388.96 5271,-388.96 5081,-388.96 5081,-388.96 5075,-388.96 5069,-382.96 5069,-376.96 5069,-376.96 5069,-308.22 5069,-308.22 5069,-302.22 5075,-296.22 5081,-296.22"/>
+<text text-anchor="middle" x="5176" y="-373.76" font-family="Times,serif" font-size="14.00">src.classes</text>
+</g>
+<g id="clust4" class="cluster">
+<title>cluster_src__classes__Cable_Road</title>
+<path fill="#808080" fill-opacity="0.094118" stroke="black" d="M5303,-296.22C5303,-296.22 5743,-296.22 5743,-296.22 5749,-296.22 5755,-302.22 5755,-308.22 5755,-308.22 5755,-376.96 5755,-376.96 5755,-382.96 5749,-388.96 5743,-388.96 5743,-388.96 5303,-388.96 5303,-388.96 5297,-388.96 5291,-382.96 5291,-376.96 5291,-376.96 5291,-308.22 5291,-308.22 5291,-302.22 5297,-296.22 5303,-296.22"/>
+<text text-anchor="middle" x="5523" y="-373.76" font-family="Times,serif" font-size="14.00">src.classes.Cable_Road</text>
+</g>
+<g id="clust5" class="cluster">
+<title>cluster_src__geometry_operations</title>
+<path fill="#808080" fill-opacity="0.094118" stroke="black" d="M2261,-16C2261,-16 3786,-16 3786,-16 3792,-16 3798,-22 3798,-28 3798,-28 3798,-276.22 3798,-276.22 3798,-282.22 3792,-288.22 3786,-288.22 3786,-288.22 2261,-288.22 2261,-288.22 2255,-288.22 2249,-282.22 2249,-276.22 2249,-276.22 2249,-28 2249,-28 2249,-22 2255,-16 2261,-16"/>
+<text text-anchor="middle" x="3023.5" y="-273.02" font-family="Times,serif" font-size="14.00">src.geometry_operations</text>
+</g>
+<g id="clust6" class="cluster">
+<title>cluster_src__mechanical_computations</title>
+<path fill="#808080" fill-opacity="0.094118" stroke="black" d="M430,-296.22C430,-296.22 3392,-296.22 3392,-296.22 3398,-296.22 3404,-302.22 3404,-308.22 3404,-308.22 3404,-559.44 3404,-559.44 3404,-565.44 3398,-571.44 3392,-571.44 3392,-571.44 430,-571.44 430,-571.44 424,-571.44 418,-565.44 418,-559.44 418,-559.44 418,-308.22 418,-308.22 418,-302.22 424,-296.22 430,-296.22"/>
+<text text-anchor="middle" x="1911" y="-556.24" font-family="Times,serif" font-size="14.00">src.mechanical_computations</text>
+</g>
+<!-- src__cable_road_computation -->
+<g id="node1" class="node">
+<title>src__cable_road_computation</title>
+<ellipse fill="#ffffff" fill-opacity="0.698039" stroke="black" cx="214" cy="-696.05" rx="139.98" ry="18"/>
+<text text-anchor="middle" x="214" y="-692.35" font-family="Times,serif" font-size="14.00" fill="#000000">src.cable_road_computation</text>
+</g>
+<!-- src__classes -->
+<g id="node2" class="node">
+<title>src__classes</title>
+<ellipse fill="#ffffff" fill-opacity="0.698039" stroke="black" cx="77" cy="-513.57" rx="61.19" ry="18"/>
+<text text-anchor="middle" x="77" y="-509.87" font-family="Times,serif" font-size="14.00" fill="#000000">src.classes</text>
+</g>
+<!-- src__cable_road_computation&#45;&gt;src__classes -->
+<g id="edge15" class="edge">
+<title>src__cable_road_computation&#45;&gt;src__classes</title>
+<path fill="none" stroke="#000000" d="M130.17,-681.64C102.16,-672.72 73.82,-657.88 57,-633.18 38.24,-605.63 50.65,-566.33 62.65,-540.64"/>
+<polygon fill="#000000" stroke="#000000" points="65.87,-542.02 67.17,-531.51 59.59,-538.92 65.87,-542.02"/>
+</g>
+<!-- src__geometry_operations -->
+<g id="node3" class="node">
+<title>src__geometry_operations</title>
+<ellipse fill="#ffffff" fill-opacity="0.698039" stroke="black" cx="282" cy="-513.57" rx="126.18" ry="18"/>
+<text text-anchor="middle" x="282" y="-509.87" font-family="Times,serif" font-size="14.00" fill="#000000">src.geometry_operations</text>
+</g>
+<!-- src__cable_road_computation&#45;&gt;src__geometry_operations -->
+<g id="edge14" class="edge">
+<title>src__cable_road_computation&#45;&gt;src__geometry_operations</title>
+<path fill="none" stroke="#000000" d="M297.83,-681.64C325.84,-672.72 354.18,-657.88 371,-633.18 384.44,-613.44 381.83,-600.73 371,-579.44 361.63,-561.01 344.29,-546.57 327.39,-536.05"/>
+<polygon fill="#000000" stroke="#000000" points="329.03,-532.95 318.64,-530.9 325.48,-538.98 329.03,-532.95"/>
+</g>
+<!-- src__mechanical_computations -->
+<g id="node4" class="node">
+<title>src__mechanical_computations</title>
+<ellipse fill="#ffffff" fill-opacity="0.698039" stroke="black" cx="214" cy="-606.31" rx="147.57" ry="18"/>
+<text text-anchor="middle" x="214" y="-602.61" font-family="Times,serif" font-size="14.00" fill="#000000">src.mechanical_computations</text>
+</g>
+<!-- src__cable_road_computation&#45;&gt;src__mechanical_computations -->
+<g id="edge13" class="edge">
+<title>src__cable_road_computation&#45;&gt;src__mechanical_computations</title>
+<path fill="none" stroke="#000000" d="M214,-677.72C214,-665.38 214,-648.56 214,-634.45"/>
+<polygon fill="#000000" stroke="#000000" points="217.5,-634.31 214,-624.31 210.5,-634.31 217.5,-634.31"/>
+</g>
+<!-- src__mechanical_computations&#45;&gt;src__classes -->
+<g id="edge2" class="edge">
+<title>src__mechanical_computations&#45;&gt;src__classes</title>
+<path fill="none" stroke="#000000" d="M177.74,-588.76C167.55,-583.63 156.62,-577.68 147,-571.44 131.59,-561.45 115.6,-548.67 102.8,-537.76"/>
+<polygon fill="#000000" stroke="#000000" points="104.74,-534.81 94.89,-530.91 100.16,-540.1 104.74,-534.81"/>
+</g>
+<!-- src__mechanical_computations&#45;&gt;src__geometry_operations -->
+<g id="edge1" class="edge">
+<title>src__mechanical_computations&#45;&gt;src__geometry_operations</title>
+<path fill="none" stroke="#000000" d="M226.79,-588.24C237.05,-574.56 251.59,-555.14 263.18,-539.68"/>
+<polygon fill="#000000" stroke="#000000" points="266.07,-541.66 269.27,-531.56 260.47,-537.47 266.07,-541.66"/>
+</g>
+<!-- src__cable_road_computation__compute_initial_cable_road -->
+<g id="node5" class="node">
+<title>src__cable_road_computation__compute_initial_cable_road</title>
+<ellipse fill="#ff9999" fill-opacity="0.698039" stroke="black" cx="4856" cy="-423.83" rx="197.07" ry="26.74"/>
+<text text-anchor="middle" x="4856" y="-427.63" font-family="Times,serif" font-size="14.00" fill="#000000">compute_initial_cable_road</text>
+<text text-anchor="middle" x="4856" y="-412.63" font-family="Times,serif" font-size="14.00" fill="#000000">(src/cable_road_computation.py:145)</text>
+</g>
+<!-- src__classes__Cable_Road -->
+<g id="node17" class="node">
+<title>src__classes__Cable_Road</title>
+<ellipse fill="#eaff99" fill-opacity="0.698039" stroke="black" cx="5176" cy="-331.09" rx="98.99" ry="26.74"/>
+<text text-anchor="middle" x="5176" y="-334.89" font-family="Times,serif" font-size="14.00" fill="#000000">Cable_Road</text>
+<text text-anchor="middle" x="5176" y="-319.89" font-family="Times,serif" font-size="14.00" fill="#000000">(src/classes.py:6)</text>
+</g>
+<!-- src__cable_road_computation__compute_initial_cable_road&#45;&gt;src__classes__Cable_Road -->
+<g id="edge21" class="edge">
+<title>src__cable_road_computation__compute_initial_cable_road&#45;&gt;src__classes__Cable_Road</title>
+<path fill="none" stroke="#000000" d="M5000.49,-405.49C5022.37,-401.12 5044.48,-395.69 5065,-388.96 5086.58,-381.88 5109.11,-371.05 5128.19,-360.74"/>
+<polygon fill="#000000" stroke="#000000" points="5129.91,-363.79 5136.98,-355.9 5126.53,-357.66 5129.91,-363.79"/>
+</g>
+<!-- src__classes__Cable_Road____init__ -->
+<g id="node18" class="node">
+<title>src__classes__Cable_Road____init__</title>
+<ellipse fill="#e0ff65" fill-opacity="0.698039" stroke="black" cx="5648" cy="-331.09" rx="98.99" ry="26.74"/>
+<text text-anchor="middle" x="5648" y="-334.89" font-family="Times,serif" font-size="14.00" fill="#000000">__init__</text>
+<text text-anchor="middle" x="5648" y="-319.89" font-family="Times,serif" font-size="14.00" fill="#000000">(src/classes.py:7)</text>
+</g>
+<!-- src__cable_road_computation__compute_initial_cable_road&#45;&gt;src__classes__Cable_Road____init__ -->
+<g id="edge25" class="edge">
+<title>src__cable_road_computation__compute_initial_cable_road&#45;&gt;src__classes__Cable_Road____init__</title>
+<path fill="none" stroke="#000000" d="M5053.17,-422.49C5222.11,-420.47 5451.7,-413.12 5540,-388.96 5561.78,-383 5584.14,-372.15 5602.83,-361.51"/>
+<polygon fill="#000000" stroke="#000000" points="5604.82,-364.4 5611.68,-356.33 5601.29,-358.36 5604.82,-364.4"/>
+</g>
+<!-- src__classes__Cable_Road__compute_line_height -->
+<g id="node19" class="node">
+<title>src__classes__Cable_Road__compute_line_height</title>
+<ellipse fill="#e0ff65" fill-opacity="0.698039" stroke="black" cx="5415" cy="-331.09" rx="115.93" ry="26.74"/>
+<text text-anchor="middle" x="5415" y="-334.89" font-family="Times,serif" font-size="14.00" fill="#000000">compute_line_height</text>
+<text text-anchor="middle" x="5415" y="-319.89" font-family="Times,serif" font-size="14.00" fill="#000000">(src/classes.py:37)</text>
+</g>
+<!-- src__cable_road_computation__compute_initial_cable_road&#45;&gt;src__classes__Cable_Road__compute_line_height -->
+<g id="edge23" class="edge">
+<title>src__cable_road_computation__compute_initial_cable_road&#45;&gt;src__classes__Cable_Road__compute_line_height</title>
+<path fill="none" stroke="#000000" d="M5041.09,-414.49C5136.04,-408.97 5241.16,-400.58 5287,-388.96 5312.59,-382.47 5339.49,-371.26 5361.99,-360.5"/>
+<polygon fill="#000000" stroke="#000000" points="5363.57,-363.63 5371.02,-356.09 5360.5,-357.33 5363.57,-363.63"/>
+</g>
+<!-- src__geometry_operations__fetch_point_elevation -->
+<g id="node24" class="node">
+<title>src__geometry_operations__fetch_point_elevation</title>
+<ellipse fill="#99ffc1" fill-opacity="0.698039" stroke="black" cx="3595" cy="-140.61" rx="181.95" ry="26.74"/>
+<text text-anchor="middle" x="3595" y="-144.41" font-family="Times,serif" font-size="14.00" fill="#000000">fetch_point_elevation</text>
+<text text-anchor="middle" x="3595" y="-129.41" font-family="Times,serif" font-size="14.00" fill="#000000">(src/geometry_operations.py:128)</text>
+</g>
+<!-- src__cable_road_computation__compute_initial_cable_road&#45;&gt;src__geometry_operations__fetch_point_elevation -->
+<g id="edge22" class="edge">
+<title>src__cable_road_computation__compute_initial_cable_road&#45;&gt;src__geometry_operations__fetch_point_elevation</title>
+<path fill="none" stroke="#000000" d="M5053.2,-422.29C5311.57,-420.6 5734.9,-413.99 5759,-388.96 5787.59,-359.27 5787.09,-326.39 5759,-296.22 5626.13,-153.51 4292.32,-140.51 3787.35,-140.76"/>
+<polygon fill="#000000" stroke="#000000" points="3787.04,-137.26 3777.04,-140.76 3787.04,-144.26 3787.04,-137.26"/>
+</g>
+<!-- src__geometry_operations__generate_road_points -->
+<g id="node26" class="node">
+<title>src__geometry_operations__generate_road_points</title>
+<ellipse fill="#99ffc1" fill-opacity="0.698039" stroke="black" cx="2426" cy="-230.35" rx="169" ry="26.74"/>
+<text text-anchor="middle" x="2426" y="-234.15" font-family="Times,serif" font-size="14.00" fill="#000000">generate_road_points</text>
+<text text-anchor="middle" x="2426" y="-219.15" font-family="Times,serif" font-size="14.00" fill="#000000">(src/geometry_operations.py:9)</text>
+</g>
+<!-- src__cable_road_computation__compute_initial_cable_road&#45;&gt;src__geometry_operations__generate_road_points -->
+<g id="edge24" class="edge">
+<title>src__cable_road_computation__compute_initial_cable_road&#45;&gt;src__geometry_operations__generate_road_points</title>
+<path fill="none" stroke="#000000" d="M4723.43,-403.91C4698.74,-401.06 4673.12,-398.54 4649,-396.96 4632.01,-395.85 3435.93,-400.04 3423,-388.96 3391.29,-361.79 3439.66,-323.44 3408,-296.22 3399.53,-288.94 2615.03,-290 2604,-288.22 2567.57,-282.36 2528.38,-270.48 2496.07,-259.09"/>
+<polygon fill="#000000" stroke="#000000" points="2496.86,-255.65 2486.27,-255.57 2494.5,-262.24 2496.86,-255.65"/>
+</g>
+<!-- src__mechanical_computations__pestal_load_path -->
+<g id="node38" class="node">
+<title>src__mechanical_computations__pestal_load_path</title>
+<ellipse fill="#99c1ff" fill-opacity="0.698039" stroke="black" cx="3189" cy="-331.09" rx="205.12" ry="26.74"/>
+<text text-anchor="middle" x="3189" y="-334.89" font-family="Times,serif" font-size="14.00" fill="#000000">pestal_load_path</text>
+<text text-anchor="middle" x="3189" y="-319.89" font-family="Times,serif" font-size="14.00" fill="#000000">(src/mechanical_computations.py:566)</text>
+</g>
+<!-- src__cable_road_computation__compute_initial_cable_road&#45;&gt;src__mechanical_computations__pestal_load_path -->
+<g id="edge20" class="edge">
+<title>src__cable_road_computation__compute_initial_cable_road&#45;&gt;src__mechanical_computations__pestal_load_path</title>
+<path fill="none" stroke="#000000" d="M4723.43,-403.91C4698.74,-401.05 4673.12,-398.54 4649,-396.96 4580.2,-392.46 3476.36,-397.92 3408,-388.96 3362.66,-383.02 3313.28,-370.73 3272.9,-359.08"/>
+<polygon fill="#000000" stroke="#000000" points="3273.68,-355.66 3263.1,-356.22 3271.72,-362.38 3273.68,-355.66"/>
+</g>
+<!-- src__cable_road_computation__compute_required_supports -->
+<g id="node6" class="node">
+<title>src__cable_road_computation__compute_required_supports</title>
+<ellipse fill="#ff9999" fill-opacity="0.698039" stroke="black" cx="4030" cy="-606.31" rx="197.07" ry="26.74"/>
+<text text-anchor="middle" x="4030" y="-610.11" font-family="Times,serif" font-size="14.00" fill="#000000">compute_required_supports</text>
+<text text-anchor="middle" x="4030" y="-595.11" font-family="Times,serif" font-size="14.00" fill="#000000">(src/cable_road_computation.py:231)</text>
+</g>
+<!-- src__cable_road_computation__compute_required_supports&#45;&gt;src__cable_road_computation__compute_initial_cable_road -->
+<g id="edge31" class="edge">
+<title>src__cable_road_computation__compute_required_supports&#45;&gt;src__cable_road_computation__compute_initial_cable_road</title>
+<path fill="none" stroke="#000000" d="M4163.13,-586.45C4187.65,-583.61 4213.06,-581.08 4237,-579.44 4245.7,-578.84 4858.87,-577.65 4865,-571.44 4893.29,-542.79 4883.26,-493.7 4871.41,-460.29"/>
+<polygon fill="#000000" stroke="#000000" points="4874.68,-459.02 4867.89,-450.89 4868.12,-461.48 4874.68,-459.02"/>
+</g>
+<!-- src__cable_road_computation__create_sideways_cableroads -->
+<g id="node8" class="node">
+<title>src__cable_road_computation__create_sideways_cableroads</title>
+<ellipse fill="#ff9999" fill-opacity="0.698039" stroke="black" cx="4246" cy="-513.57" rx="197.07" ry="26.74"/>
+<text text-anchor="middle" x="4246" y="-517.37" font-family="Times,serif" font-size="14.00" fill="#000000">create_sideways_cableroads</text>
+<text text-anchor="middle" x="4246" y="-502.37" font-family="Times,serif" font-size="14.00" fill="#000000">(src/cable_road_computation.py:697)</text>
+</g>
+<!-- src__cable_road_computation__compute_required_supports&#45;&gt;src__cable_road_computation__create_sideways_cableroads -->
+<g id="edge32" class="edge">
+<title>src__cable_road_computation__compute_required_supports&#45;&gt;src__cable_road_computation__create_sideways_cableroads</title>
+<path fill="none" stroke="#000000" d="M4088.74,-580.64C4116.24,-569.08 4149.16,-555.25 4177.76,-543.24"/>
+<polygon fill="#000000" stroke="#000000" points="4179.41,-546.34 4187.27,-539.24 4176.7,-539.89 4179.41,-546.34"/>
+</g>
+<!-- src__cable_road_computation__return_failed -->
+<g id="node13" class="node">
+<title>src__cable_road_computation__return_failed</title>
+<ellipse fill="#ff9999" fill-opacity="0.698039" stroke="black" cx="4030" cy="-423.83" rx="197.07" ry="26.74"/>
+<text text-anchor="middle" x="4030" y="-427.63" font-family="Times,serif" font-size="14.00" fill="#000000">return_failed</text>
+<text text-anchor="middle" x="4030" y="-412.63" font-family="Times,serif" font-size="14.00" fill="#000000">(src/cable_road_computation.py:450)</text>
+</g>
+<!-- src__cable_road_computation__compute_required_supports&#45;&gt;src__cable_road_computation__return_failed -->
+<g id="edge34" class="edge">
+<title>src__cable_road_computation__compute_required_supports&#45;&gt;src__cable_road_computation__return_failed</title>
+<path fill="none" stroke="#000000" d="M4030,-579.07C4030,-547.97 4030,-495.98 4030,-461.06"/>
+<polygon fill="#000000" stroke="#000000" points="4033.5,-460.81 4030,-450.81 4026.5,-460.81 4033.5,-460.81"/>
+</g>
+<!-- src__cable_road_computation__return_sucessful -->
+<g id="node14" class="node">
+<title>src__cable_road_computation__return_sucessful</title>
+<ellipse fill="#ff9999" fill-opacity="0.698039" stroke="black" cx="3617" cy="-423.83" rx="197.07" ry="26.74"/>
+<text text-anchor="middle" x="3617" y="-427.63" font-family="Times,serif" font-size="14.00" fill="#000000">return_sucessful</text>
+<text text-anchor="middle" x="3617" y="-412.63" font-family="Times,serif" font-size="14.00" fill="#000000">(src/cable_road_computation.py:454)</text>
+</g>
+<!-- src__cable_road_computation__compute_required_supports&#45;&gt;src__cable_road_computation__return_sucessful -->
+<g id="edge27" class="edge">
+<title>src__cable_road_computation__compute_required_supports&#45;&gt;src__cable_road_computation__return_sucessful</title>
+<path fill="none" stroke="#000000" d="M3835.72,-601.53C3732.77,-597.45 3624.2,-588.99 3608,-571.44 3580.88,-542.06 3590.36,-493.68 3601.77,-460.59"/>
+<polygon fill="#000000" stroke="#000000" points="3605.19,-461.44 3605.34,-450.85 3598.61,-459.03 3605.19,-461.44"/>
+</g>
+<!-- src__cable_road_computation__setup_support_candidates -->
+<g id="node15" class="node">
+<title>src__cable_road_computation__setup_support_candidates</title>
+<ellipse fill="#ff9999" fill-opacity="0.698039" stroke="black" cx="4659" cy="-513.57" rx="197.07" ry="26.74"/>
+<text text-anchor="middle" x="4659" y="-517.37" font-family="Times,serif" font-size="14.00" fill="#000000">setup_support_candidates</text>
+<text text-anchor="middle" x="4659" y="-502.37" font-family="Times,serif" font-size="14.00" fill="#000000">(src/cable_road_computation.py:660)</text>
+</g>
+<!-- src__cable_road_computation__compute_required_supports&#45;&gt;src__cable_road_computation__setup_support_candidates -->
+<g id="edge36" class="edge">
+<title>src__cable_road_computation__compute_required_supports&#45;&gt;src__cable_road_computation__setup_support_candidates</title>
+<path fill="none" stroke="#000000" d="M4165.11,-586.7C4189.02,-583.9 4213.72,-581.33 4237,-579.44 4332.31,-571.73 4357.49,-585.98 4452,-571.44 4493.93,-564.99 4539.5,-553.03 4577.18,-541.74"/>
+<polygon fill="#000000" stroke="#000000" points="4578.53,-544.99 4587.08,-538.73 4576.5,-538.29 4578.53,-544.99"/>
+</g>
+<!-- src__cable_road_computation__test_collisions_left_right -->
+<g id="node16" class="node">
+<title>src__cable_road_computation__test_collisions_left_right</title>
+<ellipse fill="#ff9999" fill-opacity="0.698039" stroke="black" cx="3814" cy="-513.57" rx="197.07" ry="26.74"/>
+<text text-anchor="middle" x="3814" y="-517.37" font-family="Times,serif" font-size="14.00" fill="#000000">test_collisions_left_right</text>
+<text text-anchor="middle" x="3814" y="-502.37" font-family="Times,serif" font-size="14.00" fill="#000000">(src/cable_road_computation.py:740)</text>
+</g>
+<!-- src__cable_road_computation__compute_required_supports&#45;&gt;src__cable_road_computation__test_collisions_left_right -->
+<g id="edge30" class="edge">
+<title>src__cable_road_computation__compute_required_supports&#45;&gt;src__cable_road_computation__test_collisions_left_right</title>
+<path fill="none" stroke="#000000" d="M3965.77,-580.87C3937.57,-569.37 3904.6,-555.56 3876.59,-543.53"/>
+<polygon fill="#000000" stroke="#000000" points="3877.87,-540.27 3867.3,-539.52 3875.1,-546.7 3877.87,-540.27"/>
+</g>
+<!-- src__mechanical_computations__check_if_no_collisions_overall_line -->
+<g id="node28" class="node">
+<title>src__mechanical_computations__check_if_no_collisions_overall_line</title>
+<ellipse fill="#99c1ff" fill-opacity="0.698039" stroke="black" cx="2767" cy="-513.57" rx="198.89" ry="26.74"/>
+<text text-anchor="middle" x="2767" y="-517.37" font-family="Times,serif" font-size="14.00" fill="#000000">check_if_no_collisions_overall_line</text>
+<text text-anchor="middle" x="2767" y="-502.37" font-family="Times,serif" font-size="14.00" fill="#000000">(src/mechanical_computations.py:13)</text>
+</g>
+<!-- src__cable_road_computation__compute_required_supports&#45;&gt;src__mechanical_computations__check_if_no_collisions_overall_line -->
+<g id="edge28" class="edge">
+<title>src__cable_road_computation__compute_required_supports&#45;&gt;src__mechanical_computations__check_if_no_collisions_overall_line</title>
+<path fill="none" stroke="#000000" d="M3843.36,-597.51C3714.05,-591.62 3537.96,-582.65 3383,-571.44 3229.69,-560.36 3055.26,-543.89 2931.25,-531.52"/>
+<polygon fill="#000000" stroke="#000000" points="2931.58,-528.04 2921.28,-530.53 2930.89,-535.01 2931.58,-528.04"/>
+</g>
+<!-- src__mechanical_computations__check_if_no_collisions_segments -->
+<g id="node29" class="node">
+<title>src__mechanical_computations__check_if_no_collisions_segments</title>
+<ellipse fill="#99c1ff" fill-opacity="0.698039" stroke="black" cx="3197" cy="-423.83" rx="198.89" ry="26.74"/>
+<text text-anchor="middle" x="3197" y="-427.63" font-family="Times,serif" font-size="14.00" fill="#000000">check_if_no_collisions_segments</text>
+<text text-anchor="middle" x="3197" y="-412.63" font-family="Times,serif" font-size="14.00" fill="#000000">(src/mechanical_computations.py:69)</text>
+</g>
+<!-- src__cable_road_computation__compute_required_supports&#45;&gt;src__mechanical_computations__check_if_no_collisions_segments -->
+<g id="edge33" class="edge">
+<title>src__cable_road_computation__compute_required_supports&#45;&gt;src__mechanical_computations__check_if_no_collisions_segments</title>
+<path fill="none" stroke="#000000" d="M3834.55,-602.38C3756.51,-598.11 3666.28,-589.25 3586,-571.44 3466.06,-544.84 3333.64,-488.79 3258.36,-454.22"/>
+<polygon fill="#000000" stroke="#000000" points="3259.57,-450.92 3249.02,-449.91 3256.63,-457.28 3259.57,-450.92"/>
+</g>
+<!-- src__mechanical_computations__check_if_support_withstands_tension -->
+<g id="node30" class="node">
+<title>src__mechanical_computations__check_if_support_withstands_tension</title>
+<ellipse fill="#99c1ff" fill-opacity="0.698039" stroke="black" cx="1909" cy="-513.57" rx="198.89" ry="26.74"/>
+<text text-anchor="middle" x="1909" y="-517.37" font-family="Times,serif" font-size="14.00" fill="#000000">check_if_support_withstands_tension</text>
+<text text-anchor="middle" x="1909" y="-502.37" font-family="Times,serif" font-size="14.00" fill="#000000">(src/mechanical_computations.py:97)</text>
+</g>
+<!-- src__cable_road_computation__compute_required_supports&#45;&gt;src__mechanical_computations__check_if_support_withstands_tension -->
+<g id="edge35" class="edge">
+<title>src__cable_road_computation__compute_required_supports&#45;&gt;src__mechanical_computations__check_if_support_withstands_tension</title>
+<path fill="none" stroke="#000000" d="M3834.89,-602.17C3351.75,-594.37 2137.07,-574.47 2116,-571.44 2073.67,-565.35 2027.7,-553.29 1989.86,-541.84"/>
+<polygon fill="#000000" stroke="#000000" points="1990.5,-538.38 1979.91,-538.79 1988.45,-545.07 1990.5,-538.38"/>
+</g>
+<!-- src__mechanical_computations__check_if_tower_and_anchor_trees_hold -->
+<g id="node31" class="node">
+<title>src__mechanical_computations__check_if_tower_and_anchor_trees_hold</title>
+<ellipse fill="#99c1ff" fill-opacity="0.698039" stroke="black" cx="2331" cy="-513.57" rx="205.54" ry="26.74"/>
+<text text-anchor="middle" x="2331" y="-517.37" font-family="Times,serif" font-size="14.00" fill="#000000">check_if_tower_and_anchor_trees_hold</text>
+<text text-anchor="middle" x="2331" y="-502.37" font-family="Times,serif" font-size="14.00" fill="#000000">(src/mechanical_computations.py:364)</text>
+</g>
+<!-- src__cable_road_computation__compute_required_supports&#45;&gt;src__mechanical_computations__check_if_tower_and_anchor_trees_hold -->
+<g id="edge26" class="edge">
+<title>src__cable_road_computation__compute_required_supports&#45;&gt;src__mechanical_computations__check_if_tower_and_anchor_trees_hold</title>
+<path fill="none" stroke="#000000" d="M3832.69,-606.17C3490.11,-606.77 2798.96,-603.72 2559,-571.44 2511.92,-565.11 2460.51,-552.77 2418.44,-541.2"/>
+<polygon fill="#000000" stroke="#000000" points="2419.35,-537.83 2408.78,-538.52 2417.48,-544.57 2419.35,-537.83"/>
+</g>
+<!-- src__mechanical_computations__initialize_line_tension -->
+<g id="node36" class="node">
+<title>src__mechanical_computations__initialize_line_tension</title>
+<ellipse fill="#99c1ff" fill-opacity="0.698039" stroke="black" cx="1487" cy="-513.57" rx="205.12" ry="26.74"/>
+<text text-anchor="middle" x="1487" y="-517.37" font-family="Times,serif" font-size="14.00" fill="#000000">initialize_line_tension</text>
+<text text-anchor="middle" x="1487" y="-502.37" font-family="Times,serif" font-size="14.00" fill="#000000">(src/mechanical_computations.py:275)</text>
+</g>
+<!-- src__cable_road_computation__compute_required_supports&#45;&gt;src__mechanical_computations__initialize_line_tension -->
+<g id="edge29" class="edge">
+<title>src__cable_road_computation__compute_required_supports&#45;&gt;src__mechanical_computations__initialize_line_tension</title>
+<path fill="none" stroke="#000000" d="M3835.23,-601.8C3535.63,-596.47 2943.62,-586.25 2441,-579.44 2358.78,-578.33 1782.48,-582.53 1701,-571.44 1656.93,-565.44 1608.99,-553.25 1569.67,-541.69"/>
+<polygon fill="#000000" stroke="#000000" points="1570.45,-538.27 1559.87,-538.77 1568.45,-544.98 1570.45,-538.27"/>
+</g>
+<!-- src__cable_road_computation__create_candidate_points_and_lines -->
+<g id="node7" class="node">
+<title>src__cable_road_computation__create_candidate_points_and_lines</title>
+<ellipse fill="#ff9999" fill-opacity="0.698039" stroke="black" cx="4443" cy="-423.83" rx="197.07" ry="26.74"/>
+<text text-anchor="middle" x="4443" y="-427.63" font-family="Times,serif" font-size="14.00" fill="#000000">create_candidate_points_and_lines</text>
+<text text-anchor="middle" x="4443" y="-412.63" font-family="Times,serif" font-size="14.00" fill="#000000">(src/cable_road_computation.py:642)</text>
+</g>
+<!-- src__cable_road_computation__create_sideways_cableroads&#45;&gt;src__cable_road_computation__compute_initial_cable_road -->
+<g id="edge39" class="edge">
+<title>src__cable_road_computation__create_sideways_cableroads&#45;&gt;src__cable_road_computation__compute_initial_cable_road</title>
+<path fill="none" stroke="#000000" d="M4377.99,-493.59C4477.07,-479.33 4612.55,-459.85 4713.98,-445.26"/>
+<polygon fill="#000000" stroke="#000000" points="4714.6,-448.71 4724,-443.82 4713.6,-441.78 4714.6,-448.71"/>
+</g>
+<!-- src__cable_road_computation__create_sideways_cableroads&#45;&gt;src__cable_road_computation__create_candidate_points_and_lines -->
+<g id="edge38" class="edge">
+<title>src__cable_road_computation__create_sideways_cableroads&#45;&gt;src__cable_road_computation__create_candidate_points_and_lines</title>
+<path fill="none" stroke="#000000" d="M4301.66,-487.78C4325.37,-477.22 4353.19,-464.83 4377.85,-453.85"/>
+<polygon fill="#000000" stroke="#000000" points="4379.42,-456.98 4387.13,-449.71 4376.57,-450.58 4379.42,-456.98"/>
+</g>
+<!-- src__cable_road_computation__current_tension -->
+<g id="node9" class="node">
+<title>src__cable_road_computation__current_tension</title>
+<ellipse fill="#ff9999" fill-opacity="0.698039" stroke="black" cx="3629" cy="-331.09" rx="197.07" ry="26.74"/>
+<text text-anchor="middle" x="3629" y="-334.89" font-family="Times,serif" font-size="14.00" fill="#000000">current_tension</text>
+<text text-anchor="middle" x="3629" y="-319.89" font-family="Times,serif" font-size="14.00" fill="#000000">(src/cable_road_computation.py:458)</text>
+</g>
+<!-- src__cable_road_computation__generate_possible_lines -->
+<g id="node10" class="node">
+<title>src__cable_road_computation__generate_possible_lines</title>
+<ellipse fill="#ff9999" fill-opacity="0.698039" stroke="black" cx="4443" cy="-696.05" rx="190.84" ry="26.74"/>
+<text text-anchor="middle" x="4443" y="-699.85" font-family="Times,serif" font-size="14.00" fill="#000000">generate_possible_lines</text>
+<text text-anchor="middle" x="4443" y="-684.85" font-family="Times,serif" font-size="14.00" fill="#000000">(src/cable_road_computation.py:20)</text>
+</g>
+<!-- src__cable_road_computation__generate_possible_lines&#45;&gt;src__cable_road_computation__compute_required_supports -->
+<g id="edge16" class="edge">
+<title>src__cable_road_computation__generate_possible_lines&#45;&gt;src__cable_road_computation__compute_required_supports</title>
+<path fill="none" stroke="#000000" d="M4340.64,-673.31C4280.67,-660.56 4204.82,-644.45 4143.08,-631.33"/>
+<polygon fill="#000000" stroke="#000000" points="4143.8,-627.91 4133.3,-629.26 4142.35,-634.76 4143.8,-627.91"/>
+</g>
+<!-- src__cable_road_computation__generate_support_trees -->
+<g id="node11" class="node">
+<title>src__cable_road_computation__generate_support_trees</title>
+<ellipse fill="#ff9999" fill-opacity="0.698039" stroke="black" cx="4443" cy="-606.31" rx="197.07" ry="26.74"/>
+<text text-anchor="middle" x="4443" y="-610.11" font-family="Times,serif" font-size="14.00" fill="#000000">generate_support_trees</text>
+<text text-anchor="middle" x="4443" y="-595.11" font-family="Times,serif" font-size="14.00" fill="#000000">(src/cable_road_computation.py:597)</text>
+</g>
+<!-- src__cable_road_computation__generate_possible_lines&#45;&gt;src__cable_road_computation__generate_support_trees -->
+<g id="edge18" class="edge">
+<title>src__cable_road_computation__generate_possible_lines&#45;&gt;src__cable_road_computation__generate_support_trees</title>
+<path fill="none" stroke="#000000" d="M4443,-668.73C4443,-660.76 4443,-651.87 4443,-643.38"/>
+<polygon fill="#000000" stroke="#000000" points="4446.5,-643.31 4443,-633.31 4439.5,-643.31 4446.5,-643.31"/>
+</g>
+<!-- src__cable_road_computation__generate_triple_angle -->
+<g id="node12" class="node">
+<title>src__cable_road_computation__generate_triple_angle</title>
+<ellipse fill="#ff9999" fill-opacity="0.698039" stroke="black" cx="4856" cy="-606.31" rx="197.07" ry="26.74"/>
+<text text-anchor="middle" x="4856" y="-610.11" font-family="Times,serif" font-size="14.00" fill="#000000">generate_triple_angle</text>
+<text text-anchor="middle" x="4856" y="-595.11" font-family="Times,serif" font-size="14.00" fill="#000000">(src/cable_road_computation.py:465)</text>
+</g>
+<!-- src__cable_road_computation__generate_possible_lines&#45;&gt;src__cable_road_computation__generate_triple_angle -->
+<g id="edge17" class="edge">
+<title>src__cable_road_computation__generate_possible_lines&#45;&gt;src__cable_road_computation__generate_triple_angle</title>
+<path fill="none" stroke="#000000" d="M4545.36,-673.31C4605.33,-660.56 4681.18,-644.45 4742.92,-631.33"/>
+<polygon fill="#000000" stroke="#000000" points="4743.65,-634.76 4752.7,-629.26 4742.2,-627.91 4743.65,-634.76"/>
+</g>
+<!-- src__mechanical_computations__compute_angle_between_supports -->
+<g id="node33" class="node">
+<title>src__mechanical_computations__compute_angle_between_supports</title>
+<ellipse fill="#99c1ff" fill-opacity="0.698039" stroke="black" cx="1059" cy="-513.57" rx="205.12" ry="26.74"/>
+<text text-anchor="middle" x="1059" y="-517.37" font-family="Times,serif" font-size="14.00" fill="#000000">compute_angle_between_supports</text>
+<text text-anchor="middle" x="1059" y="-502.37" font-family="Times,serif" font-size="14.00" fill="#000000">(src/mechanical_computations.py:309)</text>
+</g>
+<!-- src__cable_road_computation__generate_possible_lines&#45;&gt;src__mechanical_computations__compute_angle_between_supports -->
+<g id="edge19" class="edge">
+<title>src__cable_road_computation__generate_possible_lines&#45;&gt;src__mechanical_computations__compute_angle_between_supports</title>
+<path fill="none" stroke="#000000" d="M4313.1,-676.3C4291.4,-673.6 4269.09,-671.1 4248,-669.18 3442.78,-596.01 3239.22,-602.18 2431,-579.44 2366.69,-577.63 1336.76,-579.99 1273,-571.44 1228.92,-565.53 1180.97,-553.34 1141.66,-541.77"/>
+<polygon fill="#000000" stroke="#000000" points="1142.44,-538.35 1131.86,-538.84 1140.44,-545.05 1142.44,-538.35"/>
+</g>
+<!-- src__cable_road_computation__return_sucessful&#45;&gt;src__cable_road_computation__current_tension -->
+<g id="edge37" class="edge">
+<title>src__cable_road_computation__return_sucessful&#45;&gt;src__cable_road_computation__current_tension</title>
+<path fill="none" stroke="#000000" d="M3620.47,-396.58C3621.65,-387.67 3622.99,-377.54 3624.25,-368"/>
+<polygon fill="#000000" stroke="#000000" points="3627.74,-368.34 3625.58,-357.96 3620.8,-367.42 3627.74,-368.34"/>
+</g>
+<!-- src__cable_road_computation__test_collisions_left_right&#45;&gt;src__cable_road_computation__compute_required_supports -->
+<g id="edge40" class="edge">
+<title>src__cable_road_computation__test_collisions_left_right&#45;&gt;src__cable_road_computation__compute_required_supports</title>
+<path fill="none" stroke="#000000" d="M3878.5,-539.12C3906.68,-550.62 3939.57,-564.4 3967.52,-576.4"/>
+<polygon fill="#000000" stroke="#000000" points="3966.22,-579.65 3976.79,-580.4 3968.99,-573.22 3966.22,-579.65"/>
+</g>
+<!-- src__cable_road_computation__test_collisions_left_right&#45;&gt;src__cable_road_computation__return_failed -->
+<g id="edge43" class="edge">
+<title>src__cable_road_computation__test_collisions_left_right&#45;&gt;src__cable_road_computation__return_failed</title>
+<path fill="none" stroke="#000000" d="M3874.74,-487.9C3901.2,-477.15 3932.36,-464.49 3959.8,-453.35"/>
+<polygon fill="#000000" stroke="#000000" points="3961.39,-456.48 3969.34,-449.47 3958.76,-449.99 3961.39,-456.48"/>
+</g>
+<!-- src__cable_road_computation__test_collisions_left_right&#45;&gt;src__cable_road_computation__return_sucessful -->
+<g id="edge41" class="edge">
+<title>src__cable_road_computation__test_collisions_left_right&#45;&gt;src__cable_road_computation__return_sucessful</title>
+<path fill="none" stroke="#000000" d="M3758.34,-487.78C3734.63,-477.22 3706.81,-464.83 3682.15,-453.85"/>
+<polygon fill="#000000" stroke="#000000" points="3683.43,-450.58 3672.87,-449.71 3680.58,-456.98 3683.43,-450.58"/>
+</g>
+<!-- src__cable_road_computation__test_collisions_left_right&#45;&gt;src__mechanical_computations__check_if_no_collisions_segments -->
+<g id="edge42" class="edge">
+<title>src__cable_road_computation__test_collisions_left_right&#45;&gt;src__mechanical_computations__check_if_no_collisions_segments</title>
+<path fill="none" stroke="#000000" d="M3680.88,-493.64C3580.6,-479.38 3443.29,-459.85 3340.56,-445.25"/>
+<polygon fill="#000000" stroke="#000000" points="3340.81,-441.75 3330.41,-443.8 3339.82,-448.68 3340.81,-441.75"/>
+</g>
+<!-- src__classes__Cable_Road__compute_line_height&#45;&gt;src__geometry_operations__generate_road_points -->
+<g id="edge47" class="edge">
+<title>src__classes__Cable_Road__compute_line_height&#45;&gt;src__geometry_operations__generate_road_points</title>
+<path fill="none" stroke="#000000" d="M5348.55,-309.06C5328.93,-303.8 5307.28,-298.89 5287,-296.22 5213.11,-286.5 2677.62,-299.81 2604,-288.22 2567.41,-282.46 2528.04,-270.52 2495.66,-259.07"/>
+<polygon fill="#000000" stroke="#000000" points="2496.44,-255.63 2485.85,-255.53 2494.07,-262.22 2496.44,-255.63"/>
+</g>
+<!-- src__geometry_operations__compute_average_terrain_steepness -->
+<g id="node20" class="node">
+<title>src__geometry_operations__compute_average_terrain_steepness</title>
+<ellipse fill="#99ffc1" fill-opacity="0.698039" stroke="black" cx="3595" cy="-230.35" rx="195.32" ry="26.74"/>
+<text text-anchor="middle" x="3595" y="-234.15" font-family="Times,serif" font-size="14.00" fill="#000000">compute_average_terrain_steepness</text>
+<text text-anchor="middle" x="3595" y="-219.15" font-family="Times,serif" font-size="14.00" fill="#000000">(src/geometry_operations.py:148)</text>
+</g>
+<!-- src__geometry_operations__compute_average_terrain_steepness&#45;&gt;src__geometry_operations__fetch_point_elevation -->
+<g id="edge46" class="edge">
+<title>src__geometry_operations__compute_average_terrain_steepness&#45;&gt;src__geometry_operations__fetch_point_elevation</title>
+<path fill="none" stroke="#000000" d="M3595,-203.03C3595,-195.06 3595,-186.17 3595,-177.68"/>
+<polygon fill="#000000" stroke="#000000" points="3598.5,-177.61 3595,-167.61 3591.5,-177.61 3598.5,-177.61"/>
+</g>
+<!-- src__geometry_operations__compute_distances_facilities_clients -->
+<g id="node21" class="node">
+<title>src__geometry_operations__compute_distances_facilities_clients</title>
+<ellipse fill="#99ffc1" fill-opacity="0.698039" stroke="black" cx="3188" cy="-230.35" rx="193.99" ry="26.74"/>
+<text text-anchor="middle" x="3188" y="-234.15" font-family="Times,serif" font-size="14.00" fill="#000000">compute_distances_facilities_clients</text>
+<text text-anchor="middle" x="3188" y="-219.15" font-family="Times,serif" font-size="14.00" fill="#000000">(src/geometry_operations.py:93)</text>
+</g>
+<!-- src__geometry_operations__compute_points_covered_by_geometry -->
+<g id="node22" class="node">
+<title>src__geometry_operations__compute_points_covered_by_geometry</title>
+<ellipse fill="#99ffc1" fill-opacity="0.698039" stroke="black" cx="2795" cy="-140.61" rx="205.54" ry="26.74"/>
+<text text-anchor="middle" x="2795" y="-144.41" font-family="Times,serif" font-size="14.00" fill="#000000">compute_points_covered_by_geometry</text>
+<text text-anchor="middle" x="2795" y="-129.41" font-family="Times,serif" font-size="14.00" fill="#000000">(src/geometry_operations.py:31)</text>
+</g>
+<!-- src__geometry_operations__filter_gdf_by_contained_elements -->
+<g id="node25" class="node">
+<title>src__geometry_operations__filter_gdf_by_contained_elements</title>
+<ellipse fill="#99ffc1" fill-opacity="0.698039" stroke="black" cx="2795" cy="-50.87" rx="179.71" ry="26.74"/>
+<text text-anchor="middle" x="2795" y="-54.67" font-family="Times,serif" font-size="14.00" fill="#000000">filter_gdf_by_contained_elements</text>
+<text text-anchor="middle" x="2795" y="-39.67" font-family="Times,serif" font-size="14.00" fill="#000000">(src/geometry_operations.py:75)</text>
+</g>
+<!-- src__geometry_operations__compute_points_covered_by_geometry&#45;&gt;src__geometry_operations__filter_gdf_by_contained_elements -->
+<g id="edge44" class="edge">
+<title>src__geometry_operations__compute_points_covered_by_geometry&#45;&gt;src__geometry_operations__filter_gdf_by_contained_elements</title>
+<path fill="none" stroke="#000000" d="M2795,-113.29C2795,-105.32 2795,-96.43 2795,-87.94"/>
+<polygon fill="#000000" stroke="#000000" points="2798.5,-87.87 2795,-77.87 2791.5,-87.87 2798.5,-87.87"/>
+</g>
+<!-- src__geometry_operations__compute_points_covered_per_row -->
+<g id="node23" class="node">
+<title>src__geometry_operations__compute_points_covered_per_row</title>
+<ellipse fill="#99ffc1" fill-opacity="0.698039" stroke="black" cx="2795" cy="-230.35" rx="181.95" ry="26.74"/>
+<text text-anchor="middle" x="2795" y="-234.15" font-family="Times,serif" font-size="14.00" fill="#000000">compute_points_covered_per_row</text>
+<text text-anchor="middle" x="2795" y="-219.15" font-family="Times,serif" font-size="14.00" fill="#000000">(src/geometry_operations.py:49)</text>
+</g>
+<!-- src__geometry_operations__compute_points_covered_per_row&#45;&gt;src__geometry_operations__compute_points_covered_by_geometry -->
+<g id="edge45" class="edge">
+<title>src__geometry_operations__compute_points_covered_per_row&#45;&gt;src__geometry_operations__compute_points_covered_by_geometry</title>
+<path fill="none" stroke="#000000" d="M2795,-203.03C2795,-195.06 2795,-186.17 2795,-177.68"/>
+<polygon fill="#000000" stroke="#000000" points="2798.5,-177.61 2795,-167.61 2791.5,-177.61 2798.5,-177.61"/>
+</g>
+<!-- src__mechanical_computations__calculate_sloped_line_to_floor_distances -->
+<g id="node27" class="node">
+<title>src__mechanical_computations__calculate_sloped_line_to_floor_distances</title>
+<ellipse fill="#99c1ff" fill-opacity="0.698039" stroke="black" cx="2767" cy="-423.83" rx="212.68" ry="26.74"/>
+<text text-anchor="middle" x="2767" y="-427.63" font-family="Times,serif" font-size="14.00" fill="#000000">calculate_sloped_line_to_floor_distances</text>
+<text text-anchor="middle" x="2767" y="-412.63" font-family="Times,serif" font-size="14.00" fill="#000000">(src/mechanical_computations.py:286)</text>
+</g>
+<!-- src__mechanical_computations__calculate_sloped_line_to_floor_distances&#45;&gt;src__mechanical_computations__pestal_load_path -->
+<g id="edge8" class="edge">
+<title>src__mechanical_computations__calculate_sloped_line_to_floor_distances&#45;&gt;src__mechanical_computations__pestal_load_path</title>
+<path fill="none" stroke="#000000" d="M2871.31,-400.4C2933.29,-387.07 3011.93,-370.17 3075.46,-356.5"/>
+<polygon fill="#000000" stroke="#000000" points="3076.48,-359.87 3085.52,-354.34 3075.01,-353.02 3076.48,-359.87"/>
+</g>
+<!-- src__mechanical_computations__check_if_no_collisions_overall_line&#45;&gt;src__mechanical_computations__calculate_sloped_line_to_floor_distances -->
+<g id="edge3" class="edge">
+<title>src__mechanical_computations__check_if_no_collisions_overall_line&#45;&gt;src__mechanical_computations__calculate_sloped_line_to_floor_distances</title>
+<path fill="none" stroke="#000000" d="M2767,-486.25C2767,-478.28 2767,-469.39 2767,-460.9"/>
+<polygon fill="#000000" stroke="#000000" points="2770.5,-460.83 2767,-450.83 2763.5,-460.83 2770.5,-460.83"/>
+</g>
+<!-- src__mechanical_computations__check_if_no_collisions_segments&#45;&gt;src__mechanical_computations__pestal_load_path -->
+<g id="edge4" class="edge">
+<title>src__mechanical_computations__check_if_no_collisions_segments&#45;&gt;src__mechanical_computations__pestal_load_path</title>
+<path fill="none" stroke="#000000" d="M3194.69,-396.58C3193.9,-387.67 3193.01,-377.54 3192.17,-368"/>
+<polygon fill="#000000" stroke="#000000" points="3195.65,-367.62 3191.28,-357.96 3188.67,-368.23 3195.65,-367.62"/>
+</g>
+<!-- src__mechanical_computations__euler_knicklast -->
+<g id="node35" class="node">
+<title>src__mechanical_computations__euler_knicklast</title>
+<ellipse fill="#99c1ff" fill-opacity="0.698039" stroke="black" cx="1475" cy="-423.83" rx="205.12" ry="26.74"/>
+<text text-anchor="middle" x="1475" y="-427.63" font-family="Times,serif" font-size="14.00" fill="#000000">euler_knicklast</text>
+<text text-anchor="middle" x="1475" y="-412.63" font-family="Times,serif" font-size="14.00" fill="#000000">(src/mechanical_computations.py:603)</text>
+</g>
+<!-- src__mechanical_computations__check_if_support_withstands_tension&#45;&gt;src__mechanical_computations__euler_knicklast -->
+<g id="edge5" class="edge">
+<title>src__mechanical_computations__check_if_support_withstands_tension&#45;&gt;src__mechanical_computations__euler_knicklast</title>
+<path fill="none" stroke="#000000" d="M1801.72,-490.88C1738.45,-478.09 1658.29,-461.89 1593.21,-448.73"/>
+<polygon fill="#000000" stroke="#000000" points="1593.8,-445.28 1583.31,-446.73 1592.41,-452.14 1593.8,-445.28"/>
+</g>
+<!-- src__mechanical_computations__parallelverschiebung -->
+<g id="node37" class="node">
+<title>src__mechanical_computations__parallelverschiebung</title>
+<ellipse fill="#99c1ff" fill-opacity="0.698039" stroke="black" cx="1903" cy="-423.83" rx="205.12" ry="26.74"/>
+<text text-anchor="middle" x="1903" y="-427.63" font-family="Times,serif" font-size="14.00" fill="#000000">parallelverschiebung</text>
+<text text-anchor="middle" x="1903" y="-412.63" font-family="Times,serif" font-size="14.00" fill="#000000">(src/mechanical_computations.py:348)</text>
+</g>
+<!-- src__mechanical_computations__check_if_support_withstands_tension&#45;&gt;src__mechanical_computations__parallelverschiebung -->
+<g id="edge6" class="edge">
+<title>src__mechanical_computations__check_if_support_withstands_tension&#45;&gt;src__mechanical_computations__parallelverschiebung</title>
+<path fill="none" stroke="#000000" d="M1907.2,-486.25C1906.66,-478.28 1906.05,-469.39 1905.47,-460.9"/>
+<polygon fill="#000000" stroke="#000000" points="1908.95,-460.57 1904.78,-450.83 1901.97,-461.05 1908.95,-460.57"/>
+</g>
+<!-- src__mechanical_computations__check_if_tower_and_anchor_trees_hold&#45;&gt;src__geometry_operations__fetch_point_elevation -->
+<g id="edge12" class="edge">
+<title>src__mechanical_computations__check_if_tower_and_anchor_trees_hold&#45;&gt;src__geometry_operations__fetch_point_elevation</title>
+<path fill="none" stroke="#000000" d="M2190.15,-493.95C2165.79,-491.19 2140.69,-488.63 2117,-486.7 2069.56,-482.84 1297.39,-481.38 1261,-450.7 1176.15,-379.18 1148.33,-282.74 1226,-203.48 1260.69,-168.08 2960.46,-169.08 3010,-167.48 3145.88,-163.11 3299.43,-156.24 3415.11,-150.68"/>
+<polygon fill="#000000" stroke="#000000" points="3415.31,-154.18 3425.13,-150.2 3414.97,-147.19 3415.31,-154.18"/>
+</g>
+<!-- src__mechanical_computations__construct_tower_force_parallelogram -->
+<g id="node34" class="node">
+<title>src__mechanical_computations__construct_tower_force_parallelogram</title>
+<ellipse fill="#99c1ff" fill-opacity="0.698039" stroke="black" cx="2331" cy="-423.83" rx="205.12" ry="26.74"/>
+<text text-anchor="middle" x="2331" y="-427.63" font-family="Times,serif" font-size="14.00" fill="#000000">construct_tower_force_parallelogram</text>
+<text text-anchor="middle" x="2331" y="-412.63" font-family="Times,serif" font-size="14.00" fill="#000000">(src/mechanical_computations.py:472)</text>
+</g>
+<!-- src__mechanical_computations__check_if_tower_and_anchor_trees_hold&#45;&gt;src__mechanical_computations__construct_tower_force_parallelogram -->
+<g id="edge11" class="edge">
+<title>src__mechanical_computations__check_if_tower_and_anchor_trees_hold&#45;&gt;src__mechanical_computations__construct_tower_force_parallelogram</title>
+<path fill="none" stroke="#000000" d="M2331,-486.25C2331,-478.28 2331,-469.39 2331,-460.9"/>
+<polygon fill="#000000" stroke="#000000" points="2334.5,-460.83 2331,-450.83 2327.5,-460.83 2334.5,-460.83"/>
+</g>
+<!-- src__mechanical_computations__check_if_tower_and_anchor_trees_hold&#45;&gt;src__mechanical_computations__parallelverschiebung -->
+<g id="edge10" class="edge">
+<title>src__mechanical_computations__check_if_tower_and_anchor_trees_hold&#45;&gt;src__mechanical_computations__parallelverschiebung</title>
+<path fill="none" stroke="#000000" d="M2223.83,-490.6C2161.89,-477.9 2083.91,-461.92 2020.33,-448.88"/>
+<polygon fill="#000000" stroke="#000000" points="2020.76,-445.4 2010.26,-446.82 2019.35,-452.26 2020.76,-445.4"/>
+</g>
+<!-- src__mechanical_computations__compute_angle_between_lines -->
+<g id="node32" class="node">
+<title>src__mechanical_computations__compute_angle_between_lines</title>
+<ellipse fill="#99c1ff" fill-opacity="0.698039" stroke="black" cx="631" cy="-513.57" rx="205.12" ry="26.74"/>
+<text text-anchor="middle" x="631" y="-517.37" font-family="Times,serif" font-size="14.00" fill="#000000">compute_angle_between_lines</text>
+<text text-anchor="middle" x="631" y="-502.37" font-family="Times,serif" font-size="14.00" fill="#000000">(src/mechanical_computations.py:237)</text>
+</g>
+<!-- src__mechanical_computations__compute_angle_between_lines&#45;&gt;src__geometry_operations__fetch_point_elevation -->
+<g id="edge7" class="edge">
+<title>src__mechanical_computations__compute_angle_between_lines&#45;&gt;src__geometry_operations__fetch_point_elevation</title>
+<path fill="none" stroke="#000000" d="M694.24,-487.97C881.6,-415.12 1421.35,-205.39 1431,-203.48 1603.14,-169.35 2834.61,-173.36 3010,-167.48 3145.75,-162.93 3299.15,-156.08 3414.79,-150.58"/>
+<polygon fill="#000000" stroke="#000000" points="3414.99,-154.07 3424.81,-150.1 3414.65,-147.08 3414.99,-154.07"/>
+</g>
+<!-- src__mechanical_computations__compute_angle_between_supports&#45;&gt;src__geometry_operations__fetch_point_elevation -->
+<g id="edge9" class="edge">
+<title>src__mechanical_computations__compute_angle_between_supports&#45;&gt;src__geometry_operations__fetch_point_elevation</title>
+<path fill="none" stroke="#000000" d="M1165.73,-490.51C1190.94,-481.4 1216.21,-468.62 1236,-450.7 1255.53,-433.02 1240.26,-413.2 1261,-396.96 1612.91,-121.31 1804.18,-256.88 2248,-203.48 2276.48,-200.05 3051.24,-165.59 3412.61,-149.64"/>
+<polygon fill="#000000" stroke="#000000" points="3412.82,-153.13 3422.66,-149.2 3412.51,-146.14 3412.82,-153.13"/>
+</g>
+</g>
+</svg>
+`,
+                    ready: function() {
+                        var gv = this
+                        gv.nodes().click(function () {
+                            var $set = $()
+                            $set.push(this)
+                            $set = $set.add(gv.linkedFrom(this, true))
+                            $set = $set.add(gv.linkedTo(this, true))
+                            gv.highlight($set, true)
+                            gv.bringToFront($set)
+                        })
+                        $(document).keydown(function (evt) {
+                            if (evt.keyCode == 27) {
+                                gv.highlight()
+                            }
+                        })
+                    }
+                });
+            });
+		</script>
+	</body>
+</html>

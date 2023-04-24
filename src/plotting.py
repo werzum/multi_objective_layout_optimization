@@ -302,7 +302,6 @@ def plot_cr_relief(
     """
     x_sample_cr = [point[0] for point in sample_cable_road.floor_points]
     y_sample_cr = [point[1] for point in sample_cable_road.floor_points]
-    z_floor_height = sample_cable_road.floor_height_below_line_points
     z_line_to_floor = (
         sample_cable_road.floor_height_below_line_points
         + sample_cable_road.line_to_floor_distances
@@ -313,16 +312,9 @@ def plot_cr_relief(
     )
 
     fig = go.Figure()
-    fig = fig.add_trace(
-        go.Scatter3d(
-            x=x_sample_cr,
-            y=y_sample_cr,
-            z=z_floor_height,
-            mode="lines",
-            line=dict(color="blue", width=2),
-            name="Relief",
-        )
-    )
+
+    add_relief_to_go_figure(sample_cable_road, fig)
+
     fig.add_trace(
         go.Scatter3d(
             x=x_sample_cr,
@@ -344,7 +336,32 @@ def plot_cr_relief(
         )
     )
 
-    anchor_point = Point(line_gdf.iloc[index].possible_anchor_triples[0][2].coords)
+    add_anchor_to_go_figure(sample_cable_road, line_gdf, height_gdf, index, fig)
+
+    fig.update_layout(
+        title="Detail View of Single Cable Road Path under Load", width=1200, height=800
+    )
+    # fig.write_html("02_Figures/Cable_Road_3d.html")
+    fig.show("notebook_connected")
+
+
+def add_anchor_to_go_figure(
+    sample_cable_road: classes.Cable_Road,
+    line_gdf: gpd.GeoDataFrame,
+    height_gdf: gpd.GeoDataFrame,
+    index: int,
+    fig: go.Figure,
+):
+    """Plot the anchor of a single cable road with a scatterplot of relief, line and floor points.
+    Args:
+        sample_cable_road (classes.Cable_Road): _description_
+        line_gdf (gpd.GeoDataFrame): _description_
+        height_gdf (gpd.GeoDataFrame): _description_
+        index (int): _description_
+        fig (go.Figure): _description_
+    """
+
+    anchor_point = Point(line_gdf.iloc[index].possible_anchor_triples[0][1].coords)
     anchor_line = LineString([anchor_point, sample_cable_road.start_point])
     anchor_cable_road = cable_road_computation.compute_initial_cable_road(
         anchor_line, height_gdf
@@ -369,16 +386,14 @@ def plot_cr_relief(
         )
     )
 
-    fig.update_layout(
-        title="Detail View of Single Cable Road Path under Load", width=1200, height=800
-    )
-    # fig.write_html("02_Figures/Cable_Road_3d.html")
-    fig.show("notebook_connected")
 
+def add_relief_to_go_figure(sample_cable_road: classes.Cable_Road, fig: go.Figure):
+    """Add the relief of a single cable road to a figure.
 
-def plot_supported_cr_relief(sample_cable_road, line_gdf, height_gdf, index):
-    fig = go.Figure()
-
+    Args:
+        sample_cable_road (classes.Cable_Road): _description_
+        fig (go.Figure): _description_
+    """
     # get the relief and plot it
     x_sample_cr = [point[0] for point in sample_cable_road.floor_points]
     y_sample_cr = [point[1] for point in sample_cable_road.floor_points]
@@ -394,6 +409,13 @@ def plot_supported_cr_relief(sample_cable_road, line_gdf, height_gdf, index):
         )
     )
 
+
+def plot_supported_cr_relief(sample_cable_road, line_gdf, height_gdf, index):
+    fig = go.Figure()
+
+    add_relief_to_go_figure(sample_cable_road, fig)
+    add_anchor_to_go_figure(sample_cable_road, line_gdf, height_gdf, index, fig)
+
     # get the waypoints
     start_point = Point(line_gdf.iloc[index].geometry.coords[0])
     end_point = line_gdf.iloc[index].geometry.coords[1]
@@ -402,7 +424,6 @@ def plot_supported_cr_relief(sample_cable_road, line_gdf, height_gdf, index):
     # for all individual road segments
     waypoints = [start_point, *supports, end_point]
     for previous, current in zip(waypoints, waypoints[1:]):
-        # sample_line = line_gdf.iloc[index].geometry
         sample_line = LineString([previous, current])
         sample_cable_road = cable_road_computation.compute_initial_cable_road(
             sample_line, height_gdf
@@ -432,7 +453,7 @@ def plot_supported_cr_relief(sample_cable_road, line_gdf, height_gdf, index):
                 z=z_sloped,
                 mode="lines",
                 line=dict(width=3),
-                name=f"Cable Road {index}",
+                name=f"Cable Road Segment",
             )
         )
 
