@@ -208,6 +208,8 @@ def compute_initial_cable_road(
         this_cable_road.line_start_point_array, this_cable_road.line_end_point_array
     )
 
+    print(this_cable_road.c_rope_length, "c rope length")
+
     if initial_tension:
         this_cable_road.s_current_tension = initial_tension
 
