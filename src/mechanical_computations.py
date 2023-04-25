@@ -196,38 +196,57 @@ def compute_tension_sloped_vs_empty_cableroad(cable_road: classes.Cable_Road):
     )
 
     # get the load that is put on the CR and find the closest index along the CR
-    tension = cable_road.s_current_tension // 10000  # scaling to dekanewton
+    scaling_factor = 10000  # unit length = 1m = 10kn of tension
+    tension = cable_road.s_current_tension // scaling_factor  # scaling to dekanewton
     index = int(tension // 2)
     index = min(len(cable_road.points_along_line) - 1, index)
 
+    # get the distance of the point along the line to the start point
+    straight_line_x = cable_road.start_point.distance(
+        cable_road.points_along_line[index]
+    )
+    straight_line_height = (
+        cable_road.floor_height_below_line_points[index]
+        + cable_road.line_to_floor_distances[index]
+    )
     angle_point = Point(
         [
-            cable_road.start_point.coords[0][0] + tension,
-            cable_road.floor_height_below_line_points[index]
-            + cable_road.line_to_floor_distances[index],
+            cable_road.start_point.coords[0][0] + straight_line_x,
+            straight_line_height,
         ]
     )
 
+    sloped_height = (
+        cable_road.floor_height_below_line_points[index]
+        + cable_road.sloped_line_to_floor_distances[index]
+    )
+    # angle point but shifted downwards to get correct angle between angle and sloped_angle
+    angle_point_intermediate = Point(
+        [
+            cable_road.start_point.coords[0][0] + straight_line_x,
+            sloped_height,
+        ]
+    )
+
+    # create two lines between start point and angle point and start point and angle point intermediate
+    line_ap_sp = LineString([start_point, angle_point])
+    line_ap_sp_intermediate = LineString([start_point, angle_point_intermediate])
+
+    angle = geometry_utilities.angle_between(line_ap_sp, line_ap_sp_intermediate)
+
+    # shift the intermediate angle point down and right by x and y component of the circle - x and y are sin and cos of angle respectively
     angle_point_sloped = Point(
         [
-            cable_road.start_point.coords[0][0] + tension,
-            cable_road.floor_height_below_line_points[index]
-            + cable_road.sloped_line_to_floor_distances[index],
+            cable_road.start_point.coords[0][0]
+            + (straight_line_x * math.cos(math.radians(angle))),
+            sloped_height - (straight_line_x * math.sin(math.radians(angle))),
         ]
     )
 
-    # distances between end point, angle point and angle point sloped
-    start_point_to_angle_point = start_point.distance(angle_point)
-    angle_point_to_angle_point_sloped = angle_point.distance(angle_point_sloped)
-
-    # angle between two vectors is tan⁻1(gegenkatete/ankatete)
-    angle = math.degrees(
-        math.atan(angle_point_to_angle_point_sloped / start_point_to_angle_point)
-    )
+    force_on_support = angle_point_sloped.distance(angle_point) * scaling_factor
 
     print("angle", angle)
-
-    force_on_support = parallelverschiebung(cable_road.s_current_tension, angle)
+    print("force on support", force_on_support)
 
     return force_on_support, angle_point, angle_point_sloped
 
@@ -392,31 +411,18 @@ def check_if_tower_and_anchor_trees_hold(
         len(this_cable_road.points_along_line) - 1, int(s_max_tension_distance // 2)
     )
 
-    force, angle_point, angle_point_sloped = compute_tension_sloped_vs_empty_cableroad(
-        this_cable_road
-    )
-
-    # get the sloped cable road point by applying the s_max_tension_distance and its sloped height at the index
-    sloped_cr_xz = Point(
-        [
-            this_cable_road.start_point.coords[0][0] - s_max_tension_distance,
-            this_cable_road.floor_height_below_line_points[index]
-            + this_cable_road.sloped_line_to_floor_distances[index],
-        ]
-    )
+    (
+        force_on_anchor,
+        angle_point,
+        angle_point_sloped,
+    ) = compute_tension_sloped_vs_empty_cableroad(this_cable_road)
 
     # start point of the cr tower
     tower_xz_point = Point(
         [this_cable_road.start_point.coords[0][0], this_cable_road.start_point_height]
     )
 
-    # the force on the anchor is the x distance between the tower and the sloped cr point
-    force_on_anchor = (
-        abs(this_cable_road.start_point.coords[0][0] - sloped_cr_xz.coords[0][0])
-        * scaling_factor
-    )
-
-    cr_loaded_tangent = LineString([centroid_xz, tower_xz_point])
+    cr_loaded_tangent = LineString([angle_point_sloped, tower_xz_point])
 
     if ax:
         ax.clear()
