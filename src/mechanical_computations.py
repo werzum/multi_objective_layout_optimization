@@ -13,12 +13,6 @@ from src import geometry_utilities, geometry_operations, classes, plotting
 def check_if_no_collisions_overall_line(
     this_cable_road: classes.Cable_Road,
     plot_possible_lines: bool,
-    current_supports: int,
-    anchor_triplets: list,
-    max_supported_force: list[float],
-    pre_tension: None | float,
-    height_gdf: gpd.GeoDataFrame,
-    view: vispy.scene.ViewBox | None,
     pos: list | None,
 ):
     """A function to check whether there are any points along the line candidate (spanned up by the starting/end points elevation plus the support height) which are less than min_height away from the line.
@@ -27,12 +21,6 @@ def check_if_no_collisions_overall_line(
     Args:
         this_cable_road (classes.Cable_Road): The cable_road object to check
         plot_possible_lines (bool): Whether to plot the lines
-        current_supports (int): The number of supports
-        anchor_triplets (list): The possibker_triplets
-        max_supported_force (list[float]): The list of max_supported_forces by the supports
-        pre_tension (None | float): The pre_tension of the cr
-        height_gdf (gpd.GeoDataFrame): The height_gdf
-        view (vispy.scene.ViewBox | None): The view object for plotting
         pos (list | None): The pos object for plotting
 
     Returns:
@@ -116,12 +104,13 @@ def check_if_support_withstands_tension(
         bool: True if the support can handle more force than is being exerted on it, and False otherwise.
 
     """
+    scaling_factor = 10000
     ### Calculate the force on the support for the both cable roads
     force_on_support_left = compute_tension_sloped_vs_empty_cableroad(
-        left_cable_road, return_points=False
+        left_cable_road, scaling_factor, return_points=False
     )
     force_on_support_right = compute_tension_sloped_vs_empty_cableroad(
-        right_cable_road, return_points=False
+        right_cable_road, scaling_factor, return_points=False
     )
 
     # get the supported force of the support tree
@@ -134,8 +123,11 @@ def check_if_support_withstands_tension(
 
 
 def compute_tension_sloped_vs_empty_cableroad(
-    cable_road: classes.Cable_Road, ax: plt.Axes = None, return_points: bool = False
-) -> (float, Point, Point):
+    cable_road: classes.Cable_Road,
+    scaling_factor: int,
+    ax: plt.Axes = None,
+    return_points: bool = False,
+) -> float | tuple[float, Point, Point]:
     """
     This function calculates the force on a support tree, based on the tension in a loaded cable road.
     First we get the centroid of the CR, then we calculate the angle between the centroid and the end point.
@@ -144,14 +136,16 @@ def compute_tension_sloped_vs_empty_cableroad(
 
     Args:
         cable_road (classes.Cable_Road): The cable road for which we want to calculate the force on the support
+        scaling_factor (int): The scaling factor for the tension in the CR
+        ax (plt.Axes): The axes on which we want to plot the lines
+        return_points (bool): If we want to return the points on the lines
     Returns:
-        float: The force on the support
+        float: The force on the support in Newton, scaled back
         Point: The interpolated point on the straight line in xz view
         Point: The interpolated point on the sloped line in xz view
     """
 
     # get the tension that we want to apply on the CR
-    scaling_factor = 10000  # unit length = 1m = 10kn of tension
     tension = cable_road.s_current_tension // scaling_factor  # scaling to dekanewton
 
     # our start point
@@ -374,26 +368,31 @@ def check_if_tower_and_anchor_trees_hold(
     and then check for every anchor triplet what force is applied to the tower and anchor.
     If both factors are within allowable limits, set the successful anchor triplet to the cable road and exit, else try with the rest of the triplets.
 
+    Args:
+        this_cable_road (classes.Cable_Road): The cable road that is checked.
+        max_supported_force (list[float]): The maximum force that the tower and anchor can support.
+        anchor_triplets (list): The anchor triplets that are checked.
+        height_gdf (gpd.GeoDataFrame): The height gdf that is used to fetch the height of the tower and anchor.
+        ax (plt.Axes, optional): The axes that is used to plot the sideways view. Defaults to None.
+        ax2 (plt.Axes, optional): The axes that is used to plot the force on the tower and anchor. Defaults to None.
+        ax3 (plt.Axes, optional): The axes that is used to plot the force on the tower and anchor. Defaults to None.
     Returns:
         anchors_hold (bool): True if the anchors hold, False if not.
+
     """
     # get force at last support
     exerted_force = this_cable_road.s_current_tension
     maximum_tower_force = 200000
-    scaling_factor = 10000
-
-    # get the s max distance we apply to scale the line - ensure we dont go OOB, tension_distance/2 since we have a point every 2nd meter along the line
-    s_max_tension_distance = exerted_force / scaling_factor
-    index = min(
-        len(this_cable_road.points_along_line) - 1, int(s_max_tension_distance // 2)
-    )
+    scaling_factor = 10000  # unit length = 1m = 10kn of tension
 
     # do the parallelverschiebung to get acting force on the tower (s_max)
     (
-        s_max_tower_to_cr,
+        force_on_vertical,
         angle_point_xz,
         angle_point_sloped_xz,
-    ) = compute_tension_sloped_vs_empty_cableroad(this_cable_road, return_points=True)
+    ) = compute_tension_sloped_vs_empty_cableroad(
+        this_cable_road, scaling_factor, return_points=True
+    )
 
     # start point of the cr tower
     tower_xz_point = Point(
@@ -433,13 +432,12 @@ def check_if_tower_and_anchor_trees_hold(
             tower_xz_point,
             angle_point_sloped_xz,
             anchor_xz_point,
-            s_max_tower_to_cr,
+            this_cable_road.s_current_tension,
+            scaling_factor,
             ax=ax3,
         )
 
         if ax:
-            # ax.plot(*anchor_tangent.xy)
-
             ax2.clear()
             ax2_container = ax2.bar(
                 ["Exerted Force", "Force on Tower", "Force on Support"],
@@ -467,20 +465,23 @@ def construct_tower_force_parallelogram(
     s_max_point: Point,
     s_a_point_real: Point,
     force: float,
+    scaling_factor: int,
     ax: plt.Axes = None,
-) -> (float, float):
+) -> tuple[float, float]:
     """Constructs a parallelogram with the anchor point as its base, the force on the anchor as its height and the angle between the anchor tangent and the cr tangent as its angle. Based on Stampfer Forstmaschinen und Holzbringung Heft P. 17
 
     Args:
         tower_xz_point (_type_): the central sideways-viewed top of the anchor
-        scaling_factor (_type_): scaling down the force to preserve the geometric method
-        angle_tangents (_type_): _description_
+        s_max_point (_type_): the sloped point of the cable road with the force applied in xz view
+        s_a_point_real (_type_): the real anchor point (not the point with the force applied)
+        force (float): the force applied to the cable road
+        scaling_factor (int): the scaling factor to convert the force to a distance
+        ax (plt.Axes, optional): the axis to plot the parallelogram on. Defaults to None.
 
     Returns:
+        float: the force applied to the anchor
         float: the force applied the tower
     """
-    scaling_factor = 1000
-
     # x distance from s_max to anchor
     s_max_to_anchor = abs(s_max_point.coords[0][0] - tower_xz_point.coords[0][0])
 
@@ -538,7 +539,6 @@ def construct_tower_force_parallelogram(
             [a_5_point, a_4_point],
         ]:
             ax.plot(*LineString(lines).xy, color="black")
-        # ax.plot(*anchor_xz_point.xy, "o", color="pink")
 
     return force_on_anchor, force_on_tower
 
@@ -549,11 +549,9 @@ def pestal_load_path(cable_road: classes.Cable_Road, point: Point):
     Args:
         cable_road (classes.Cable_Road): the cable road
         point (Point): the point to calculate the load path for
+    Returns:
+        float: the deflection of the cable road along the load path
     """
-
-    # H_t_horizontal_force_tragseil = (Tensile_force_at_center*(horizontal_width/lenght_of_cable_road)
-    # os ht the correct force though?
-
     T_0_basic_tensile_force = cable_road.s_current_tension
     q_s_rope_weight = 1.6
     q_vertical_force = 15000
@@ -580,11 +578,19 @@ def pestal_load_path(cable_road: classes.Cable_Road, point: Point):
     return y_deflection_at_point
 
 
-def euler_knicklast(tree_diameter, height_of_attachment):
-    E_module_wood = 80000
-    securit_factor = 5
+def euler_knicklast(tree_diameter: float, height_of_attachment: float) -> float:
+    """Calculates the euler case 2 knicklast of a tree
+    Args:
+        tree_diameter (float): the diameter of the tree in cm
+        height_of_attachment (float): the height of the attachment
+    Returns:
+        float: the force the tree can withstand
+    """
+
+    E_module_wood = 11000
+    security_factor = 5
     withstood_force = (math.pi**2 * E_module_wood * math.pi * tree_diameter**4) / (
-        height_of_attachment**2 * 64 * securit_factor
+        height_of_attachment**2 * 64 * security_factor
     )
 
     return withstood_force
