@@ -292,12 +292,6 @@ def compute_required_supports(
     mechanical_computations.check_if_no_collisions_overall_line(
         this_cable_road,
         plot_possible_lines,
-        current_supports,
-        anchor_triplets,
-        max_supported_forces,
-        pre_tension,
-        height_gdf,
-        view,
         pos,
     )
 

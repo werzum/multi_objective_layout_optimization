@@ -302,10 +302,6 @@ def plot_cr_relief(
     """
     x_sample_cr = [point[0] for point in sample_cable_road.floor_points]
     y_sample_cr = [point[1] for point in sample_cable_road.floor_points]
-    z_line_to_floor = (
-        sample_cable_road.floor_height_below_line_points
-        + sample_cable_road.line_to_floor_distances
-    )
     z_sloped = (
         sample_cable_road.floor_height_below_line_points
         + sample_cable_road.sloped_line_to_floor_distances
@@ -313,18 +309,9 @@ def plot_cr_relief(
 
     fig = go.Figure()
 
+    add_straight_line_to_go_figure(sample_cable_road, fig)
     add_relief_to_go_figure(sample_cable_road, fig)
 
-    fig.add_trace(
-        go.Scatter3d(
-            x=x_sample_cr,
-            y=y_sample_cr,
-            z=z_line_to_floor,
-            mode="lines",
-            line=dict(color="red", width=2),
-            name="Straight Line Distance",
-        )
-    )
     fig.add_trace(
         go.Scatter3d(
             x=x_sample_cr,
@@ -410,6 +397,34 @@ def add_relief_to_go_figure(sample_cable_road: classes.Cable_Road, fig: go.Figur
     )
 
 
+def add_straight_line_to_go_figure(
+    sample_cable_road: classes.Cable_Road, fig: go.Figure
+):
+    """Add the straight line distance to a figure.
+
+    Args:
+        sample_cable_road (classes.Cable_Road): _description_
+        fig (go.Figure): _description_
+    """
+    # get the relief and plot it
+    x_sample_cr = [point[0] for point in sample_cable_road.floor_points]
+    y_sample_cr = [point[1] for point in sample_cable_road.floor_points]
+    z_line_to_floor = (
+        sample_cable_road.floor_height_below_line_points
+        + sample_cable_road.line_to_floor_distances
+    )
+    fig = fig.add_trace(
+        go.Scatter3d(
+            x=x_sample_cr,
+            y=y_sample_cr,
+            z=z_line_to_floor,
+            mode="lines",
+            line=dict(color="red", width=2),
+            name="Straight Line Distance",
+        )
+    )
+
+
 def plot_supported_cr_relief(sample_cable_road, line_gdf, height_gdf, index):
     fig = go.Figure()
 
@@ -432,20 +447,15 @@ def plot_supported_cr_relief(sample_cable_road, line_gdf, height_gdf, index):
         mechanical_computations.calculate_sloped_line_to_floor_distances(
             sample_cable_road
         )
+        add_straight_line_to_go_figure(sample_cable_road, fig)
+
         x_sample_cr = [point[0] for point in sample_cable_road.floor_points]
         y_sample_cr = [point[1] for point in sample_cable_road.floor_points]
-        z_floor_height = sample_cable_road.floor_height_below_line_points
-        z_line_to_floor = (
-            sample_cable_road.floor_height_below_line_points
-            + sample_cable_road.line_to_floor_distances
-        )
         z_sloped = (
             sample_cable_road.floor_height_below_line_points
             + sample_cable_road.sloped_line_to_floor_distances
         )
 
-        # fig = px.line_3d(x=x_sample_cr, y=y_sample_cr, z=z_floor_height)
-        # fig.add_trace(go.Scatter3d(x=x_sample_cr, y=y_sample_cr, z=z_line_to_floor, mode='lines', line=dict(color='red', width=2), name='Straight Line Distance'))
         fig.add_trace(
             go.Scatter3d(
                 x=x_sample_cr,
