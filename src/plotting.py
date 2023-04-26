@@ -364,7 +364,7 @@ def add_anchor_to_go_figure(
     anchor_point = Point(line_gdf.iloc[index].possible_anchor_triples[0][1].coords)
     anchor_line = LineString([anchor_point, sample_cable_road.start_point])
     anchor_cable_road = cable_road_computation.compute_initial_cable_road(
-        anchor_line, height_gdf
+        anchor_line, height_gdf, pre_tension=sample_cable_road.s_current_tension
     )
 
     x_anchor_cr = [point[0] for point in anchor_cable_road.floor_points]

@@ -117,8 +117,12 @@ def check_if_support_withstands_tension(
 
     """
     ### Calculate the force on the support for the both cable roads
-    force_on_support_left = compute_tension_sloped_vs_empty_cableroad(left_cable_road)
-    force_on_support_right = compute_tension_sloped_vs_empty_cableroad(right_cable_road)
+    force_on_support_left = compute_tension_sloped_vs_empty_cableroad(
+        left_cable_road, return_points=False
+    )
+    force_on_support_right = compute_tension_sloped_vs_empty_cableroad(
+        right_cable_road, return_points=False
+    )
 
     # get the supported force of the support tree
     # TBD this can also be done in advance - attached at height+2 to accomodate stütze itself
@@ -130,7 +134,7 @@ def check_if_support_withstands_tension(
 
 
 def compute_tension_sloped_vs_empty_cableroad(
-    cable_road: classes.Cable_Road, ax: plt.Axes = None
+    cable_road: classes.Cable_Road, ax: plt.Axes = None, return_points: bool = False
 ) -> (float, Point, Point):
     """
     This function calculates the force on a support tree, based on the tension in a loaded cable road.
@@ -218,7 +222,10 @@ def compute_tension_sloped_vs_empty_cableroad(
         ax.set_xlim(-150, 0)
         ax.set_ylim(-100, 50)
 
-    return force_on_cable, force_applied_straight, force_applied_sloped
+    if return_points:
+        return force_on_cable, force_applied_straight, force_applied_sloped
+    else:
+        return force_on_cable
 
 
 def compute_angle_between_lines(
@@ -381,18 +388,19 @@ def check_if_tower_and_anchor_trees_hold(
         len(this_cable_road.points_along_line) - 1, int(s_max_tension_distance // 2)
     )
 
+    # do the parallelverschiebung to get acting force on the tower (s_max)
     (
-        force_on_anchor,
-        angle_point,
-        angle_point_sloped,
-    ) = compute_tension_sloped_vs_empty_cableroad(this_cable_road)
+        s_max_tower_to_cr,
+        angle_point_xz,
+        angle_point_sloped_xz,
+    ) = compute_tension_sloped_vs_empty_cableroad(this_cable_road, return_points=True)
 
     # start point of the cr tower
     tower_xz_point = Point(
         [this_cable_road.start_point.coords[0][0], this_cable_road.start_point_height]
     )
 
-    cr_loaded_tangent = LineString([angle_point_sloped, tower_xz_point])
+    cr_loaded_tangent = LineString([angle_point_sloped_xz, tower_xz_point])
 
     if ax:
         ax.clear()
@@ -401,22 +409,32 @@ def check_if_tower_and_anchor_trees_hold(
         ax.plot(*cr_loaded_tangent.xy, color="red")
 
     for index in range(len(anchor_triplets)):
+        # need to figure out which anchor is the right one (ie the central one)
         this_anchor_line = anchor_triplets[index][1]
         anchor_start_point = Point(this_anchor_line.coords[0])
 
+        # construct the anchor tangent
         anchor_point_height = geometry_operations.fetch_point_elevation(
             anchor_start_point, height_gdf, 1
         )
+        anchor_start_point_distance = this_cable_road.start_point.distance(
+            anchor_start_point
+        )
 
+        # anchor point on the xz plane
         anchor_xz_point = Point(
             [
-                this_cable_road.start_point.coords[0][0] + force_on_anchor,
+                this_cable_road.start_point.coords[0][0] + anchor_start_point_distance,
                 anchor_point_height,
             ]
         )
 
         force_on_anchor, force_on_tower = construct_tower_force_parallelogram(
-            tower_xz_point, angle_point_sloped, anchor_xz_point, ax=ax3
+            tower_xz_point,
+            angle_point_sloped_xz,
+            anchor_xz_point,
+            s_max_tower_to_cr,
+            ax=ax3,
         )
 
         if ax:
@@ -447,7 +465,8 @@ def check_if_tower_and_anchor_trees_hold(
 def construct_tower_force_parallelogram(
     tower_xz_point: Point,
     s_max_point: Point,
-    s_a_point: Point,
+    s_a_point_real: Point,
+    force: float,
     ax: plt.Axes = None,
 ) -> (float, float):
     """Constructs a parallelogram with the anchor point as its base, the force on the anchor as its height and the angle between the anchor tangent and the cr tangent as its angle. Based on Stampfer Forstmaschinen und Holzbringung Heft P. 17
@@ -466,22 +485,20 @@ def construct_tower_force_parallelogram(
     s_max_to_anchor = abs(s_max_point.coords[0][0] - tower_xz_point.coords[0][0])
 
     # shifting anchor by this distance to the right to get s_a
-    s_a_point = Point(
-        [
-            tower_xz_point.coords[0][0] + s_max_to_anchor,
-            tower_xz_point.coords[0][1],
-        ]
-    )
+    tower_anchor_line = LineString([tower_xz_point, s_a_point_real])
+    s_a_point_force = tower_anchor_line.interpolate(force / scaling_factor)
 
     # shifting s_max z down by s_a distance to get a_3
-    s_max_length = s_a_point.distance(tower_xz_point)
+    s_max_length = s_a_point_force.distance(tower_xz_point)
     a_3_point = Point(
         [s_max_point.coords[0][0], s_max_point.coords[0][1] - s_max_length]
     )
 
     # shifting s_a down by s_a_distance
-    s_a_length = s_a_point.distance(tower_xz_point)
-    a_4_point = Point([s_a_point.coords[0][0], s_a_point.coords[0][1] - s_a_length])
+    s_a_length = s_a_point_force.distance(tower_xz_point)
+    a_4_point = Point(
+        [s_a_point_force.coords[0][0], s_a_point_force.coords[0][1] - s_a_length]
+    )
 
     # z distance of anchor to a_4
     z_distance_anchor_to_a_3 = tower_xz_point.coords[0][1] - a_3_point.coords[0][1]
@@ -501,21 +518,21 @@ def construct_tower_force_parallelogram(
 
     if ax:
         ax.clear()
-        # ax.set_xlim(-300, 300)
-        # ax.set_ylim(-500, 10)
+        ax.set_xlim(-50, 0)
+        ax.set_ylim(-30, 20)
 
         # plot the points
         ax.plot(*s_max_point.xy, "o", color="black")
-        ax.plot(*s_a_point.xy, "o", color="green")
+        ax.plot(*s_a_point_force.xy, "o", color="green")
         ax.plot(*a_3_point.xy, "o", color="red")
         ax.plot(*a_4_point.xy, "o", color="red")
         ax.plot(*a_5_point.xy, "o", color="blue")
 
         for lines in [
             [s_max_point, tower_xz_point],
-            [s_a_point, tower_xz_point],
+            [s_a_point_force, tower_xz_point],
             [a_3_point, s_max_point],
-            [a_4_point, s_a_point],
+            [a_4_point, s_a_point_force],
             [a_5_point, tower_xz_point],
             [a_5_point, a_3_point],
             [a_5_point, a_4_point],

@@ -145,7 +145,7 @@ def generate_possible_lines(
 def compute_initial_cable_road(
     possible_line: LineString,
     height_gdf: gpd.GeoDataFrame,
-    initial_tension=None,
+    pre_tension=None,
 ) -> classes.Cable_Road:
     """Create a CR object and compute its initial properties like height, points along line etc
 
@@ -156,6 +156,7 @@ def compute_initial_cable_road(
     Returns:
         _type_: Cable_Road Objects
     """
+    print("Computing initial cable road")
     this_cable_road = classes.Cable_Road(possible_line)
 
     this_cable_road.start_point_height = (
@@ -208,12 +209,9 @@ def compute_initial_cable_road(
         this_cable_road.line_start_point_array, this_cable_road.line_end_point_array
     )
 
-    print(this_cable_road.c_rope_length, "c rope length")
-
-    if initial_tension:
-        this_cable_road.s_current_tension = initial_tension
-
+    if pre_tension:
         # and calculate the sloped ltfd
+        this_cable_road.s_current_tension = pre_tension
         y_x_deflections = np.asarray(
             [
                 mechanical_computations.pestal_load_path(this_cable_road, point)
@@ -226,6 +224,8 @@ def compute_initial_cable_road(
         this_cable_road.sloped_line_to_floor_distances = (
             this_cable_road.line_to_floor_distances - y_x_deflections
         )
+    else:
+        print("no initial tension")
 
     return this_cable_road
 
@@ -241,7 +241,7 @@ def compute_required_supports(
     plot_possible_lines: bool = False,
     view: vispy.scene.ViewBox | None = None,
     pos: list | None = None,
-    pre_tension=None,
+    pre_tension: int = None,
 ):
     """A function to check whether there are any points along the line candidate (spanned up by the starting/end points
      elevation plus the support height) which are less than min_height away from the line.
@@ -253,7 +253,9 @@ def compute_required_supports(
     Returns:
         _type_: _description_
     """
-    this_cable_road = compute_initial_cable_road(possible_line, height_gdf)
+    this_cable_road = compute_initial_cable_road(
+        possible_line, height_gdf, pre_tension=pre_tension
+    )
 
     if not pre_tension:
         mechanical_computations.initialize_line_tension(
@@ -359,7 +361,6 @@ def compute_required_supports(
                         candidate_tree.height_series[diameters_index],
                         road_to_support_cable_road,
                         support_to_anchor_cable_road,
-                        this_cable_road.s_current_tension,
                     )
                 )
                 if not support_withstands_tension:
@@ -728,12 +729,12 @@ def create_sideways_cableroads(overall_trees, this_cable_road, candidate, height
     road_to_support_cable_road = compute_initial_cable_road(
         road_to_support_line,
         height_gdf,
-        initial_tension=this_cable_road.s_current_tension,
+        pre_tension=this_cable_road.s_current_tension,
     )
     support_to_anchor_cable_road = compute_initial_cable_road(
         support_to_anchor_line,
         height_gdf,
-        initial_tension=this_cable_road.s_current_tension,
+        pre_tension=this_cable_road.s_current_tension,
     )
 
     return road_to_support_cable_road, support_to_anchor_cable_road, candidate_tree
