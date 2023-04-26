@@ -130,7 +130,7 @@ def check_if_support_withstands_tension(
 
 
 def compute_tension_sloped_vs_empty_cableroad(
-    cable_road: classes.Cable_Road,
+    cable_road: classes.Cable_Road, ax: plt.Axes = None
 ) -> (float, Point, Point):
     """
     This function calculates the force on a support tree, based on the tension in a loaded cable road.
@@ -164,17 +164,18 @@ def compute_tension_sloped_vs_empty_cableroad(
         cable_road.floor_height_below_line_points[index]
         + cable_road.line_to_floor_distances[index]
     )
-    centroid_straight = Point(
-        [cable_road.line.centroid.coords[0][0], centroid_straight_height]
+    # shift the x coordinate by half the length of the CR to get the middle
+    centroid_x_sideways = (
+        cable_road.start_point.coords[0][0] - cable_road.c_rope_length // 2
     )
+    centroid_straight = Point([centroid_x_sideways, centroid_straight_height])
 
     centroid_sloped_height = (
         cable_road.floor_height_below_line_points[index]
         + cable_road.sloped_line_to_floor_distances[index]
     )
-    centroid_sloped = Point(
-        [cable_road.line.centroid.coords[0][0], centroid_sloped_height]
-    )
+
+    centroid_sloped = Point([centroid_x_sideways, centroid_sloped_height])
 
     # get the angle between them
     line_sp_centroid_straight = LineString([start_point, centroid_straight])
@@ -194,6 +195,28 @@ def compute_tension_sloped_vs_empty_cableroad(
 
     print("angle centroids", angle_centroids)
     print("force on cable", force_on_cable)
+
+    if ax:
+        ax.plot(*start_point.xy, "o", color="black")
+        ax.plot(*centroid_straight.xy, "o", color="green")
+        ax.plot(*centroid_sloped.xy, "o", color="red")
+        ax.plot(*force_applied_straight.xy, "o", color="blue")
+        ax.plot(*force_applied_sloped.xy, "o", color="blue")
+        # # plot the points
+        # ax.plot(*s_max_point.xy, "o", color="black")
+        # # ax.plot(*s_a_point.xy, "o", color="green")
+        # # ax.plot(*a_3_point.xy, "o", color="red")
+        # # ax.plot(*a_4_point.xy, "o", color="red")
+        # # ax.plot(*a_5_point.xy, "o", color="blue")
+
+        for lines in [
+            [start_point, centroid_straight],
+            [start_point, centroid_sloped],
+        ]:
+            ax.plot(*LineString(lines).xy, color="black")
+
+        ax.set_xlim(-150, 0)
+        ax.set_ylim(-100, 50)
 
     return force_on_cable, force_applied_straight, force_applied_sloped
 
@@ -437,6 +460,8 @@ def construct_tower_force_parallelogram(
     Returns:
         float: the force applied the tower
     """
+    scaling_factor = 1000
+
     # x distance from s_max to anchor
     s_max_to_anchor = abs(s_max_point.coords[0][0] - tower_xz_point.coords[0][0])
 
@@ -448,8 +473,8 @@ def construct_tower_force_parallelogram(
         ]
     )
 
-    # shifting s_max y down by s_max distance to get a_3
-    s_max_length = s_max_point.distance(tower_xz_point)
+    # shifting s_max z down by s_a distance to get a_3
+    s_max_length = s_a_point.distance(tower_xz_point)
     a_3_point = Point(
         [s_max_point.coords[0][0], s_max_point.coords[0][1] - s_max_length]
     )
@@ -458,24 +483,26 @@ def construct_tower_force_parallelogram(
     s_a_length = s_a_point.distance(tower_xz_point)
     a_4_point = Point([s_a_point.coords[0][0], s_a_point.coords[0][1] - s_a_length])
 
-    # generating s_5 by getting y distance of anchor to a_3
-    y_distance_anchor_to_a_3 = abs(tower_xz_point.coords[0][1] - a_3_point.coords[0][1])
-    # and shifting a_4 down by this difference
+    # z distance of anchor to a_4
+    z_distance_anchor_to_a_3 = tower_xz_point.coords[0][1] - a_3_point.coords[0][1]
+    z_distance_anchor_to_a_4 = tower_xz_point.coords[0][1] - a_4_point.coords[0][1]
+    z_distance_anchor_a5 = z_distance_anchor_to_a_3 + z_distance_anchor_to_a_4
+    # and now shifting the tower point down by this distance
     a_5_point = Point(
         [
             tower_xz_point.coords[0][0],
-            a_4_point.coords[0][1] - y_distance_anchor_to_a_3,
+            tower_xz_point.coords[0][1] - z_distance_anchor_a5,
         ]
     )
 
-    force_on_anchor = s_max_to_anchor
+    force_on_anchor = s_max_to_anchor * scaling_factor
     # now resulting force = distance from anchor to a_5*scaling factor
-    force_on_tower = (tower_xz_point.distance(a_5_point)) * 100
+    force_on_tower = z_distance_anchor_a5 * scaling_factor
 
     if ax:
         ax.clear()
-        ax.set_xlim(-300, 300)
-        ax.set_ylim(-500, 10)
+        # ax.set_xlim(-300, 300)
+        # ax.set_ylim(-500, 10)
 
         # plot the points
         ax.plot(*s_max_point.xy, "o", color="black")
