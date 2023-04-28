@@ -139,6 +139,8 @@ def fetch_point_elevation(
     Returns:
     float: The elevation of the given point.
     """
+    if point.x is None or point.y is None:
+        print("Point has no coordinates")
     return height_gdf[
         (height_gdf["x"].between(point.x - max_deviation, point.x + max_deviation))
         & (height_gdf["y"].between(point.y - max_deviation, point.y + max_deviation))

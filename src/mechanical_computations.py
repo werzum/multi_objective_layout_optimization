@@ -260,12 +260,17 @@ def compute_angle_between_lines(
     return geometry_utilities.angle_between_3d(start_point_xyz, end_point_xyz)
 
 
-def initialize_line_tension(this_cable_road: classes.Cable_Road, current_supports: int):
+def initialize_line_tension(
+    this_cable_road: classes.Cable_Road, current_supports: int, pre_tension: int = 0
+):
     print("initialize_line_tension")
     # set tension of the cable_road
     s_br_mindestbruchlast = 170000  # in newton
     this_cable_road.s_max_maximalspannkraft = s_br_mindestbruchlast / 2
-    this_cable_road.s_current_tension = this_cable_road.s_max_maximalspannkraft
+    if pre_tension:
+        this_cable_road.s_current_tension = pre_tension
+    else:
+        this_cable_road.s_current_tension = this_cable_road.s_max_maximalspannkraft
     # this_cable_road.s_current_tension = this_cable_road.s_max_maximalspannkraft * (
     #     current_supports + 1 / (current_supports + 2)
     # )
@@ -468,7 +473,8 @@ def construct_tower_force_parallelogram(
     scaling_factor: int,
     ax: plt.Axes = None,
 ) -> tuple[float, float]:
-    """Constructs a parallelogram with the anchor point as its base, the force on the anchor as its height and the angle between the anchor tangent and the cr tangent as its angle. Based on Stampfer Forstmaschinen und Holzbringung Heft P. 17
+    """Constructs a parallelogram with the anchor point as its base, the force on the anchor as its height and the angle between the anchor tangent and the cr tangent as its angle.
+    Based on Stampfer Forstmaschinen und Holzbringung Heft P. 17
 
     Args:
         tower_xz_point (_type_): the central sideways-viewed top of the anchor

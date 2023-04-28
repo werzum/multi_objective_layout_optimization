@@ -111,7 +111,6 @@ def generate_possible_lines(
                 plot_possible_lines,
                 view,
                 pos,
-                0,
             )
             for index, line in line_df.iterrows()
         ]
@@ -145,7 +144,8 @@ def generate_possible_lines(
 def compute_initial_cable_road(
     possible_line: LineString,
     height_gdf: gpd.GeoDataFrame,
-    pre_tension=None,
+    pre_tension: int,
+    current_supports: int = 0,
 ) -> classes.Cable_Road:
     """Create a CR object and compute its initial properties like height, points along line etc
 
@@ -209,23 +209,23 @@ def compute_initial_cable_road(
         this_cable_road.line_start_point_array, this_cable_road.line_end_point_array
     )
 
-    if pre_tension:
-        # and calculate the sloped ltfd
-        this_cable_road.s_current_tension = pre_tension
-        y_x_deflections = np.asarray(
-            [
-                mechanical_computations.pestal_load_path(this_cable_road, point)
-                for point in this_cable_road.points_along_line
-            ],
-            dtype=np.float32,
-        )
+    mechanical_computations.initialize_line_tension(
+        this_cable_road, current_supports, pre_tension
+    )
 
-        #  check the distances between each floor point and the ldh point
-        this_cable_road.sloped_line_to_floor_distances = (
-            this_cable_road.line_to_floor_distances - y_x_deflections
-        )
-    else:
-        print("no initial tension")
+    # and calculate the sloped ltfd
+    y_x_deflections = np.asarray(
+        [
+            mechanical_computations.pestal_load_path(this_cable_road, point)
+            for point in this_cable_road.points_along_line
+        ],
+        dtype=np.float32,
+    )
+
+    #  check the distances between each floor point and the ldh point
+    this_cable_road.sloped_line_to_floor_distances = (
+        this_cable_road.line_to_floor_distances - y_x_deflections
+    )
 
     return this_cable_road
 
@@ -242,7 +242,7 @@ def compute_required_supports(
     view: vispy.scene.ViewBox | None = None,
     pos: list | None = None,
     pre_tension: int = None,
-):
+) -> tuple[int, list[Point], int]:
     """A function to check whether there are any points along the line candidate (spanned up by the starting/end points
      elevation plus the support height) which are less than min_height away from the line.
 
@@ -254,15 +254,11 @@ def compute_required_supports(
         _type_: _description_
     """
     this_cable_road = compute_initial_cable_road(
-        possible_line, height_gdf, pre_tension=pre_tension
+        possible_line,
+        height_gdf,
+        pre_tension=pre_tension,
+        current_supports=current_supports,
     )
-
-    if not pre_tension:
-        mechanical_computations.initialize_line_tension(
-            this_cable_road, current_supports
-        )
-    else:
-        this_cable_road.s_current_tension = pre_tension
 
     print("Tension to begin with is", this_cable_road.s_current_tension)
 
@@ -328,7 +324,7 @@ def compute_required_supports(
                 support_to_anchor_cable_road,
                 candidate_tree,
             ) = create_sideways_cableroads(
-                overall_trees, this_cable_road, candidate, height_gdf
+                overall_trees, this_cable_road, candidate, height_gdf, current_supports
             )
 
             # check if the candidate is too close to the anchor
@@ -413,7 +409,7 @@ def compute_required_supports(
             support_to_anchor_cable_road,
             candidate_tree,
         ) = create_sideways_cableroads(
-            overall_trees, this_cable_road, candidate, height_gdf
+            overall_trees, this_cable_road, candidate, height_gdf, current_supports
         )
 
         # test for collisions left and right - enter the recursive loop to compute subsupports
@@ -425,13 +421,13 @@ def compute_required_supports(
             [road_to_support_cable_road, support_to_anchor_cable_road],
             current_supports,
             location_supports,
-            overall_trees,
-            pos,
-            plot_possible_lines,
-            view,
             anchor_triplets,
             max_supported_forces,
+            overall_trees,
             height_gdf,
+            plot_possible_lines,
+            view,
+            pos,
         )
 
         # computed sub-supports and see if we had enough
@@ -444,16 +440,20 @@ def compute_required_supports(
 
 
 # helper function to have return functions in one place
-def return_failed():
+def return_failed() -> tuple[bool, bool, bool]:
     return False, False, False
 
 
-def return_sucessful(current_supports, location_supports, this_cable_road):
+def return_sucessful(
+    current_supports: int,
+    location_supports: list[Point],
+    this_cable_road: classes.Cable_Road,
+) -> tuple[int, list[Point], int]:
     return current_supports, location_supports, current_tension(this_cable_road)
 
 
-def current_tension(this_cable_road):
-    return this_cable_road.s_current_tension
+def current_tension(this_cable_road: classes.Cable_Road) -> int:
+    return int(this_cable_road.s_current_tension)
 
 
 # Generating different structures
@@ -691,7 +691,9 @@ def setup_support_candidates(
     return distance_candidates
 
 
-def create_sideways_cableroads(overall_trees, this_cable_road, candidate, height_gdf):
+def create_sideways_cableroads(
+    overall_trees, this_cable_road, candidate, height_gdf, current_supports
+):
     """Create the sideways cable roads and return them
 
     Args:
@@ -724,11 +726,13 @@ def create_sideways_cableroads(overall_trees, this_cable_road, candidate, height
         road_to_support_line,
         height_gdf,
         pre_tension=this_cable_road.s_current_tension,
+        current_supports=current_supports,
     )
     support_to_anchor_cable_road = compute_initial_cable_road(
         support_to_anchor_line,
         height_gdf,
         pre_tension=this_cable_road.s_current_tension,
+        current_supports=current_supports,
     )
 
     return road_to_support_cable_road, support_to_anchor_cable_road, candidate_tree
@@ -745,7 +749,7 @@ def test_collisions_left_right(
     plot_possible_lines: bool = False,
     view: vispy.scene.ViewBox | None = None,
     pos: list | None = None,
-):
+) -> tuple[int, list[Point], int]:
     """test if the left and right cr have collisions and return the new support locations if not
 
     Args:

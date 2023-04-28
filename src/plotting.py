@@ -264,14 +264,6 @@ def plot_vispy_scene(
     scatter = visuals.Markers()
     scatter.set_data(pos_lines, edge_width=0, face_color=(1, 1, 0.5, 1), size=5)
     view.add(scatter)
-    # possibility to connect lines, but doesnt really look good
-    # N,S = pos_lines.shape
-    # connect = np.empty((N*S-1,2), np.int32)
-    # connect[:, 0] = np.arange(N*S-1)
-    # connect[:, 1] = connect[:, 0] + 1
-    # for i in range(S, N*S, S):
-    #     connect[i-1, 1] = i-1
-    # view.add(vispy.scene.Line(pos=pos_lines, connect=connect, width=5))
 
     # pos of heightgdf
     pos_height_gdf = np.vstack(
@@ -368,7 +360,7 @@ def add_anchor_to_go_figure(
             y=y_anchor_cr,
             z=z_line_to_floor,
             mode="lines",
-            line=dict(color="yellow", width=2),
+            line=dict(color="black", width=2),
             name="Anchor Cable",
         )
     )
