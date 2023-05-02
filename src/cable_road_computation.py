@@ -539,7 +539,6 @@ def generate_triple_angle(
 
     # 5. check if the third support line is also within correct angle - within 2*min_outer_anch_angle and 2* max_anchor_angle for one point and within min_outer, max_outer for the other -> so two lines are not on the same side!
     triple_angle = []
-    triple_angle_temp = []
     max_supported_force = []
     for x, y in pairwise_angle:
         for z in possible_anchor_lines:
@@ -560,13 +559,19 @@ def generate_triple_angle(
                 )
 
                 if (a, b):
-                    triple_angle_temp.append([x, y, z])
+                    this_triple_angle_temp = [x, y, z]
                     # find the line with the smallest angle
                     degrees = [
                         geometry_utilities.angle_between(line, line_candidate)
-                        for line in [x, y, z]
+                        for line in this_triple_angle_temp
                     ]
-                    center_line = triple_angle_temp[-1][degrees.index(min(degrees))]
+                    min_degree_index = degrees.index(min(degrees))
+                    center_line = this_triple_angle_temp[min_degree_index]
+                    # bring the centre line to the first spot in the array
+                    this_triple_angle_temp.insert(
+                        0,
+                        this_triple_angle_temp.pop(min_degree_index),
+                    )
 
                     # get its end tree and retrive its BHD from the DF
                     this_center_tree_bhd = anchor_trees_working_copy[
@@ -585,7 +590,7 @@ def generate_triple_angle(
                     if this_max_supported_force in max_supported_force:
                         continue
                     else:
-                        triple_angle.append([x, y, z])
+                        triple_angle.append(this_triple_angle_temp)
                         max_supported_force.append(this_max_supported_force)
 
     return triple_angle, max_supported_force

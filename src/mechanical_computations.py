@@ -414,7 +414,7 @@ def check_if_tower_and_anchor_trees_hold(
 
     for index in range(len(anchor_triplets)):
         # need to figure out which anchor is the right one (ie the central one)
-        this_anchor_line = anchor_triplets[index][1]
+        this_anchor_line = anchor_triplets[index][0]
         anchor_start_point = Point(this_anchor_line.coords[0])
 
         # construct the anchor tangent
