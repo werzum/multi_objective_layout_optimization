@@ -46,11 +46,12 @@ def plot_gdf_with_anchors_and_supports(gdfs, line_gdf):
 
     for keyword in ["possible_anchor_triples"]:
         b = line_gdf[keyword]
+        # c = line_gdf[]
         # double unpacking here
         c = list(chain.from_iterable(b))
-        d = list(chain.from_iterable(c))
-        d = gpd.GeoSeries(d)
-        d.plot(cmap="tab20", ax=ax)
+        for sublist in c:
+            d = gpd.GeoSeries([*sublist])
+            d.plot(cmap="tab20", ax=ax)
 
     for keyword in ["location_of_int_supports"]:
         # filter the empty ones
@@ -315,13 +316,72 @@ def plot_cr_relief(
         )
     )
 
-    add_anchor_to_go_figure(sample_cable_road, line_gdf, height_gdf, index, fig)
+    # add_anchor_to_go_figure(sample_cable_road, line_gdf, height_gdf, index, fig)
+    add_all_anchors_to_go_figure(sample_cable_road, line_gdf, height_gdf, index, fig)
 
     fig.update_layout(
         title="Detail View of Single Cable Road Path under Load", width=1200, height=800
     )
     # fig.write_html("02_Figures/Cable_Road_3d.html")
     fig.show("notebook_connected")
+
+
+def add_all_anchors_to_go_figure(
+    sample_cable_road: classes.Cable_Road,
+    line_gdf: gpd.GeoDataFrame,
+    height_gdf: gpd.GeoDataFrame,
+    index: int,
+    fig: go.Figure,
+):
+    for anchor in line_gdf.iloc[index].possible_anchor_triples[0]:
+        anchor_point = Point(anchor.coords)
+        anchor_line = LineString([anchor_point, sample_cable_road.start_point])
+        anchor_cable_road = cable_road_computation.compute_initial_cable_road(
+            anchor_line, height_gdf, pre_tension=sample_cable_road.s_current_tension
+        )
+
+        # print(geometry_utilities.angle_between(anchor_line, LineString([sample_cable_road.start_point,sample_cable_road])))
+
+        x_anchor_cr = [point[0] for point in anchor_cable_road.floor_points]
+        y_anchor_cr = [point[1] for point in anchor_cable_road.floor_points]
+        z_line_to_floor = (
+            anchor_cable_road.floor_height_below_line_points
+            + anchor_cable_road.line_to_floor_distances
+        )
+
+        fig.add_trace(
+            go.Scatter3d(
+                x=x_anchor_cr,
+                y=y_anchor_cr,
+                z=z_line_to_floor,
+                mode="lines",
+                line=dict(color="black", width=2),
+                name="Anchor Cable",
+            )
+        )
+
+
+def add_relief_to_go_figure(sample_cable_road: classes.Cable_Road, fig: go.Figure):
+    """Add the relief of a single cable road to a figure.
+
+    Args:
+        sample_cable_road (classes.Cable_Road): _description_
+        fig (go.Figure): _description_
+    """
+    # get the relief and plot it
+    x_sample_cr = [point[0] for point in sample_cable_road.floor_points]
+    y_sample_cr = [point[1] for point in sample_cable_road.floor_points]
+    z_floor_height = sample_cable_road.floor_height_below_line_points
+    fig = fig.add_trace(
+        go.Scatter3d(
+            x=x_sample_cr,
+            y=y_sample_cr,
+            z=z_floor_height,
+            mode="lines",
+            line=dict(color="blue", width=2),
+            name="Relief",
+        )
+    )
 
 
 def add_anchor_to_go_figure(
@@ -348,7 +408,6 @@ def add_anchor_to_go_figure(
 
     x_anchor_cr = [point[0] for point in anchor_cable_road.floor_points]
     y_anchor_cr = [point[1] for point in anchor_cable_road.floor_points]
-    z_floor_height = anchor_cable_road.floor_height_below_line_points
     z_line_to_floor = (
         anchor_cable_road.floor_height_below_line_points
         + anchor_cable_road.line_to_floor_distances
@@ -432,10 +491,11 @@ def plot_supported_cr_relief(sample_cable_road, line_gdf, height_gdf, index):
     waypoints = [start_point, *supports, end_point]
     for previous, current in zip(waypoints, waypoints[1:]):
         sample_line = LineString([previous, current])
-        sample_cable_road = cable_road_computation.compute_initial_cable_road(
-            sample_line, height_gdf
-        )
         sample_cable_road.s_current_tension = line_gdf.iloc[index].current_tension
+        sample_cable_road = cable_road_computation.compute_initial_cable_road(
+            sample_line, height_gdf, pre_tension=sample_cable_road.s_current_tension
+        )
+
         mechanical_computations.calculate_sloped_line_to_floor_distances(
             sample_cable_road
         )
