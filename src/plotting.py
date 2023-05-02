@@ -23,7 +23,7 @@ from src import (
 )
 
 
-def plot_gdfs(gdfs):
+def plot_gdfs(gdfs: list):
     fig, ax = plt.subplots(figsize=(10, 10))
     ax.set_xlabel("X coordinate", fontsize=15)
     ax.set_ylabel("Y coordinate", fontsize=15)
@@ -31,7 +31,14 @@ def plot_gdfs(gdfs):
         gdf.plot(alpha=0.5, ax=ax)
 
 
-def plot_gdf_with_anchors_and_supports(gdfs, line_gdf):
+def plot_gdf_with_anchors_and_supports(gdfs: list, line_gdf: gpd.GeoDataFrame):
+    """Plot a gdf with anchors and supports
+
+    Args:
+        gdfs (_type_): A list of the gdfs to plot
+        line_gdf (_type_): the gdf containing the cable road lines
+    """
+
     fig, ax = plt.subplots(figsize=(15, 15))
     ax.set_xlabel("X coordinate", fontsize=15)
     ax.set_ylabel("Y coordinate", fontsize=15)
@@ -82,7 +89,8 @@ def onclick(event, coords):
     """Return an interactive figure to record mouse clicks on their coordinates
         Modifies a global coords variable to store the clicked points in
     Args:
-        event (_type_): event fired by fig
+        event (_type_): the event that is triggered by the mouse click
+        coords (_type_): the global coords variable that is modified - its a list of tuples
     """
     global ix, iy
     ix, iy = event.xdata, event.ydata
@@ -242,9 +250,15 @@ def plot_pymoo_results(
 
 
 def plot_lines(
-    this_cable_road,
-    pos,
+    this_cable_road: classes.Cable_Road,
+    pos: list,
 ):
+    """Plot the lines of the cable road.
+    Args:
+
+        this_cable_road (classes.Cable_Road): The cable road to plot
+        pos (list): The list of positions to plot
+    """
     pos.append(
         (
             [point[0] for point in this_cable_road.floor_points],
@@ -258,6 +272,13 @@ def plot_lines(
 def plot_vispy_scene(
     height_gdf: gpd.GeoDataFrame, view: vispy.scene.SceneCanvas, pos: list
 ):
+    """Plot the vispy scene for a high performance visualization of the surface
+    Args:
+        height_gdf (gpd.GeoDataFrame): The gdf with the height data
+        view (vispy.scene.SceneCanvas): The vispy scene
+        pos (list): The list of positions to plot
+    """
+
     height_gdf_small = height_gdf.iloc[::10, :]
     # pos of lines
     pos_lines = np.hstack((pos)).T
@@ -291,7 +312,7 @@ def plot_cr_relief(
         sample_cable_road (classes.Cable_Road): _description_
         line_gdf (gpd.GeoDataFrame): _description_
         height_gdf (gpd.GeoDataFrame): _description_
-        index (int): _description_
+        index (int): the index of the dataframe to extract more data
     """
     x_sample_cr = [point[0] for point in sample_cable_road.floor_points]
     y_sample_cr = [point[1] for point in sample_cable_road.floor_points]
@@ -316,13 +337,74 @@ def plot_cr_relief(
         )
     )
 
-    # add_anchor_to_go_figure(sample_cable_road, line_gdf, height_gdf, index, fig)
     add_all_anchors_to_go_figure(sample_cable_road, line_gdf, height_gdf, index, fig)
 
     fig.update_layout(
         title="Detail View of Single Cable Road Path under Load", width=1200, height=800
     )
     # fig.write_html("02_Figures/Cable_Road_3d.html")
+    fig.show("notebook_connected")
+
+
+def plot_supported_cr_relief(sample_cable_road, line_gdf, height_gdf, index):
+    """Plot the relief of a single cable road with supports - show a scatterplot of relief, line and floor points
+    Args:
+        sample_cable_road (classes.Cable_Road): _description_
+        line_gdf (gpd.GeoDataFrame): _description_
+        height_gdf (gpd.GeoDataFrame): _description_
+        index (int): the index of the dataframe to extract more data
+    """
+
+    fig = go.Figure()
+
+    add_relief_to_go_figure(sample_cable_road, fig)
+    add_all_anchors_to_go_figure(sample_cable_road, line_gdf, height_gdf, index, fig)
+
+    # get the waypoints
+    start_point = Point(line_gdf.iloc[index].geometry.coords[0])
+    end_point = line_gdf.iloc[index].geometry.coords[1]
+    supports = line_gdf.iloc[index].location_of_int_supports
+
+    # for all individual road segments
+    waypoints = [start_point, *supports, end_point]
+    for previous, current in zip(waypoints, waypoints[1:]):
+        sample_line = LineString([previous, current])
+        sample_cable_road.s_current_tension = line_gdf.iloc[index].current_tension
+        sample_cable_road = cable_road_computation.compute_initial_cable_road(
+            sample_line, height_gdf, pre_tension=sample_cable_road.s_current_tension
+        )
+
+        mechanical_computations.calculate_sloped_line_to_floor_distances(
+            sample_cable_road
+        )
+        add_straight_line_to_go_figure(sample_cable_road, fig)
+
+        x_sample_cr = [point[0] for point in sample_cable_road.floor_points]
+        y_sample_cr = [point[1] for point in sample_cable_road.floor_points]
+        z_sloped = (
+            sample_cable_road.floor_height_below_line_points
+            + sample_cable_road.sloped_line_to_floor_distances
+        )
+
+        fig.add_trace(
+            go.Scatter3d(
+                x=x_sample_cr,
+                y=y_sample_cr,
+                z=z_sloped,
+                mode="lines",
+                line=dict(width=3),
+                name=f"Cable Road Segment",
+            )
+        )
+
+    fig.update_traces(marker={"size": 0.75})
+    fig.update_layout(
+        margin=dict(l=0, r=0, b=0, t=0),
+        width=1000,
+        height=800,
+        title="Relief Map with possible Cable Roads",
+    )
+
     fig.show("notebook_connected")
 
 
@@ -333,6 +415,15 @@ def add_all_anchors_to_go_figure(
     index: int,
     fig: go.Figure,
 ):
+    """Add all anchors to the go figure.
+    Args:
+        sample_cable_road (classes.Cable_Road): _description_
+        line_gdf (gpd.GeoDataFrame): _description_
+        height_gdf (gpd.GeoDataFrame): _description_
+        index (int): _description_
+        fig (go.Figure): _description_
+    """
+
     for anchor in line_gdf.iloc[index].possible_anchor_triples[0]:
         anchor_point = Point(anchor.coords)
         anchor_line = LineString([anchor_point, sample_cable_road.start_point])
@@ -384,70 +475,6 @@ def add_relief_to_go_figure(sample_cable_road: classes.Cable_Road, fig: go.Figur
     )
 
 
-def add_anchor_to_go_figure(
-    sample_cable_road: classes.Cable_Road,
-    line_gdf: gpd.GeoDataFrame,
-    height_gdf: gpd.GeoDataFrame,
-    index: int,
-    fig: go.Figure,
-):
-    """Plot the anchor of a single cable road with a scatterplot of relief, line and floor points.
-    Args:
-        sample_cable_road (classes.Cable_Road): _description_
-        line_gdf (gpd.GeoDataFrame): _description_
-        height_gdf (gpd.GeoDataFrame): _description_
-        index (int): _description_
-        fig (go.Figure): _description_
-    """
-
-    anchor_point = Point(line_gdf.iloc[index].possible_anchor_triples[0][0].coords)
-    anchor_line = LineString([anchor_point, sample_cable_road.start_point])
-    anchor_cable_road = cable_road_computation.compute_initial_cable_road(
-        anchor_line, height_gdf, pre_tension=sample_cable_road.s_current_tension
-    )
-
-    x_anchor_cr = [point[0] for point in anchor_cable_road.floor_points]
-    y_anchor_cr = [point[1] for point in anchor_cable_road.floor_points]
-    z_line_to_floor = (
-        anchor_cable_road.floor_height_below_line_points
-        + anchor_cable_road.line_to_floor_distances
-    )
-
-    fig.add_trace(
-        go.Scatter3d(
-            x=x_anchor_cr,
-            y=y_anchor_cr,
-            z=z_line_to_floor,
-            mode="lines",
-            line=dict(color="black", width=2),
-            name="Anchor Cable",
-        )
-    )
-
-
-def add_relief_to_go_figure(sample_cable_road: classes.Cable_Road, fig: go.Figure):
-    """Add the relief of a single cable road to a figure.
-
-    Args:
-        sample_cable_road (classes.Cable_Road): _description_
-        fig (go.Figure): _description_
-    """
-    # get the relief and plot it
-    x_sample_cr = [point[0] for point in sample_cable_road.floor_points]
-    y_sample_cr = [point[1] for point in sample_cable_road.floor_points]
-    z_floor_height = sample_cable_road.floor_height_below_line_points
-    fig = fig.add_trace(
-        go.Scatter3d(
-            x=x_sample_cr,
-            y=y_sample_cr,
-            z=z_floor_height,
-            mode="lines",
-            line=dict(color="blue", width=2),
-            name="Relief",
-        )
-    )
-
-
 def add_straight_line_to_go_figure(
     sample_cable_road: classes.Cable_Road, fig: go.Figure
 ):
@@ -474,57 +501,3 @@ def add_straight_line_to_go_figure(
             name="Straight Line Distance",
         )
     )
-
-
-def plot_supported_cr_relief(sample_cable_road, line_gdf, height_gdf, index):
-    fig = go.Figure()
-
-    add_relief_to_go_figure(sample_cable_road, fig)
-    add_anchor_to_go_figure(sample_cable_road, line_gdf, height_gdf, index, fig)
-
-    # get the waypoints
-    start_point = Point(line_gdf.iloc[index].geometry.coords[0])
-    end_point = line_gdf.iloc[index].geometry.coords[1]
-    supports = line_gdf.iloc[index].location_of_int_supports
-
-    # for all individual road segments
-    waypoints = [start_point, *supports, end_point]
-    for previous, current in zip(waypoints, waypoints[1:]):
-        sample_line = LineString([previous, current])
-        sample_cable_road.s_current_tension = line_gdf.iloc[index].current_tension
-        sample_cable_road = cable_road_computation.compute_initial_cable_road(
-            sample_line, height_gdf, pre_tension=sample_cable_road.s_current_tension
-        )
-
-        mechanical_computations.calculate_sloped_line_to_floor_distances(
-            sample_cable_road
-        )
-        add_straight_line_to_go_figure(sample_cable_road, fig)
-
-        x_sample_cr = [point[0] for point in sample_cable_road.floor_points]
-        y_sample_cr = [point[1] for point in sample_cable_road.floor_points]
-        z_sloped = (
-            sample_cable_road.floor_height_below_line_points
-            + sample_cable_road.sloped_line_to_floor_distances
-        )
-
-        fig.add_trace(
-            go.Scatter3d(
-                x=x_sample_cr,
-                y=y_sample_cr,
-                z=z_sloped,
-                mode="lines",
-                line=dict(width=3),
-                name=f"Cable Road Segment",
-            )
-        )
-
-    fig.update_traces(marker={"size": 0.75})
-    fig.update_layout(
-        margin=dict(l=0, r=0, b=0, t=0),
-        width=1000,
-        height=800,
-        title="Relief Map with possible Cable Roads",
-    )
-
-    fig.show("notebook_connected")
