@@ -466,10 +466,9 @@ def generate_triple_angle(
     Checks whether:
     - anchor trees are within (less than) correct distance
     - all of those lines have a deviation < max outer anchor angle to the slope line
-    Then we create pairs of lines within max_outer_anchor_angle to each other AND one of them with <max_center_tree_slope_angle to the slope line
-    This results in pairs of lines were one is the inner and one the right-most (or vice versa)
-    Then, we check for a third possible line if it is within 2*min_outer_anch_angle and 2* max_anchor_angle for one point and within min_outer, max_outer for the other -> so two lines are not on the same side!
-    This results in triples where we have the central and rightmost line from the tuples section plus one line that is at least 2*min and at most 2*max outer angle away from the rightmost line (or vv.)
+    - outward anchor trees are within 20 to 60m to each other
+
+
 
     Args:
         point (_type_): The road point we want to check for possible anchors
@@ -481,8 +480,8 @@ def generate_triple_angle(
         max_center_tree_slope_angle (_type_): Max deviation of center line from slope line
 
     Returns:
-        list: Triple Angles
-        list: Max Supported force of center tree
+        list: A list of possible triple angles for this cable road in the form of [(center line, left line, right line), ...]
+        list: A list of max supported force of the corresponding center tree
     """
     min_outer_anchor_angle = 20
     max_outer_anchor_angle = 50
@@ -541,148 +540,6 @@ def generate_triple_angle(
             [sublist[0] for sublist in central_trees["possible_anchor_triples"]],
             central_trees["max_supported_force"].to_list(),
         )
-
-    lines_with_minimum_distance = []
-    for index, line in central_trees.iterrows():
-        lines_with_minimum_distance = [
-            (line["anchor_line"], x, y)
-            for x, y in itertools.combinations(side_trees.geometry, 2)
-            if x.distance(y) > 20 and x.distance(y) < 60
-        ]
-
-    anchor_trees_center = anchor_trees_working_copy[
-        anchor_trees_working_copy["outer_anchor_angle"].between(
-            min_outer_anchor_angle, max_outer_anchor_angle
-        )
-    ]
-
-    # check if all of those possible lines are within the max deviation to the anchor line
-    anchor_trees_working_copy["outer_anchor_angle"] = anchor_trees_working_copy[
-        "anchor_line"
-    ].apply(lambda x: geometry_utilities.angle_between(x, line_candidate))
-    anchor_trees_working_copy = anchor_trees_working_copy[
-        anchor_trees_working_copy["outer_anchor_angle"].between(
-            min_outer_anchor_angle, max_outer_anchor_angle
-        )
-    ]
-
-    possible_anchor_lines = possible_anchor_lines[
-        possible_anchor_lines.apply(
-            lambda x: geometry_utilities.angle_between(x, line_candidate)
-            < max_outer_anchor_angle
-        )
-    ]
-
-    if len(possible_anchor_lines) < 3:
-        return None, None
-
-    possible_anchor_lines_centrals = possible_anchor_lines.copy()
-    possible_anchor_lines_centrals = possible_anchor_lines_centrals[
-        possible_anchor_lines.apply(
-            lambda x: geometry_utilities.angle_between(x, line_candidate)
-            < max_center_tree_slope_angle
-        )
-    ]
-    max_supported_forces = []
-    line_combinations = []
-
-    for line in possible_anchor_lines_centrals:
-        # get all those with good deviation from the center line
-        lines_within_deviation = possible_anchor_lines[
-            possible_anchor_lines.apply(
-                lambda x: geometry_utilities.angle_between(x, line)
-                < max_outer_anchor_angle
-                and geometry_utilities.angle_between(x, line) > min_outer_anchor_angle
-            )
-        ].to_list()
-        # get all those combinations with enough distane from each other - this means that the third line is not on the same side as the other two
-        # and save them as a tuple with the center line first
-        lines_with_minimum_distance = [
-            (line, x, y)
-            for x, y in itertools.combinations(lines_within_deviation, 2)
-            if x.distance(y) > 10
-        ]
-        max_supported_forces.append(line.max_supported_force)
-        line_combinations.append(lines_with_minimum_distance)
-
-    return line_combinations, max_supported_forces
-
-    # 4. check first pairs: one within 10-30 angle to the other and one should be <5 degrees to the slope line
-    pairwise_angle = [
-        (x, y)
-        for x, y in itertools.combinations(possible_anchor_lines, 2)
-        if min_outer_anchor_angle
-        < geometry_utilities.angle_between(x, y)
-        < max_outer_anchor_angle
-        and (
-            geometry_utilities.angle_between(x, line_candidate)
-            < max_center_tree_slope_angle
-            or geometry_utilities.angle_between(y, line_candidate)
-            < max_center_tree_slope_angle
-        )
-    ]
-
-    # skip if we dont have enough candidates
-    if len(pairwise_angle) < 3:
-        return None, None
-
-    # 5. check if the third support line is also within correct angle - within 2*min_outer_anch_angle and 2* max_anchor_angle for one point and within min_outer, max_outer for the other -> so two lines are not on the same side!
-    triple_angle = []
-    max_supported_force = []
-    for x, y in pairwise_angle:
-        for z in possible_anchor_lines:
-            # make sure that we are not comparing a possible line with itself
-            if x is not z and y is not z:
-                a = (
-                    max_outer_anchor_angle * 2 - 10
-                    < geometry_utilities.angle_between(x, z)
-                    < max_outer_anchor_angle * 2
-                    and min_outer_anchor_angle
-                    < geometry_utilities.angle_between(y, z)
-                    < max_outer_anchor_angle
-                )
-                b = max_outer_anchor_angle * 2 - 10 < geometry_utilities.angle_between(
-                    y, z
-                ) < max_outer_anchor_angle * 2 and min_outer_anchor_angle < geometry_utilities.angle_between(
-                    x, z
-                )
-
-                if (a, b):
-                    this_triple_angle_temp = [x, y, z]
-                    # find the line with the smallest angle
-                    degrees = [
-                        geometry_utilities.angle_between(line, line_candidate)
-                        for line in this_triple_angle_temp
-                    ]
-                    min_degree_index = degrees.index(min(degrees))
-                    center_line = this_triple_angle_temp[min_degree_index]
-                    # bring the centre line to the first spot in the array
-                    this_triple_angle_temp.insert(
-                        0,
-                        this_triple_angle_temp.pop(min_degree_index),
-                    )
-
-                    # get its end tree and retrive its BHD from the DF
-                    this_center_tree_bhd = anchor_trees_working_copy[
-                        anchor_trees_working_copy.geometry
-                        == Point(center_line.coords[0])
-                    ]["BHD"].tolist()[0]
-
-                    # compute the max supported force based on the BHD of the center tree
-                    security_factor = 5
-                    this_max_supported_force = (
-                        (this_center_tree_bhd**2) * 10 * 1000 / security_factor
-                    )
-
-                    # omit adding a triple angle to the list if we already have one with the same max supported force. We are only looking at the center tree for forces,
-                    # so we can omit the other options
-                    if this_max_supported_force in max_supported_force:
-                        continue
-                    else:
-                        triple_angle.append(this_triple_angle_temp)
-                        max_supported_force.append(this_max_supported_force)
-
-    return triple_angle, max_supported_force
 
 
 def generate_support_trees(

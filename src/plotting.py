@@ -431,8 +431,6 @@ def add_all_anchors_to_go_figure(
             anchor_line, height_gdf, pre_tension=sample_cable_road.s_current_tension
         )
 
-        # print(geometry_utilities.angle_between(anchor_line, LineString([sample_cable_road.start_point,sample_cable_road])))
-
         x_anchor_cr = [point[0] for point in anchor_cable_road.floor_points]
         y_anchor_cr = [point[1] for point in anchor_cable_road.floor_points]
         z_line_to_floor = (
