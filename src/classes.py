@@ -37,28 +37,24 @@ class Cable_Road:
         self.s_current_tension = 0.0
 
     def compute_line_height(self, height_gdf: gpd.GeoDataFrame):
-        x_points, y_points = zip(
-            *[(point.x, point.y) for point in self.points_along_line]
+        x_point_min, x_point_max, y_point_min, y_point_max = zip(
+            *[
+                (
+                    point.x - self.max_deviation,
+                    point.x + self.max_deviation,
+                    point.y - self.max_deviation,
+                    point.y + self.max_deviation,
+                )
+                for point in self.points_along_line
+            ]
         )
 
-        # get the first elevation point of the list which satisfies the max_deviation condition
         self.floor_height_below_line_points = [
-            height_gdf.loc[
-                (
-                    height_gdf.x.between(
-                        x_points[i] - self.max_deviation,
-                        x_points[i] + self.max_deviation,
-                    )
-                )
-                & (
-                    height_gdf.y.between(
-                        y_points[i] - self.max_deviation,
-                        y_points[i] + self.max_deviation,
-                    )
-                ),
-                "elev",
-            ].values[0]
-            for i in range(len(x_points))
+            height_gdf[
+                height_gdf.x.between(x_point_min[i], x_point_max[i])
+                & (height_gdf.y.between(y_point_min[i], y_point_max[i]))
+            ]["elev"].values[0]
+            for i in range(len(x_point_min))
         ]
 
         # create arrays for start and end point

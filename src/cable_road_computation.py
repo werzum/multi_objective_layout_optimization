@@ -513,7 +513,7 @@ def generate_triple_angle(
 
     central_trees = anchor_trees_working_copy[
         anchor_trees_working_copy["slope_angle"].between(0, max_center_tree_slope_angle)
-    ]
+    ].copy()
     side_trees = anchor_trees_working_copy[
         anchor_trees_working_copy["slope_angle"].between(
             min_outer_anchor_angle, max_outer_anchor_angle
@@ -523,7 +523,9 @@ def generate_triple_angle(
     if len(central_trees) < 3 or len(side_trees) < 2:
         return None, None
 
-    central_trees["possible_anchor_triples"] = central_trees["anchor_line"].apply(
+    central_trees.loc[:, "possible_anchor_triples"] = central_trees[
+        "anchor_line"
+    ].apply(
         lambda x: [
             (x, LineString([y, point]), LineString([z, point]))
             for y, z in itertools.combinations(side_trees.geometry, 2)

@@ -3,9 +3,11 @@ import numpy as np
 import math
 import warnings
 
+from shapely.geometry import LineString, Point
+
 
 def unit_vector(vector):
-    """ Returns the unit vector of the vector.  """
+    """Returns the unit vector of the vector."""
     return vector / np.linalg.norm(vector)
 
 
@@ -15,7 +17,8 @@ def value_within_range(min, max, distance):
     else:
         return False
 
-def angle_between(v1, v2):
+
+def angle_between(v1: LineString, v2: LineString) -> float:
     """Returns the angle between to 2d vectors. Returns 0 to 180 degrees angles - note that the direction of the vector matters!
     Will however not discern between a -20 and 20 rotation wrt the v1.
 
@@ -25,15 +28,15 @@ def angle_between(v1, v2):
 
     Returns:
         _type_: _description_
-    """    
+    """
     # extract their coords for vector
     v1 = [v1.coords[0], v1.coords[1]]
     v2 = [v2.coords[0], v2.coords[1]]
 
     # and recompute as vector
     # thanks for reminding me https://discuss.codechef.com/t/how-to-find-angle-between-two-lines/14516
-    v1 = (v1[1][0]-v1[0][0], v1[1][1]-v1[0][1])
-    v2 = (v2[1][0]-v2[0][0], v2[1][1]-v2[0][1])
+    v1 = (v1[1][0] - v1[0][0], v1[1][1] - v1[0][1])
+    v2 = (v2[1][0] - v2[0][0], v2[1][1] - v2[0][1])
 
     # get the unit vector, dot product and then the arccos from that
     unit_vector_1, unit_vector_2 = unit_vector(v1), unit_vector(v2)
@@ -45,9 +48,8 @@ def angle_between(v1, v2):
         # to degrees - https://stackoverflow.com/questions/9875964/how-can-i-convert-radians-to-degrees-with-python
         return math.degrees(angle)
     else:
-        #we return a large angle?
+        # we return a large angle?
         return 90
-
 
 
 def within_maximum_rotation(angle, max_deviation):
@@ -58,10 +60,9 @@ def within_maximum_rotation(angle, max_deviation):
         Truth Value: If the rotation is within the max deviation
     """
     # if angle is smaller than max_dev or greater than 360-max_dev
-    condition1 = True if angle < max_deviation or angle > 360-max_deviation else False
+    condition1 = True if angle < max_deviation or angle > 360 - max_deviation else False
     # if flipped line is less than max_deviation+180
-    condition2 = True if (180-max_deviation) < angle < 180 + \
-        max_deviation else False
+    condition2 = True if (180 - max_deviation) < angle < 180 + max_deviation else False
 
     return condition1 or condition2
 
@@ -75,7 +76,7 @@ def create_buffer(geometry, buffer_size):
 
 
 def lineseg_dist(p, a, b):
-    """Function lineseg_dist returns the distance the distance from point p to line segment [a,b]. p, a and b are np.arrays. 
+    """Function lineseg_dist returns the distance the distance from point p to line segment [a,b]. p, a and b are np.arrays.
 
     Taken from SO https://stackoverflow.com/questions/56463412/distance-from-a-point-to-a-line-segment-in-3d-python
 
@@ -86,7 +87,7 @@ def lineseg_dist(p, a, b):
 
     Returns:
         _type_: _description_
-    """    
+    """
     # normalized tangent vector
     d = np.divide(b - a, np.linalg.norm(b - a))
 
@@ -102,14 +103,15 @@ def lineseg_dist(p, a, b):
 
     return np.hypot(h, np.linalg.norm(c))
 
+
 def angle_between_3d(v1, v2):
     """
     Calculates the angle between two 3D vectors.
-    
+
     Args:
         v1: The first 3D vector.
         v2: The second 3D vector.
-        
+
     Returns:
         The angle between the two vectors in degrees.
     """
@@ -118,8 +120,9 @@ def angle_between_3d(v1, v2):
     v2_u = unit_vector(v2)
     return math.degrees(np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0)))
 
+
 def distance_between_3d_points(point1, point2):
-    """ Compute distance between two 3d points
+    """Compute distance between two 3d points
 
     Args:
         point1 (_type_): Numpy array of coordinates
@@ -127,7 +130,7 @@ def distance_between_3d_points(point1, point2):
 
     Returns:
         _type_: float of distance
-    """    
-    squared_dist = np.sum((point1-point2)**2, axis=0)
+    """
+    squared_dist = np.sum((point1 - point2) ** 2, axis=0)
     dist = np.sqrt(squared_dist)
     return dist
