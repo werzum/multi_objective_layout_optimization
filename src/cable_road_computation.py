@@ -68,7 +68,7 @@ def generate_possible_lines(
     line_df = line_df[line_df["slope_deviation"] < max_main_line_slope_deviation]
     print(len(line_df), " after slope deviations")
 
-    line_df = line_df.iloc[::50]
+    line_df = line_df.iloc[::10]
 
     # filter the candidates for support trees
     # overall_trees, target, point, possible_line
@@ -83,7 +83,7 @@ def generate_possible_lines(
     print(len(line_df), " after supports trees")
 
     # filter the triple angles for good supports
-    line_df["possible_anchor_triples"], line_df["max_supported_force"] = zip(
+    line_df["possible_anchor_triples"], line_df["max_holding_force"] = zip(
         *[
             generate_triple_angle(Point(line.coords[0]), line, anchor_trees)
             for line in line_df["line_candidates"]
@@ -103,7 +103,7 @@ def generate_possible_lines(
             compute_required_supports(
                 line["line_candidates"],
                 line["possible_anchor_triples"],
-                line["max_supported_force"],
+                line["max_holding_force"],
                 height_gdf,
                 0,
                 overall_trees,
@@ -349,6 +349,7 @@ def compute_required_supports(
                     mechanical_computations.check_if_support_withstands_tension(
                         candidate_tree.diameter_series[diameters_index],
                         candidate_tree.height_series[diameters_index],
+                        candidate_tree.max_supported_force_series[diameters_index],
                         road_to_support_cable_road,
                         support_to_anchor_cable_road,
                     )
@@ -540,7 +541,7 @@ def generate_triple_angle(
         return (
             # return the first combination per main anchor line
             [sublist[0] for sublist in central_trees["possible_anchor_triples"]],
-            central_trees["max_supported_force"].to_list(),
+            central_trees["max_holding_force"].to_list(),
         )
 
 

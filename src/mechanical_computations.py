@@ -85,6 +85,7 @@ def check_if_no_collisions_segments(this_cable_road: classes.Cable_Road):
 def check_if_support_withstands_tension(
     diameter_at_height: float,
     attached_at_height: int,
+    max_supported_force: float,
     left_cable_road: classes.Cable_Road,
     right_cable_road: classes.Cable_Road,
 ) -> bool:
@@ -113,13 +114,9 @@ def check_if_support_withstands_tension(
         right_cable_road, scaling_factor, return_points=False
     )
 
-    # get the supported force of the support tree
-    # TBD this can also be done in advance - attached at height+2 to accomodate stütze itself
-    max_force_of_support = euler_knicklast(diameter_at_height, attached_at_height + 2)
-
     print("forces on lr support", force_on_support_left, force_on_support_right)
     # return true if the support can bear more than the exerted force
-    return max_force_of_support > max(force_on_support_left, force_on_support_right)
+    return max_supported_force > max(force_on_support_left, force_on_support_right)
 
 
 def compute_tension_sloped_vs_empty_cableroad(
@@ -362,7 +359,7 @@ def parallelverschiebung(force: float, angle: float) -> float:
 
 def check_if_tower_and_anchor_trees_hold(
     this_cable_road: classes.Cable_Road,
-    max_supported_force: list[float],
+    max_holding_force: list[float],
     anchor_triplets: list,
     height_gdf: gpd.GeoDataFrame,
     ax: plt.Axes = None,
@@ -375,7 +372,7 @@ def check_if_tower_and_anchor_trees_hold(
 
     Args:
         this_cable_road (classes.Cable_Road): The cable road that is checked.
-        max_supported_force (list[float]): The maximum force that the tower and anchor can support.
+        max_holding_force (list[float]): The maximum force that the tower and anchor can support.
         anchor_triplets (list): The anchor triplets that are checked.
         height_gdf (gpd.GeoDataFrame): The height gdf that is used to fetch the height of the tower and anchor.
         ax (plt.Axes, optional): The axes that is used to plot the sideways view. Defaults to None.
@@ -454,10 +451,10 @@ def check_if_tower_and_anchor_trees_hold(
 
         print("force on anchor", force_on_anchor)
         print("force on twoer", force_on_tower)
-        print("max supported force by anchor", max_supported_force[index])
+        print("max supported force by anchor", max_holding_force[index])
         print(maximum_tower_force)
         if force_on_tower < maximum_tower_force:
-            if force_on_anchor < max_supported_force[index]:
+            if force_on_anchor < max_holding_force[index]:
                 # do I need to build up a list?
                 this_cable_road.anchor_triplets = anchor_triplets[index]
                 return True
@@ -592,6 +589,8 @@ def euler_knicklast(tree_diameter: float, height_of_attachment: float) -> float:
     Returns:
         float: the force the tree can withstand
     """
+    if height_of_attachment == 0:
+        height_of_attachment = 1
 
     E_module_wood = 11000
     security_factor = 5

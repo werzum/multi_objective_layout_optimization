@@ -37,6 +37,12 @@ class Cable_Road:
         self.s_current_tension = 0.0
 
     def compute_line_height(self, height_gdf: gpd.GeoDataFrame):
+        """compute the height of the line above the floor as well as the start and end point in 3d.
+        Sets the floor_height_below_line_points and the line_start_point_array and line_end_point_array
+        Args:
+            height_gdf (gpd.GeoDataFrame): the floor height data
+        """
+        # generate four lists of x and y values with min and max values for each point
         x_point_min, x_point_max, y_point_min, y_point_max = zip(
             *[
                 (
@@ -49,6 +55,8 @@ class Cable_Road:
             ]
         )
 
+        # for each value in the list, find the elevation of the floor below the line in the height_gdf by selecting the
+        # first matching value in the height_gdf
         self.floor_height_below_line_points = [
             height_gdf[
                 height_gdf.x.between(x_point_min[i], x_point_max[i])

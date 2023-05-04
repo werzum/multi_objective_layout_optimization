@@ -1,95 +1,44 @@
 Timer unit: 1e-09 s
 
-Total time: 21.0799 s
-File: /home/carlo/GitHub/MultiObjectOptimizationCableYarding/src/cable_road_computation.py
-Function: compute_initial_cable_road at line 144
+Total time: 20.3191 s
+File: /home/carlo/GitHub/MultiObjectOptimizationCableYarding/src/classes.py
+Function: compute_line_height at line 39
 
 Line #      Hits         Time  Per Hit   % Time  Line Contents
 ==============================================================
-   144                                           def compute_initial_cable_road(
-   145                                               possible_line: LineString,
-   146                                               height_gdf: gpd.GeoDataFrame,
-   147                                               pre_tension: int,
-   148                                               current_supports: int = 0,
-   149                                           ) -> classes.Cable_Road:
-   150                                               """Create a CR object and compute its initial properties like height, points along line etc
-   151                                           
-   152                                               Args:
-   153                                                   possible_line (_type_): _description_
-   154                                                   height_gdf (_type_): _description_
-   155                                           
-   156                                               Returns:
-   157                                                   _type_: Cable_Road Objects
-   158                                               """
-   159        60     413347.0   6889.1      0.0      print("Computing initial cable road")
-   160        60    4714689.0  78578.1      0.0      this_cable_road = classes.Cable_Road(possible_line)
-   161                                           
-   162        60      23929.0    398.8      0.0      this_cable_road.start_point_height = (
-   163        60  492219856.0 8203664.3      2.3          geometry_operations.fetch_point_elevation(
-   164        60      14497.0    241.6      0.0              this_cable_road.start_point, height_gdf, this_cable_road.max_deviation
-   165                                                   )
-   166        60      56932.0    948.9      0.0          + this_cable_road.support_height
-   167                                               )
-   168        60      24859.0    414.3      0.0      this_cable_road.end_point_height = (
-   169        60  471288777.0 7854813.0      2.2          geometry_operations.fetch_point_elevation(
-   170        60      30078.0    501.3      0.0              this_cable_road.end_point, height_gdf, this_cable_road.max_deviation
-   171                                                   )
-   172        60      57954.0    965.9      0.0          + this_cable_road.support_height
-   173                                               )
-   174                                           
-   175                                               # fetch the floor points along the line
-   176        60   34328394.0 572139.9      0.2      this_cable_road.points_along_line = geometry_operations.generate_road_points(
-   177        60      20803.0    346.7      0.0          this_cable_road.line, interval=2
-   178                                               )
-   179                                           
-   180                                               # get the height of those points and set them as attributes to the CR object
-   181        60 19924297512.0 332071625.2     94.5      this_cable_road.compute_line_height(height_gdf)
-   182                                           
-   183                                               # generate floor points and their distances
-   184        60     454131.0   7568.9      0.0      this_cable_road.floor_points = list(
-   185        60      45663.0    761.0      0.0          zip(
-   186        60   19735503.0 328925.0      0.1              [point.x for point in this_cable_road.points_along_line],
-   187        60   18203132.0 303385.5      0.1              [point.y for point in this_cable_road.points_along_line],
-   188        60      11988.0    199.8      0.0              this_cable_road.floor_height_below_line_points,
-   189                                                   )
-   190                                               )
-   191                                           
-   192        60     160957.0   2682.6      0.0      this_cable_road.line_to_floor_distances = np.asarray(
-   193        60   89885023.0 1498083.7      0.4          [
-   194                                                       geometry_utilities.lineseg_dist(
-   195                                                           point,
-   196                                                           this_cable_road.line_start_point_array,
-   197                                                           this_cable_road.line_end_point_array,
-   198                                                       )
-   199        60       5854.0     97.6      0.0              for point in this_cable_road.floor_points
-   200                                                   ]
-   201                                               )
-   202                                           
-   203                                               # get the rope length
-   204        60    1192397.0  19873.3      0.0      this_cable_road.b_length_whole_section = this_cable_road.start_point.distance(
-   205        60       8633.0    143.9      0.0          this_cable_road.end_point
-   206                                               )
-   207                                           
-   208        60    1439037.0  23984.0      0.0      this_cable_road.c_rope_length = geometry_utilities.distance_between_3d_points(
-   209        60      11519.0    192.0      0.0          this_cable_road.line_start_point_array, this_cable_road.line_end_point_array
-   210                                               )
-   211                                           
-   212        60    3336322.0  55605.4      0.0      mechanical_computations.initialize_line_tension(
-   213        60      11979.0    199.7      0.0          this_cable_road, current_supports, pre_tension
-   214                                               )
-   215                                           
-   216                                               # and calculate the sloped ltfd
-   217        60     338170.0   5636.2      0.0      y_x_deflections = np.asarray(
-   218        60   17227723.0 287128.7      0.1          [
-   219                                                       mechanical_computations.pestal_load_path(this_cable_road, point)
-   220        60      13919.0    232.0      0.0              for point in this_cable_road.points_along_line
-   221                                                   ],
-   222        60      52611.0    876.9      0.0          dtype=np.float32,
-   223                                               )
-   224                                           
-   225                                               #  check the distances between each floor point and the ldh point
-   226        60      34061.0    567.7      0.0      this_cable_road.sloped_line_to_floor_distances = (
-   227        60     210157.0   3502.6      0.0          this_cable_road.line_to_floor_distances - y_x_deflections
-   228                                               )
-   229                                           
-   230        60       8855.0    147.6      0.0      return this_cable_road
+    39                                               def compute_line_height(self, height_gdf: gpd.GeoDataFrame):
+    40        60     315763.0   5262.7      0.0          x_point_min, x_point_max, y_point_min, y_point_max = zip(
+    41        60   76865231.0 1281087.2      0.4              *[
+    42                                                           (
+    43                                                               point.x - self.max_deviation,
+    44                                                               point.x + self.max_deviation,
+    45                                                               point.y - self.max_deviation,
+    46                                                               point.y + self.max_deviation,
+    47                                                           )
+    48        60      15195.0    253.2      0.0                  for point in self.points_along_line
+    49                                                       ]
+    50                                                   )
+    51                                           
+    52        60 20236828095.0 337280468.2     99.6          self.floor_height_below_line_points = [
+    53                                                       height_gdf[
+    54                                                           height_gdf.x.between(x_point_min[i], x_point_max[i])
+    55                                                           & (height_gdf.y.between(y_point_min[i], y_point_max[i]))
+    56                                                       ]["elev"].values[0]
+    57        60      96921.0   1615.3      0.0              for i in range(len(x_point_min))
+    58                                                   ]
+    59                                           
+    60                                                   # create arrays for start and end point
+    61        60     175444.0   2924.1      0.0          self.line_start_point_array = np.array(
+    62        60       8722.0    145.4      0.0              [
+    63        60    3076181.0  51269.7      0.0                  self.start_point.x,
+    64        60     594238.0   9904.0      0.0                  self.start_point.y,
+    65        60      38962.0    649.4      0.0                  self.start_point_height,
+    66                                                       ]
+    67                                                   )
+    68        60      61579.0   1026.3      0.0          self.line_end_point_array = np.array(
+    69        60       6893.0    114.9      0.0              [
+    70        60     549919.0   9165.3      0.0                  self.end_point.x,
+    71        60     471123.0   7852.1      0.0                  self.end_point.y,
+    72        60      22171.0    369.5      0.0                  self.end_point_height,
+    73                                                       ]
+    74                                                   )
