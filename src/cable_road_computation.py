@@ -5,6 +5,7 @@ import pandas as pd
 import vispy.scene
 import geopandas as gpd
 from pandas import DataFrame
+from multiprocesspandas import applyparallel
 
 from src import (
     geometry_utilities,
@@ -98,23 +99,49 @@ def generate_possible_lines(
         line_df["number_of_supports"],
         line_df["location_of_int_supports"],
         line_df["current_tension"],
-    ) = zip(
-        *[
-            compute_required_supports(
-                line["line_candidates"],
-                line["possible_anchor_triples"],
-                line["max_holding_force"],
-                height_gdf,
-                0,
-                overall_trees,
-                [],
-                plot_possible_lines,
-                view,
-                pos,
-            )
-            for index, line in line_df.iterrows()
-        ]
+    ) = line_df.apply_parallel(
+        compute_required_supports,
+        height_gdf=height_gdf,
+        current_supports=0,
+        location_supports=[],
+        overall_trees=overall_trees,
+        plot_possible_lines=plot_possible_lines,
+        view=view,
+        pos=pos,
+        axis=0,
+        num_processes=6,
+        n_chunks=6,
     )
+
+    # results_list = list(results)
+    # (
+    #     line_df["number_of_supports"],
+    #     line_df["location_of_int_supports"],
+    #     line_df["current_tension"],
+    # ) = zip(*results_list)
+    # pos = []
+
+    # (
+    #     line_df["number_of_supports"],
+    #     line_df["location_of_int_supports"],
+    #     line_df["current_tension"],
+    # ) = zip(
+    #     *[
+    #         compute_required_supports(
+    #             line["line_candidates"],
+    #             line["possible_anchor_triples"],
+    #             line["max_holding_force"],
+    #             height_gdf,
+    #             0,
+    #             overall_trees,
+    #             [],
+    #             plot_possible_lines,
+    #             view,
+    #             pos,
+    #         )
+    #         for index, line in line_df.iterrows()
+    #     ]
+    # )
 
     # and filter lines out without successful lines
     line_df = line_df[line_df["number_of_supports"].apply(lambda x: x is not False)]
@@ -138,6 +165,24 @@ def generate_possible_lines(
         plotting.plot_vispy_scene(height_gdf, view, pos)
 
     return line_df, start_point_dict
+
+
+# helpter function for thread pool
+
+
+def compute_row(line, height_gdf, overall_trees, plot_possible_lines, view, pos):
+    return compute_required_supports(
+        line["line_candidates"],
+        line["possible_anchor_triples"],
+        line["max_holding_force"],
+        height_gdf,
+        0,
+        overall_trees,
+        [],
+        plot_possible_lines,
+        view,
+        pos,
+    )
 
 
 # Overarching functions to compute the cable road
@@ -231,9 +276,10 @@ def compute_initial_cable_road(
 
 
 def compute_required_supports(
-    possible_line: LineString,
-    anchor_triplets: list,
-    max_supported_forces: list[float],
+    x,
+    # possible_line: LineString,
+    # anchor_triplets: list,
+    # max_supported_forces: list[float],
     height_gdf: gpd.GeoDataFrame,
     current_supports: int,
     overall_trees: gpd.GeoDataFrame,
@@ -253,6 +299,10 @@ def compute_required_supports(
     Returns:
         _type_: _description_
     """
+    possible_line = x["line_candidates"]
+    anchor_triplets = x["possible_anchor_triples"]
+    max_supported_forces = x["max_holding_force"]
+
     this_cable_road = compute_initial_cable_road(
         possible_line,
         height_gdf,
@@ -486,7 +536,7 @@ def generate_triple_angle(
     """
     min_outer_anchor_angle = 20
     max_outer_anchor_angle = 50
-    max_center_tree_slope_angle = 3
+    max_center_tree_slope_angle = 5
     max_anchor_distance = 40
     min_anchor_distane = 15
 

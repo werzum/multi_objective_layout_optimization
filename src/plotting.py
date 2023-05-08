@@ -126,7 +126,7 @@ def plot_p_median_results(
             arr_points.append(geom)
             fac_sites.append(i)
             # get the corresponding anchor triple and support tree from the line_gdf
-            line_triples.append(line_gdf.iloc[i]["possible_anchor_triples"])
+            line_triples.append(line_gdf.iloc[i]["possible_anchor_triples"][0])
             support_trees.append(line_gdf.iloc[i]["possible_support_trees"])
 
     fig, ax = plt.subplots(figsize=(12, 12))
@@ -135,7 +135,7 @@ def plot_p_median_results(
     # ugly decomprehension
     unwrapped_triples = []
     for item in line_triples:
-        unwrapped_triples.append(gpd.GeoSeries(sum(item, [])))
+        unwrapped_triples.append(gpd.GeoSeries(item))
 
     # add the trees with respective color to which factory they belong to the map
     for i in range(len(arr_points)):

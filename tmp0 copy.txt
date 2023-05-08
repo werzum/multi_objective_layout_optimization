@@ -43,7 +43,8 @@ Line #      Hits         Time  Per Hit   % Time  Line Contents
    178                                               )
    179                                           
    180                                               # get the height of those points and set them as attributes to the CR object
-   181        60 47519919807.0 791998663.5     92.4      this_cable_road.compute_line_height(height_gdf)
+   181        60 47519919807.
+                 19924297512 0 791998663.5     92.4      this_cable_road.compute_line_height(height_gdf)
    182                                           
    183                                               # generate floor points and their distances
    184        60    1228799.0  20480.0      0.0      this_cable_road.floor_points = list(
