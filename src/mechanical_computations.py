@@ -197,12 +197,6 @@ def compute_tension_sloped_vs_empty_cableroad(
         ax.plot(*centroid_sloped.xy, "o", color="red")
         ax.plot(*force_applied_straight.xy, "o", color="blue")
         ax.plot(*force_applied_sloped.xy, "o", color="blue")
-        # # plot the points
-        # ax.plot(*s_max_point.xy, "o", color="black")
-        # # ax.plot(*s_a_point.xy, "o", color="green")
-        # # ax.plot(*a_3_point.xy, "o", color="red")
-        # # ax.plot(*a_4_point.xy, "o", color="red")
-        # # ax.plot(*a_5_point.xy, "o", color="blue")
 
         for lines in [
             [start_point, centroid_straight],
@@ -210,8 +204,27 @@ def compute_tension_sloped_vs_empty_cableroad(
         ]:
             ax.plot(*LineString(lines).xy, color="black")
 
-        ax.set_xlim(-150, 0)
-        ax.set_ylim(-100, 50)
+        ax.set_xlim(-120, 0)
+        ax.set_ylim(-60, 20)
+
+        ax.annotate(
+            "Start point",
+            xy=start_point.coords[0],
+            xytext=(-3, -15),
+            textcoords="offset points",
+        )
+        ax.annotate(
+            "Center point unloaded",
+            xy=centroid_straight.coords[0],
+            xytext=(-100, 10),
+            textcoords="offset points",
+        )
+        ax.annotate(
+            "Center point loaded",
+            xy=centroid_sloped.coords[0],
+            xytext=(0, -15),
+            textcoords="offset points",
+        )
 
     if return_points:
         return force_on_cable, force_applied_straight, force_applied_sloped
@@ -297,7 +310,8 @@ def calculate_sloped_line_to_floor_distances(this_cable_road: classes.Cable_Road
 
 
 def compute_angle_between_supports(
-    possible_line: LineString, height_gdf: gpd.GeoDataFrame
+    possible_line: LineString,
+    height_gdf: gpd.GeoDataFrame,
 ):
     """Compute the angle between the start and end support of a cable road.
 
@@ -436,6 +450,9 @@ def check_if_tower_and_anchor_trees_hold(
             anchor_xz_point,
             this_cable_road.s_current_tension,
             scaling_factor,
+            angle_point_xz,
+            angle_point_sloped_xz,
+            this_cable_road.floor_points,
             ax=ax3,
         )
 
@@ -447,7 +464,7 @@ def check_if_tower_and_anchor_trees_hold(
             )
 
             ax2.bar_label(ax2_container)
-            ax2.set_ylim(0, 100000)
+            ax2.set_ylim(0, 150000)
 
         print("force on anchor", force_on_anchor)
         print("force on twoer", force_on_tower)
@@ -468,6 +485,9 @@ def construct_tower_force_parallelogram(
     s_a_point_real: Point,
     force: float,
     scaling_factor: int,
+    angle_point_xz: Point,
+    angle_point_sloped_xz: Point,
+    floor_points: list = None,
     ax: plt.Axes = None,
 ) -> tuple[float, float]:
     """Constructs a parallelogram with the anchor point as its base, the force on the anchor as its height and the angle between the anchor tangent and the cr tangent as its angle.
@@ -522,15 +542,18 @@ def construct_tower_force_parallelogram(
 
     if ax:
         ax.clear()
-        ax.set_xlim(-50, 0)
-        ax.set_ylim(-30, 20)
+        ax.set_xlim(-35, -17)
+        ax.set_ylim(-5, 12)
 
         # plot the points
         ax.plot(*s_max_point.xy, "o", color="black")
-        ax.plot(*s_a_point_force.xy, "o", color="green")
+        ax.plot(*s_a_point_force.xy, "o", color="blue")
         ax.plot(*a_3_point.xy, "o", color="red")
         ax.plot(*a_4_point.xy, "o", color="red")
         ax.plot(*a_5_point.xy, "o", color="blue")
+
+        ax.plot(*angle_point_xz.xy, "o", color="blue")
+        ax.plot(*angle_point_sloped_xz.xy)
 
         for lines in [
             [s_max_point, tower_xz_point],
@@ -540,8 +563,68 @@ def construct_tower_force_parallelogram(
             [a_5_point, tower_xz_point],
             [a_5_point, a_3_point],
             [a_5_point, a_4_point],
+            [tower_xz_point, angle_point_xz],
+            [tower_xz_point, angle_point_sloped_xz],
+            [
+                Point([tower_xz_point.coords[0][0], s_max_point.coords[0][1]]),
+                Point([s_max_point.coords[0][0], s_max_point.coords[0][1]]),
+            ],  # smax to anchor line
+            [
+                Point([s_a_point_force.coords[0][0], s_a_point_force.coords[0][1]]),
+                Point([tower_xz_point.coords[0][0], s_max_point.coords[0][1]]),
+            ],  # sa to anchor line
+            [
+                Point([a_3_point.coords[0][0], a_3_point.coords[0][1]]),
+                Point(
+                    [
+                        tower_xz_point.coords[0][0],
+                        tower_xz_point.coords[0][1] - s_max_length,
+                    ]
+                ),
+            ],  # s3 to anchor with length of smax
+            [
+                Point([a_4_point.coords[0][0], a_4_point.coords[0][1]]),
+                Point([tower_xz_point.coords[0][0], a_4_point.coords[0][1]]),
+            ],
         ]:
             ax.plot(*LineString(lines).xy, color="black")
+
+        ax.annotate(
+            "Force on Cable",
+            s_max_point.coords[0],
+            xytext=(3, -15),
+            textcoords="offset points",
+        )
+        ax.annotate(
+            "Force on Anchor",
+            s_a_point_force.coords[0],
+            xytext=(3, -15),
+            textcoords="offset points",
+        )
+        ax.annotate(
+            "Force on Tower",
+            a_5_point.coords[0],
+            xytext=(3, -15),
+            textcoords="offset points",
+        )
+        ax.annotate(
+            "Buckling Force left",
+            a_3_point.coords[0],
+            xytext=(5, -5),
+            textcoords="offset points",
+        )
+        ax.annotate(
+            "Buckling Force right",
+            a_4_point.coords[0],
+            xytext=(3, -15),
+            textcoords="offset points",
+        )
+        ax.annotate(
+            "Unloaded Cable",
+            angle_point_xz.coords[0],
+            xytext=(-90, -5),
+            textcoords="offset points",
+        )
 
     return force_on_anchor, force_on_tower
 

@@ -69,7 +69,7 @@ def generate_possible_lines(
     line_df = line_df[line_df["slope_deviation"] < max_main_line_slope_deviation]
     print(len(line_df), " after slope deviations")
 
-    line_df = line_df.iloc[::10]
+    # line_df = line_df.iloc[::10]
 
     # filter the candidates for support trees
     # overall_trees, target, point, possible_line
@@ -95,53 +95,28 @@ def generate_possible_lines(
 
     # check if we have no height obstructions - compute the supports we need according to line tension and anchor configs
     pos = []
+
     (
         line_df["number_of_supports"],
         line_df["location_of_int_supports"],
         line_df["current_tension"],
-    ) = line_df.apply_parallel(
-        compute_required_supports,
-        height_gdf=height_gdf,
-        current_supports=0,
-        location_supports=[],
-        overall_trees=overall_trees,
-        plot_possible_lines=plot_possible_lines,
-        view=view,
-        pos=pos,
-        axis=0,
-        num_processes=6,
-        n_chunks=6,
+    ) = zip(
+        *[
+            compute_required_supports(
+                line["line_candidates"],
+                line["possible_anchor_triples"],
+                line["max_holding_force"],
+                height_gdf,
+                0,
+                overall_trees,
+                [],
+                plot_possible_lines,
+                view,
+                pos,
+            )
+            for index, line in line_df.iterrows()
+        ]
     )
-
-    # results_list = list(results)
-    # (
-    #     line_df["number_of_supports"],
-    #     line_df["location_of_int_supports"],
-    #     line_df["current_tension"],
-    # ) = zip(*results_list)
-    # pos = []
-
-    # (
-    #     line_df["number_of_supports"],
-    #     line_df["location_of_int_supports"],
-    #     line_df["current_tension"],
-    # ) = zip(
-    #     *[
-    #         compute_required_supports(
-    #             line["line_candidates"],
-    #             line["possible_anchor_triples"],
-    #             line["max_holding_force"],
-    #             height_gdf,
-    #             0,
-    #             overall_trees,
-    #             [],
-    #             plot_possible_lines,
-    #             view,
-    #             pos,
-    #         )
-    #         for index, line in line_df.iterrows()
-    #     ]
-    # )
 
     # and filter lines out without successful lines
     line_df = line_df[line_df["number_of_supports"].apply(lambda x: x is not False)]
