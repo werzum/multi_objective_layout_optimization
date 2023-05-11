@@ -229,10 +229,6 @@ def compute_tension_sloped_vs_empty_cableroad(
         right_line_sp_centroid_sloped,
     ) = get_centroid_and_line(right_cable_road, start_point, False, right_index)
 
-    # # extend the lines and find the interpolated point
-    # right_sloped_extended = right_line_sp_centroid_sloped.interpolate(100)
-    # right_sloped_
-
     angle_left_straight_right_sloped = 180 - geometry_utilities.angle_between(
         left_line_sp_centroid_straight, right_line_sp_centroid_sloped
     )
@@ -266,10 +262,24 @@ def compute_tension_sloped_vs_empty_cableroad(
         scaling_factor,
     )
 
+    force_applied_straight = LineString(
+        [right_line_sp_centroid_straight.interpolate(tension), start_point]
+    )
+    force_applied_sloped = LineString(
+        [right_straight_rotated.interpolate(tension), start_point]
+    )
+
+    resulting_force_line = LineString(
+        [
+            right_line_sp_centroid_straight.interpolate(tension),
+            right_straight_rotated.interpolate(tension),
+        ]
+    )
+
     if ax:
         ax.plot(*start_point.xy, "o", color="black")
-        ax.plot(*left_centroid_straight.xy, "o", color="green")
-        ax.plot(*left_centroid_sloped.xy, "o", color="red")
+        # ax.plot(*left_centroid_straight.xy, "o", color="green")
+        # ax.plot(*left_centroid_sloped.xy, "o", color="red")
         # ax.plot(*force_applied_straight.xy, "o", color="blue")
         # ax.plot(*force_applied_sloped.xy, "o", color="blue")
 
@@ -277,38 +287,20 @@ def compute_tension_sloped_vs_empty_cableroad(
             # [start_point, left_centroid_straight],
             # [start_point, left_centroid_sloped],
             left_line_sp_centroid_sloped,
-            left_line_sp_centroid_straight,
-            right_line_sp_centroid_sloped,
-            right_line_sp_centroid_straight,
+            # left_line_sp_centroid_straight,
+            # right_line_sp_centroid_sloped,
             right_straight_rotated,
-            left_straight_rotated,
+            right_line_sp_centroid_straight,
         ]:
             ax.plot(*LineString(lines).xy, color="black")
 
         # ax.set_xlim(-120, 0)
         # ax.set_ylim(-60, 20)
 
-        ax.annotate(
-            "Start point",
-            xy=start_point.coords[0],
-            xytext=(-3, -15),
-            fontsize=14,
-            textcoords="offset points",
-        )
-        ax.annotate(
-            "Center point \nunloaded",
-            xy=left_centroid_straight.coords[0],
-            xytext=(-80, 10),
-            fontsize=14,
-            textcoords="offset points",
-        )
-        ax.annotate(
-            "Center point \nloaded",
-            xy=left_centroid_sloped.coords[0],
-            xytext=(0, -35),
-            fontsize=14,
-            textcoords="offset points",
-        )
+        for lines in [force_applied_straight, force_applied_sloped]:
+            ax.plot(*LineString(lines).xy, color="orange")
+
+        ax.plot(*resulting_force_line.xy, color="green")
 
     if return_points:
         return force_on_cable, force_applied_straight, force_applied_sloped
@@ -719,7 +711,7 @@ def construct_tower_force_parallelogram(
     return force_on_anchor, force_on_tower
 
 
-def pestal_load_path(cable_road: classes.Cable_Road, point: Point):
+def pestal_load_path(cable_road: classes.Cable_Road, point: Point, loaded: bool = True):
     """Calculates the load path of the cable road based on the pestal method
 
     Args:
@@ -730,7 +722,10 @@ def pestal_load_path(cable_road: classes.Cable_Road, point: Point):
     """
     T_0_basic_tensile_force = cable_road.s_current_tension
     q_s_rope_weight = 1.6
-    q_vertical_force = 15000
+    if loaded:
+        q_vertical_force = 15000
+    else:
+        q_vertical_force = 0
 
     h_height_difference = abs(
         cable_road.end_point_height - cable_road.start_point_height

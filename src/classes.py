@@ -15,6 +15,7 @@ class Cable_Road:
         )  # the elevation of the floor below the line
         self.line_to_floor_distances = np.array([])
         self.sloped_line_to_floor_distances = np.array([])
+        self.unloaded_line_to_floor_distances = np.array([])
         """ geometry features """
         self.line = line
         self.start_point = Point(line.coords[0])

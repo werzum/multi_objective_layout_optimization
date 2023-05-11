@@ -216,7 +216,7 @@ def compute_initial_cable_road(
     )
 
     # and calculate the sloped ltfd
-    y_x_deflections = np.asarray(
+    y_x_deflections_loaded = np.asarray(
         [
             mechanical_computations.pestal_load_path(this_cable_road, point)
             for point in this_cable_road.points_along_line
@@ -224,9 +224,24 @@ def compute_initial_cable_road(
         dtype=np.float32,
     )
 
+    # as well as the empty deflections
+    y_x_deflections_unloaded = np.asarray(
+        [
+            mechanical_computations.pestal_load_path(
+                this_cable_road, point, loaded=False
+            )
+            for point in this_cable_road.points_along_line
+        ],
+        dtype=np.float32,
+    )
+
     #  check the distances between each floor point and the ldh point
     this_cable_road.sloped_line_to_floor_distances = (
-        this_cable_road.line_to_floor_distances - y_x_deflections
+        this_cable_road.line_to_floor_distances - y_x_deflections_loaded
+    )
+
+    this_cable_road.unloaded_line_to_floor_distances = (
+        this_cable_road.line_to_floor_distances - y_x_deflections_unloaded
     )
 
     return this_cable_road
