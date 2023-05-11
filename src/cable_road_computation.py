@@ -142,24 +142,6 @@ def generate_possible_lines(
     return line_df, start_point_dict
 
 
-# helpter function for thread pool
-
-
-def compute_row(line, height_gdf, overall_trees, plot_possible_lines, view, pos):
-    return compute_required_supports(
-        line["line_candidates"],
-        line["possible_anchor_triples"],
-        line["max_holding_force"],
-        height_gdf,
-        0,
-        overall_trees,
-        [],
-        plot_possible_lines,
-        view,
-        pos,
-    )
-
-
 # Overarching functions to compute the cable road
 def compute_initial_cable_road(
     possible_line: LineString,
@@ -251,10 +233,9 @@ def compute_initial_cable_road(
 
 
 def compute_required_supports(
-    x,
-    # possible_line: LineString,
-    # anchor_triplets: list,
-    # max_supported_forces: list[float],
+    possible_line: LineString,
+    anchor_triplets: list,
+    max_supported_forces: list[float],
     height_gdf: gpd.GeoDataFrame,
     current_supports: int,
     overall_trees: gpd.GeoDataFrame,
@@ -274,10 +255,6 @@ def compute_required_supports(
     Returns:
         _type_: _description_
     """
-    possible_line = x["line_candidates"]
-    anchor_triplets = x["possible_anchor_triples"]
-    max_supported_forces = x["max_holding_force"]
-
     this_cable_road = compute_initial_cable_road(
         possible_line,
         height_gdf,

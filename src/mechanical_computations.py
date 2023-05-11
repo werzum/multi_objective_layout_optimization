@@ -1,5 +1,6 @@
 import math
 from shapely.geometry import LineString, Point, Polygon
+from shapely.affinity import rotate
 import numpy as np
 import vispy.scene
 import geopandas as gpd
@@ -119,8 +120,63 @@ def check_if_support_withstands_tension(
     return max_supported_force > max(force_on_support_left, force_on_support_right)
 
 
+def get_centroid_and_line(
+    cable_road: classes.Cable_Road, start_point: Point, move_left: bool, index: int
+) -> tuple[Point, Point, LineString, LineString]:
+    # get the centroid of the CR
+    centroid_straight_height = (
+        cable_road.floor_height_below_line_points[index]
+        + cable_road.line_to_floor_distances[index]
+    )
+
+    if move_left:
+        # shift the x coordinate by half the length of the CR to get the middle
+        centroid_x_sideways = (
+            cable_road.start_point.coords[0][0] - cable_road.c_rope_length // 2
+        )
+    else:
+        centroid_x_sideways = (
+            cable_road.start_point.coords[0][0] + cable_road.c_rope_length // 2
+        )
+
+    centroid_straight = Point([centroid_x_sideways, centroid_straight_height])
+
+    centroid_sloped_height = (
+        cable_road.floor_height_below_line_points[index]
+        + cable_road.sloped_line_to_floor_distances[index]
+    )
+
+    centroid_sloped = Point([centroid_x_sideways, centroid_sloped_height])
+
+    # get the angle between them
+    line_sp_centroid_straight = LineString([start_point, centroid_straight])
+    line_sp_centroid_sloped = LineString([start_point, centroid_sloped])
+
+    return (
+        centroid_straight,
+        centroid_sloped,
+        line_sp_centroid_straight,
+        line_sp_centroid_sloped,
+    )
+
+
+def compute_resulting_force_on_cable(
+    straight_line: LineString,
+    sloped_line: LineString,
+    tension: float,
+    scaling_factor: int,
+) -> float:
+    # interpolate the force along both lines
+    force_applied_straight = straight_line.interpolate(tension)
+    force_applied_sloped = sloped_line.interpolate(tension)
+
+    # get the distance between both, which represents the force on the cable
+    return force_applied_straight.distance(force_applied_sloped) * scaling_factor
+
+
 def compute_tension_sloped_vs_empty_cableroad(
-    cable_road: classes.Cable_Road,
+    left_cable_road: classes.Cable_Road,
+    right_cable_road: classes.Cable_Road,
     scaling_factor: int,
     ax: plt.Axes = None,
     return_points: bool = False,
@@ -143,86 +199,114 @@ def compute_tension_sloped_vs_empty_cableroad(
     """
 
     # get the tension that we want to apply on the CR
-    tension = cable_road.s_current_tension // scaling_factor  # scaling to dekanewton
+    tension = (
+        left_cable_road.s_current_tension // scaling_factor
+    )  # scaling to dekanewton
 
     # our start point
     start_point = Point(
         [
-            cable_road.start_point.coords[0][0],
-            cable_road.start_point_height,
+            right_cable_road.start_point.coords[0][0],
+            right_cable_road.start_point_height,
         ]
     )
 
     # construct to xz points at the middle of the CR
-    index = len(cable_road.points_along_line) // 2
-    centroid_straight_height = (
-        cable_road.floor_height_below_line_points[index]
-        + cable_road.line_to_floor_distances[index]
-    )
-    # shift the x coordinate by half the length of the CR to get the middle
-    centroid_x_sideways = (
-        cable_road.start_point.coords[0][0] - cable_road.c_rope_length // 2
-    )
-    centroid_straight = Point([centroid_x_sideways, centroid_straight_height])
+    left_index = len(left_cable_road.points_along_line) // 2
+    right_index = len(right_cable_road.points_along_line) // 2
 
-    centroid_sloped_height = (
-        cable_road.floor_height_below_line_points[index]
-        + cable_road.sloped_line_to_floor_distances[index]
-    )
+    # get the centroid, lines and angles of the CR
+    (
+        left_centroid_straight,
+        left_centroid_sloped,
+        left_line_sp_centroid_straight,
+        left_line_sp_centroid_sloped,
+    ) = get_centroid_and_line(left_cable_road, start_point, True, left_index)
+    (
+        right_centroid_straight,
+        right_centroid_sloped,
+        right_line_sp_centroid_straight,
+        right_line_sp_centroid_sloped,
+    ) = get_centroid_and_line(right_cable_road, start_point, False, right_index)
 
-    centroid_sloped = Point([centroid_x_sideways, centroid_sloped_height])
+    # # extend the lines and find the interpolated point
+    # right_sloped_extended = right_line_sp_centroid_sloped.interpolate(100)
+    # right_sloped_
 
-    # get the angle between them
-    line_sp_centroid_straight = LineString([start_point, centroid_straight])
-    line_sp_centroid_sloped = LineString([start_point, centroid_sloped])
-    angle_centroids = geometry_utilities.angle_between(
-        line_sp_centroid_straight, line_sp_centroid_sloped
-    )
-
-    # interpolate the force along both lines
-    force_applied_straight = line_sp_centroid_straight.interpolate(tension)
-    force_applied_sloped = line_sp_centroid_sloped.interpolate(tension)
-
-    # get the distance between both, which represents the force on the cable
-    force_on_cable = (
-        force_applied_straight.distance(force_applied_sloped) * scaling_factor
+    angle_left_straight_right_sloped = 180 - geometry_utilities.angle_between(
+        left_line_sp_centroid_straight, right_line_sp_centroid_sloped
     )
 
-    print("angle centroids", angle_centroids)
-    print("force on cable", force_on_cable)
+    angle_left_sloped_right_straight = 180 - geometry_utilities.angle_between(
+        left_line_sp_centroid_sloped, right_line_sp_centroid_straight
+    )
+
+    left_straight_rotated = rotate(
+        left_line_sp_centroid_straight,
+        angle_left_straight_right_sloped,
+        origin=start_point,
+    )
+    right_straight_rotated = rotate(
+        right_line_sp_centroid_straight,
+        360 - angle_left_sloped_right_straight,
+        origin=start_point,
+    )
+
+    force_on_left_cable = compute_resulting_force_on_cable(
+        left_line_sp_centroid_straight,
+        left_straight_rotated,
+        tension,
+        scaling_factor,
+    )
+
+    force_on_right_cable = compute_resulting_force_on_cable(
+        right_line_sp_centroid_straight,
+        right_straight_rotated,
+        tension,
+        scaling_factor,
+    )
 
     if ax:
         ax.plot(*start_point.xy, "o", color="black")
-        ax.plot(*centroid_straight.xy, "o", color="green")
-        ax.plot(*centroid_sloped.xy, "o", color="red")
-        ax.plot(*force_applied_straight.xy, "o", color="blue")
-        ax.plot(*force_applied_sloped.xy, "o", color="blue")
+        ax.plot(*left_centroid_straight.xy, "o", color="green")
+        ax.plot(*left_centroid_sloped.xy, "o", color="red")
+        # ax.plot(*force_applied_straight.xy, "o", color="blue")
+        # ax.plot(*force_applied_sloped.xy, "o", color="blue")
 
         for lines in [
-            [start_point, centroid_straight],
-            [start_point, centroid_sloped],
+            # [start_point, left_centroid_straight],
+            # [start_point, left_centroid_sloped],
+            left_line_sp_centroid_sloped,
+            left_line_sp_centroid_straight,
+            right_line_sp_centroid_sloped,
+            right_line_sp_centroid_straight,
+            right_straight_rotated,
+            left_straight_rotated,
         ]:
             ax.plot(*LineString(lines).xy, color="black")
 
-        ax.set_xlim(-120, 0)
-        ax.set_ylim(-60, 20)
+        # ax.set_xlim(-120, 0)
+        # ax.set_ylim(-60, 20)
 
         ax.annotate(
             "Start point",
             xy=start_point.coords[0],
             xytext=(-3, -15),
+            fontsize=14,
             textcoords="offset points",
         )
         ax.annotate(
-            "Center point unloaded",
-            xy=centroid_straight.coords[0],
-            xytext=(-100, 10),
+            "Center point \nunloaded",
+            xy=left_centroid_straight.coords[0],
+            xytext=(-80, 10),
+            fontsize=14,
             textcoords="offset points",
         )
         ax.annotate(
-            "Center point loaded",
-            xy=centroid_sloped.coords[0],
-            xytext=(0, -15),
+            "Center point \nloaded",
+            xy=left_centroid_sloped.coords[0],
+            xytext=(0, -35),
+            fontsize=14,
             textcoords="offset points",
         )
 
@@ -593,36 +677,42 @@ def construct_tower_force_parallelogram(
             "Force on Cable",
             s_max_point.coords[0],
             xytext=(3, -15),
+            fontsize=14,
             textcoords="offset points",
         )
         ax.annotate(
             "Force on Anchor",
             s_a_point_force.coords[0],
             xytext=(3, -15),
+            fontsize=14,
             textcoords="offset points",
         )
         ax.annotate(
             "Force on Tower",
             a_5_point.coords[0],
             xytext=(3, -15),
+            fontsize=14,
             textcoords="offset points",
         )
         ax.annotate(
             "Buckling Force left",
             a_3_point.coords[0],
             xytext=(5, -5),
+            fontsize=14,
             textcoords="offset points",
         )
         ax.annotate(
             "Buckling Force right",
             a_4_point.coords[0],
             xytext=(3, -15),
+            fontsize=14,
             textcoords="offset points",
         )
         ax.annotate(
             "Unloaded Cable",
             angle_point_xz.coords[0],
-            xytext=(-90, -5),
+            xytext=(-97, 6),
+            fontsize=14,
             textcoords="offset points",
         )
 
@@ -672,8 +762,8 @@ def euler_knicklast(tree_diameter: float, height_of_attachment: float) -> float:
     Returns:
         float: the force the tree can withstand
     """
-    if height_of_attachment == 0:
-        height_of_attachment = 1
+    # if height_of_attachment == 0:
+    #     height_of_attachment = 1
 
     E_module_wood = 11000
     security_factor = 5
