@@ -487,7 +487,7 @@ def add_straight_line_to_go_figure(
     y_sample_cr = [point[1] for point in sample_cable_road.floor_points]
     z_line_to_floor = (
         sample_cable_road.floor_height_below_line_points
-        + sample_cable_road.line_to_floor_distances
+        + sample_cable_road.unloaded_line_to_floor_distances
     )
     fig = fig.add_trace(
         go.Scatter3d(
@@ -498,4 +498,108 @@ def add_straight_line_to_go_figure(
             line=dict(color="red", width=2),
             name="Straight Line Distance",
         )
+    )
+
+
+def plot_parallelogram(
+    ax: plt.Axes,
+    s_max_point: Point,
+    s_a_point_force: Point,
+    a_3_point: Point,
+    a_4_point: Point,
+    a_5_point: Point,
+    tower_xz_point: Point,
+    angle_point_xz: Point,
+    angle_point_sloped_xz: Point,
+    s_max_length: float,
+):
+    ax.clear()
+    ax.set_xlim(-35, -17)
+    ax.set_ylim(-5, 12)
+
+    # plot the points
+    ax.plot(*s_max_point.xy, "o", color="black")
+    ax.plot(*s_a_point_force.xy, "o", color="blue")
+    ax.plot(*a_3_point.xy, "o", color="red")
+    ax.plot(*a_4_point.xy, "o", color="red")
+    ax.plot(*a_5_point.xy, "o", color="blue")
+
+    ax.plot(*angle_point_xz.xy, "o", color="blue")
+    ax.plot(*angle_point_sloped_xz.xy)
+
+    for lines in [
+        [s_max_point, tower_xz_point],
+        [s_a_point_force, tower_xz_point],
+        [a_3_point, s_max_point],
+        [a_4_point, s_a_point_force],
+        [a_5_point, tower_xz_point],
+        [a_5_point, a_3_point],
+        [a_5_point, a_4_point],
+        [tower_xz_point, angle_point_xz],
+        [tower_xz_point, angle_point_sloped_xz],
+        [
+            Point([tower_xz_point.coords[0][0], s_max_point.coords[0][1]]),
+            Point([s_max_point.coords[0][0], s_max_point.coords[0][1]]),
+        ],  # smax to anchor line
+        [
+            Point([s_a_point_force.coords[0][0], s_a_point_force.coords[0][1]]),
+            Point([tower_xz_point.coords[0][0], s_max_point.coords[0][1]]),
+        ],  # sa to anchor line
+        [
+            Point([a_3_point.coords[0][0], a_3_point.coords[0][1]]),
+            Point(
+                [
+                    tower_xz_point.coords[0][0],
+                    tower_xz_point.coords[0][1] - s_max_length,
+                ]
+            ),
+        ],  # s3 to anchor with length of smax
+        [
+            Point([a_4_point.coords[0][0], a_4_point.coords[0][1]]),
+            Point([tower_xz_point.coords[0][0], a_4_point.coords[0][1]]),
+        ],
+    ]:
+        ax.plot(*LineString(lines).xy, color="black")
+
+    ax.annotate(
+        "Force on Cable",
+        s_max_point.coords[0],
+        xytext=(3, -15),
+        fontsize=14,
+        textcoords="offset points",
+    )
+    ax.annotate(
+        "Force on Anchor",
+        s_a_point_force.coords[0],
+        xytext=(3, -15),
+        fontsize=14,
+        textcoords="offset points",
+    )
+    ax.annotate(
+        "Force on Tower",
+        a_5_point.coords[0],
+        xytext=(3, -15),
+        fontsize=14,
+        textcoords="offset points",
+    )
+    ax.annotate(
+        "Buckling Force left",
+        a_3_point.coords[0],
+        xytext=(5, -5),
+        fontsize=14,
+        textcoords="offset points",
+    )
+    ax.annotate(
+        "Buckling Force right",
+        a_4_point.coords[0],
+        xytext=(3, -15),
+        fontsize=14,
+        textcoords="offset points",
+    )
+    ax.annotate(
+        "Unloaded Cable",
+        angle_point_xz.coords[0],
+        xytext=(-97, 6),
+        fontsize=14,
+        textcoords="offset points",
     )

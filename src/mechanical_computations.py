@@ -109,10 +109,10 @@ def check_if_support_withstands_tension(
     scaling_factor = 10000
     ### Calculate the force on the support for the both cable roads
     force_on_support_left = compute_tension_sloped_vs_empty_cableroad(
-        left_cable_road, scaling_factor, return_points=False
+        left_cable_road, scaling_factor, return_lines=False
     )
     force_on_support_right = compute_tension_sloped_vs_empty_cableroad(
-        right_cable_road, scaling_factor, return_points=False
+        right_cable_road, scaling_factor, return_lines=False
     )
 
     print("forces on lr support", force_on_support_left, force_on_support_right)
@@ -122,11 +122,24 @@ def check_if_support_withstands_tension(
 
 def get_centroid_and_line(
     cable_road: classes.Cable_Road, start_point: Point, move_left: bool, index: int
-) -> tuple[Point, Point, LineString, LineString]:
+) -> tuple[LineString, LineString]:
+    """
+    Compute the centroid of the cable road and the line that connects the centroid to the start point
+
+    Args:
+        cable_road (classes.Cable_Road): The cable road object
+        start_point (Point): The start point of the cable road
+        move_left (bool): Whether to move left or right
+        index (int): The index of the point along the line
+    Returns:
+        tuple[LineString, LineString]: The straight line and the sloped line from start point to centroid
+
+    """
+
     # get the centroid of the CR
     centroid_straight_height = (
         cable_road.floor_height_below_line_points[index]
-        + cable_road.line_to_floor_distances[index]
+        + cable_road.unloaded_line_to_floor_distances[index]
     )
 
     if move_left:
@@ -153,8 +166,6 @@ def get_centroid_and_line(
     line_sp_centroid_sloped = LineString([start_point, centroid_sloped])
 
     return (
-        centroid_straight,
-        centroid_sloped,
         line_sp_centroid_straight,
         line_sp_centroid_sloped,
     )
@@ -166,6 +177,19 @@ def compute_resulting_force_on_cable(
     tension: float,
     scaling_factor: int,
 ) -> float:
+    """
+    This function calculates the force on a support tree, based on the tension in a loaded cable road by interpolating
+    the force along the straight line and the sloped line and calculating the distance between them.
+
+    Args:
+        straight_line (LineString): The straight line from the start point to the centroid
+        sloped_line (LineString): The sloped line from the start point to the centroid
+        tension (float): The tension in the cable road
+        scaling_factor (int): The scaling factor to convert the distance to a force
+    Returns:
+        float: The force on the support tree
+    """
+
     # interpolate the force along both lines
     force_applied_straight = straight_line.interpolate(tension)
     force_applied_sloped = sloped_line.interpolate(tension)
@@ -176,10 +200,10 @@ def compute_resulting_force_on_cable(
 
 def compute_tension_sloped_vs_empty_cableroad(
     left_cable_road: classes.Cable_Road,
-    right_cable_road: classes.Cable_Road,
+    right_cable_road: classes.Cable_Road = None,
     scaling_factor: int,
     ax: plt.Axes = None,
-    return_points: bool = False,
+    return_lines: bool = False,
 ) -> float | tuple[float, Point, Point]:
     """
     This function calculates the force on a support tree, based on the tension in a loaded cable road.
@@ -217,14 +241,10 @@ def compute_tension_sloped_vs_empty_cableroad(
 
     # get the centroid, lines and angles of the CR
     (
-        left_centroid_straight,
-        left_centroid_sloped,
         left_line_sp_centroid_straight,
         left_line_sp_centroid_sloped,
     ) = get_centroid_and_line(left_cable_road, start_point, True, left_index)
     (
-        right_centroid_straight,
-        right_centroid_sloped,
         right_line_sp_centroid_straight,
         right_line_sp_centroid_sloped,
     ) = get_centroid_and_line(right_cable_road, start_point, False, right_index)
@@ -276,6 +296,8 @@ def compute_tension_sloped_vs_empty_cableroad(
         ]
     )
 
+    force_on_cable = max(force_on_left_cable, force_on_right_cable)
+
     if ax:
         ax.plot(*start_point.xy, "o", color="black")
         # ax.plot(*left_centroid_straight.xy, "o", color="green")
@@ -302,7 +324,7 @@ def compute_tension_sloped_vs_empty_cableroad(
 
         ax.plot(*resulting_force_line.xy, color="green")
 
-    if return_points:
+    if return_lines:
         return force_on_cable, force_applied_straight, force_applied_sloped
     else:
         return force_on_cable
@@ -483,7 +505,7 @@ def check_if_tower_and_anchor_trees_hold(
         angle_point_xz,
         angle_point_sloped_xz,
     ) = compute_tension_sloped_vs_empty_cableroad(
-        this_cable_road, scaling_factor, return_points=True
+        this_cable_road, scaling_factor, return_lines=True
     )
 
     # start point of the cr tower
@@ -617,95 +639,17 @@ def construct_tower_force_parallelogram(
     force_on_tower = z_distance_anchor_a5 * scaling_factor
 
     if ax:
-        ax.clear()
-        ax.set_xlim(-35, -17)
-        ax.set_ylim(-5, 12)
-
-        # plot the points
-        ax.plot(*s_max_point.xy, "o", color="black")
-        ax.plot(*s_a_point_force.xy, "o", color="blue")
-        ax.plot(*a_3_point.xy, "o", color="red")
-        ax.plot(*a_4_point.xy, "o", color="red")
-        ax.plot(*a_5_point.xy, "o", color="blue")
-
-        ax.plot(*angle_point_xz.xy, "o", color="blue")
-        ax.plot(*angle_point_sloped_xz.xy)
-
-        for lines in [
-            [s_max_point, tower_xz_point],
-            [s_a_point_force, tower_xz_point],
-            [a_3_point, s_max_point],
-            [a_4_point, s_a_point_force],
-            [a_5_point, tower_xz_point],
-            [a_5_point, a_3_point],
-            [a_5_point, a_4_point],
-            [tower_xz_point, angle_point_xz],
-            [tower_xz_point, angle_point_sloped_xz],
-            [
-                Point([tower_xz_point.coords[0][0], s_max_point.coords[0][1]]),
-                Point([s_max_point.coords[0][0], s_max_point.coords[0][1]]),
-            ],  # smax to anchor line
-            [
-                Point([s_a_point_force.coords[0][0], s_a_point_force.coords[0][1]]),
-                Point([tower_xz_point.coords[0][0], s_max_point.coords[0][1]]),
-            ],  # sa to anchor line
-            [
-                Point([a_3_point.coords[0][0], a_3_point.coords[0][1]]),
-                Point(
-                    [
-                        tower_xz_point.coords[0][0],
-                        tower_xz_point.coords[0][1] - s_max_length,
-                    ]
-                ),
-            ],  # s3 to anchor with length of smax
-            [
-                Point([a_4_point.coords[0][0], a_4_point.coords[0][1]]),
-                Point([tower_xz_point.coords[0][0], a_4_point.coords[0][1]]),
-            ],
-        ]:
-            ax.plot(*LineString(lines).xy, color="black")
-
-        ax.annotate(
-            "Force on Cable",
-            s_max_point.coords[0],
-            xytext=(3, -15),
-            fontsize=14,
-            textcoords="offset points",
-        )
-        ax.annotate(
-            "Force on Anchor",
-            s_a_point_force.coords[0],
-            xytext=(3, -15),
-            fontsize=14,
-            textcoords="offset points",
-        )
-        ax.annotate(
-            "Force on Tower",
-            a_5_point.coords[0],
-            xytext=(3, -15),
-            fontsize=14,
-            textcoords="offset points",
-        )
-        ax.annotate(
-            "Buckling Force left",
-            a_3_point.coords[0],
-            xytext=(5, -5),
-            fontsize=14,
-            textcoords="offset points",
-        )
-        ax.annotate(
-            "Buckling Force right",
-            a_4_point.coords[0],
-            xytext=(3, -15),
-            fontsize=14,
-            textcoords="offset points",
-        )
-        ax.annotate(
-            "Unloaded Cable",
-            angle_point_xz.coords[0],
-            xytext=(-97, 6),
-            fontsize=14,
-            textcoords="offset points",
+        plotting.plot_parallelogram(
+            ax,
+            s_max_point,
+            s_a_point_force,
+            a_3_point,
+            a_4_point,
+            a_5_point,
+            tower_xz_point,
+            angle_point_xz,
+            angle_point_sloped_xz,
+            s_max_length,
         )
 
     return force_on_anchor, force_on_tower
@@ -767,3 +711,7 @@ def euler_knicklast(tree_diameter: float, height_of_attachment: float) -> float:
     )
 
     return withstood_force
+
+
+def compute_tension_single_cable_road():
+    """Check if the tree anchor supports the load put on it - compute the angle between sloped cable road and anchor line"""
