@@ -140,15 +140,21 @@ def get_centroid_and_line(
         LineString: The line that connects the centroid to the start point
     """
 
+    # add this factor to ensure we are looking at the correct heights if moving left - that is, start from the end of the array
+    if move_left:
+        move_left_or_right = -1
+    else:
+        move_left_or_right = 1
+
     if sloped:
         centroid_height = (
-            cable_road.floor_height_below_line_points[index]
-            + cable_road.sloped_line_to_floor_distances[index]
+            cable_road.floor_height_below_line_points[move_left_or_right * index]
+            + cable_road.sloped_line_to_floor_distances[move_left_or_right * index]
         )
     else:
         centroid_height = (
-            cable_road.floor_height_below_line_points[index]
-            + cable_road.unloaded_line_to_floor_distances[index]
+            cable_road.floor_height_below_line_points[move_left_or_right * index]
+            + cable_road.unloaded_line_to_floor_distances[move_left_or_right * index]
         )
 
     if move_left:
@@ -222,22 +228,29 @@ def compute_tension_loaded_vs_unloaded_cableroad(
     )  # scaling to dekanewton
 
     # our start point
-    start_point = Point(
-        [
-            unloaded_cable_road.start_point.coords[0][0],
-            unloaded_cable_road.start_point_height,
-        ]
+    start_point_x = (
+        loaded_cable_road.end_point.coords[0][0]
+        if move_left
+        else loaded_cable_road.start_point.coords[0][0]
+    )
+    start_point_z = (
+        loaded_cable_road.end_point_height
+        if move_left
+        else loaded_cable_road.start_point_height
     )
 
+    start_point = Point([start_point_x, start_point_z])
+
     # construct to xz points at the middle of the CR
-    index = len(unloaded_cable_road.points_along_line) // 2
+    loaded_index = len(loaded_cable_road.points_along_line) // 2
+    unloaded_index = len(unloaded_cable_road.points_along_line) // 2
 
     # get the centroid, lines and angles of the two CRs, once tensioned, once empty
     loaded_line_sp_centroid = get_centroid_and_line(
-        loaded_cable_road, start_point, move_left, True, index
+        loaded_cable_road, start_point, move_left, True, loaded_index
     )
     unloaded_line_sp_centroid = get_centroid_and_line(
-        unloaded_cable_road, start_point, not move_left, False, index
+        unloaded_cable_road, start_point, not move_left, False, unloaded_index
     )
 
     # get the angle between the loaded and the unloaded cable road
@@ -277,19 +290,11 @@ def compute_tension_loaded_vs_unloaded_cableroad(
 
     if ax:
         ax.plot(*start_point.xy, "o", color="black")
-        # ax.plot(*left_centroid_straight.xy, "o", color="green")
-        # ax.plot(*left_centroid_sloped.xy, "o", color="red")
-        # ax.plot(*force_applied_straight.xy, "o", color="blue")
-        # ax.plot(*force_applied_sloped.xy, "o", color="blue")
 
         for lines in [
-            # [start_point, left_centroid_straight],
-            # [start_point, left_centroid_sloped],
             loaded_line_sp_centroid,
-            # left_line_sp_centroid_straight,
-            # right_line_sp_centroid_sloped,
             unloaded_line_sp_centroid,
-            loaded_line_rotated,
+            # loaded_line_rotated,
         ]:
             ax.plot(*LineString(lines).xy, color="black")
 
@@ -302,7 +307,11 @@ def compute_tension_loaded_vs_unloaded_cableroad(
         ax.plot(*resulting_force_line.xy, color="green")
 
     if return_lines:
-        return force_on_cable, force_applied_straight, force_applied_sloped
+        return (
+            force_on_loaded_cable,
+            unloaded_line_sp_centroid.interpolate(tension),
+            loaded_line_sp_centroid.interpolate(tension),
+        )
     else:
         return force_on_loaded_cable
 
