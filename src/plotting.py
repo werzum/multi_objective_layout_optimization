@@ -47,7 +47,7 @@ def plot_gdf_with_anchors_and_supports(gdfs: list, line_gdf: gpd.GeoDataFrame):
 
     line_gdf.plot(alpha=0.5, ax=ax)
 
-    for keyword in ["possible_support_trees"]:
+    for keyword in ["tree_anchor_support_trees"]:
         b = pd.concat(line_gdf[keyword].values)
         b.plot(cmap="tab20", ax=ax)
 
@@ -514,8 +514,8 @@ def plot_parallelogram(
     s_max_length: float,
 ):
     ax.clear()
-    ax.set_xlim(-35, -17)
-    ax.set_ylim(-5, 12)
+    # ax.set_xlim(-35, -17)
+    # ax.set_ylim(-5, 12)
 
     # plot the points
     ax.plot(*s_max_point.xy, "o", color="black")

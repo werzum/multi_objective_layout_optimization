@@ -69,18 +69,18 @@ def generate_possible_lines(
     line_df = line_df[line_df["slope_deviation"] < max_main_line_slope_deviation]
     print(len(line_df), " after slope deviations")
 
-    # line_df = line_df.iloc[::10]
+    line_df = line_df.iloc[::10]
 
     # filter the candidates for support trees
     # overall_trees, target, point, possible_line
-    line_df["possible_support_trees"] = [
-        generate_support_trees(
+    line_df["tree_anchor_support_trees"] = [
+        generate_tree_anchor_support_trees(
             overall_trees, Point(line.coords[1]), Point(line.coords[0]), line
         )
         for line in line_df["line_candidates"]
     ]
     # add to df and filter empty entries
-    line_df = line_df[line_df["possible_support_trees"].apply(len) > 0]
+    line_df = line_df[line_df["tree_anchor_support_trees"].apply(len) > 0]
     print(len(line_df), " after supports trees")
 
     # filter the triple angles for good supports
@@ -106,6 +106,7 @@ def generate_possible_lines(
                 line["line_candidates"],
                 line["possible_anchor_triples"],
                 line["max_holding_force"],
+                line["tree_anchor_support_trees"],
                 height_gdf,
                 0,
                 overall_trees,
@@ -251,6 +252,7 @@ def compute_required_supports(
     possible_line: LineString,
     anchor_triplets: list,
     max_supported_forces: list[float],
+    tree_anchor_support_trees: list,
     height_gdf: gpd.GeoDataFrame,
     current_supports: int,
     overall_trees: gpd.GeoDataFrame,
@@ -286,8 +288,11 @@ def compute_required_supports(
                 this_cable_road, max_supported_forces, anchor_triplets, height_gdf
             )
         )
+        tree_and_anchors_hold = mechanical_computations.check_if_tree_anchors_hold(
+            this_cable_road, tree_anchor_support_trees, height_gdf
+        )
         # decrement by 10kn increments
-        if not tower_and_anchors_hold:
+        if not (tower_and_anchors_hold and tree_and_anchors_hold):
             this_cable_road.s_current_tension -= 10000
 
         print(this_cable_road.s_current_tension)
@@ -439,6 +444,7 @@ def compute_required_supports(
             [road_to_support_cable_road, support_to_anchor_cable_road],
             current_supports,
             location_supports,
+            tree_anchor_support_trees,
             anchor_triplets,
             max_supported_forces,
             overall_trees,
@@ -562,7 +568,7 @@ def generate_triple_angle(
         )
 
 
-def generate_support_trees(
+def generate_tree_anchor_support_trees(
     overall_trees: gpd.GeoDataFrame,
     target: Point,
     point: Point,
@@ -713,6 +719,7 @@ def test_collisions_left_right(
     cable_roads: list[classes.Cable_Road],
     current_supports: int,
     location_supports: list[Point],
+    tree_anchor_support_trees: list,
     anchor_triplets: list[list[Point]],
     max_supported_forces: list[float],
     overall_trees: gpd.GeoDataFrame,
@@ -751,6 +758,7 @@ def test_collisions_left_right(
                 cable_road.line,
                 anchor_triplets,
                 max_supported_forces,
+                tree_anchor_support_trees,
                 height_gdf,
                 current_supports,
                 overall_trees,

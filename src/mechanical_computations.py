@@ -6,7 +6,13 @@ import vispy.scene
 import geopandas as gpd
 import matplotlib.pyplot as plt
 
-from src import geometry_utilities, geometry_operations, classes, plotting
+from src import (
+    geometry_utilities,
+    geometry_operations,
+    classes,
+    plotting,
+    cable_road_computation,
+)
 
 # high level functions
 
@@ -108,11 +114,19 @@ def check_if_support_withstands_tension(
     """
     scaling_factor = 10000
     ### Calculate the force on the support for the both cable roads
-    force_on_support_left = compute_tension_sloped_vs_empty_cableroad(
-        left_cable_road, scaling_factor, return_lines=False
+    force_on_support_left = compute_tension_loaded_vs_unloaded_cableroad(
+        left_cable_road,
+        right_cable_road,
+        scaling_factor,
+        return_lines=False,
+        move_left=True,
     )
-    force_on_support_right = compute_tension_sloped_vs_empty_cableroad(
-        right_cable_road, scaling_factor, return_lines=False
+    force_on_support_right = compute_tension_loaded_vs_unloaded_cableroad(
+        left_cable_road,
+        right_cable_road,
+        scaling_factor,
+        return_lines=False,
+        move_left=False,
     )
 
     print("forces on lr support", force_on_support_left, force_on_support_right)
@@ -281,12 +295,13 @@ def compute_tension_loaded_vs_unloaded_cableroad(
 
     resulting_force_line = LineString(
         [
-            force_applied_loaded.interpolate(tension),
-            force_applied_loaded_rotated.interpolate(tension),
+            loaded_line_sp_centroid.interpolate(tension),
+            loaded_line_rotated.interpolate(tension),
         ]
     )
 
-    print("Agnele:", angle_loaded_unloaded_cr)
+    print("Angle:", angle_loaded_unloaded_cr)
+    print("Force on loaded cable:", force_on_loaded_cable)
 
     if ax:
         ax.plot(*start_point.xy, "o", color="black")
@@ -294,12 +309,9 @@ def compute_tension_loaded_vs_unloaded_cableroad(
         for lines in [
             loaded_line_sp_centroid,
             unloaded_line_sp_centroid,
-            # loaded_line_rotated,
+            loaded_line_rotated,
         ]:
             ax.plot(*LineString(lines).xy, color="black")
-
-        # ax.set_xlim(-120, 0)
-        # ax.set_ylim(-60, 20)
 
         for lines in [force_applied_loaded, force_applied_loaded_rotated]:
             ax.plot(*LineString(lines).xy, color="orange")
@@ -455,6 +467,59 @@ def parallelverschiebung(force: float, angle: float) -> float:
     return resulting_force
 
 
+def check_if_tree_anchors_hold(
+    this_cable_road: classes.Cable_Road,
+    tree_anchor_support_trees: list,
+    height_gdf: gpd.GeoDataFrame,
+) -> bool:
+    # get force at last support
+    exerted_force = this_cable_road.s_current_tension
+    maximum_tower_force = 200000
+    scaling_factor = 10000  # unit length = 1m = 10kn of tension
+
+    for index, support_tree in tree_anchor_support_trees.iterrows():
+        # create the line between CR and anchor point
+        support_tree_to_anchor_line = LineString(
+            [
+                this_cable_road.end_point,
+                support_tree.geometry,
+            ]
+        )
+
+        tower_to_anchor_cr = cable_road_computation.compute_initial_cable_road(
+            support_tree_to_anchor_line,
+            height_gdf,
+            pre_tension=int(this_cable_road.s_current_tension),
+        )
+        #
+        #
+        force_on_tree_anchor_support = compute_tension_loaded_vs_unloaded_cableroad(
+            this_cable_road,
+            tower_to_anchor_cr,
+            scaling_factor,
+            return_lines=False,
+            move_left=False,
+        )
+
+        # check if the tree can support this load at a height of 8m
+        print("force on tree anchor support ", force_on_tree_anchor_support)
+        index_max_supported_force = min(
+            8, len(support_tree["max_supported_force_series"]) - 1
+        )
+        print(
+            "vs support tree max supp force",
+            support_tree["max_supported_force_series"][index_max_supported_force],
+        )
+        if (
+            force_on_tree_anchor_support
+            < support_tree["max_supported_force_series"][index_max_supported_force]
+        ):
+            return True
+
+    # Iterated through all candidates and didnt find one that supports the load - return false
+    return False
+
+
 def check_if_tower_and_anchor_trees_hold(
     this_cable_road: classes.Cable_Road,
     max_holding_force: list[float],
@@ -485,13 +550,31 @@ def check_if_tower_and_anchor_trees_hold(
     maximum_tower_force = 200000
     scaling_factor = 10000  # unit length = 1m = 10kn of tension
 
+    # get the line between CR and anchor point
+    tower_to_anchor_line = LineString(
+        [
+            this_cable_road.start_point,
+            anchor_triplets[0][0].coords[0],
+        ]
+    )
+
+    tower_to_anchor_cr = cable_road_computation.compute_initial_cable_road(
+        tower_to_anchor_line,
+        height_gdf,
+        pre_tension=int(this_cable_road.s_current_tension),
+    )
     # do the parallelverschiebung to get acting force on the tower (s_max)
     (
         force_on_vertical,
         angle_point_xz,
         angle_point_sloped_xz,
-    ) = compute_tension_sloped_vs_empty_cableroad(
-        this_cable_road, scaling_factor, return_lines=True
+    ) = compute_tension_loaded_vs_unloaded_cableroad(
+        this_cable_road,
+        tower_to_anchor_cr,
+        scaling_factor,
+        ax3,
+        return_lines=True,
+        move_left=False,
     )
 
     # start point of the cr tower
@@ -508,7 +591,7 @@ def check_if_tower_and_anchor_trees_hold(
         ax.plot(*cr_loaded_tangent.xy, color="red")
 
     for index in range(len(anchor_triplets)):
-        # need to figure out which anchor is the right one (ie the central one)
+        # set the central anchor point as line
         this_anchor_line = anchor_triplets[index][0]
         anchor_start_point = Point(this_anchor_line.coords[0])
 
@@ -687,8 +770,8 @@ def euler_knicklast(tree_diameter: float, height_of_attachment: float) -> float:
     Returns:
         float: the force the tree can withstand
     """
-    # if height_of_attachment == 0:
-    #     height_of_attachment = 1
+    if height_of_attachment == 0:
+        height_of_attachment = 1
 
     E_module_wood = 11000
     security_factor = 5
