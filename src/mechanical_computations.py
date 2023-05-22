@@ -321,7 +321,7 @@ def compute_tension_loaded_vs_unloaded_cableroad(
     if return_lines:
         return (
             force_on_loaded_cable,
-            unloaded_line_sp_centroid.interpolate(tension),
+            loaded_line_rotated.interpolate(tension),
             loaded_line_sp_centroid.interpolate(tension),
         )
     else:
@@ -563,6 +563,9 @@ def check_if_tower_and_anchor_trees_hold(
         height_gdf,
         pre_tension=int(this_cable_road.s_current_tension),
     )
+
+    fig, (ax) = plt.subplots(1, 1, figsize=(9, 6))  # two rows, one column
+    # fig.set_dpi(200)
     # do the parallelverschiebung to get acting force on the tower (s_max)
     (
         force_on_vertical,
@@ -572,9 +575,18 @@ def check_if_tower_and_anchor_trees_hold(
         this_cable_road,
         tower_to_anchor_cr,
         scaling_factor,
-        ax3,
+        ax,
         return_lines=True,
         move_left=False,
+    )
+
+    angle_point_xz = Point(
+        angle_point_xz.coords[0][0] + this_cable_road.start_point.coords[0][0],
+        angle_point_xz.coords[0][1],
+    )
+    angle_point_sloped_xz = Point(
+        angle_point_sloped_xz.coords[0][0] + this_cable_road.start_point.coords[0][0],
+        angle_point_sloped_xz.coords[0][1],
     )
 
     # start point of the cr tower
@@ -584,11 +596,11 @@ def check_if_tower_and_anchor_trees_hold(
 
     cr_loaded_tangent = LineString([angle_point_sloped_xz, tower_xz_point])
 
-    if ax:
-        ax.clear()
-        ax.set_ylim(-60, 20)
-        ax.set_xlim(-100, 20)
-        ax.plot(*cr_loaded_tangent.xy, color="red")
+    # if ax:
+    #     ax.clear()
+    #     ax.set_ylim(-60, 20)
+    #     ax.set_xlim(-100, 20)
+    #     ax.plot(*cr_loaded_tangent.xy, color="red")
 
     for index in range(len(anchor_triplets)):
         # set the central anchor point as line
@@ -675,20 +687,41 @@ def construct_tower_force_parallelogram(
     # x distance from s_max to anchor
     s_max_to_anchor = abs(s_max_point.coords[0][0] - tower_xz_point.coords[0][0])
 
+    # get the z distance from anchor to sa point
+    z_distance_anchor_to_s_a = abs(
+        s_a_point_real.coords[0][1] - tower_xz_point.coords[0][1]
+    )
+    # and the central point along the tower xz line with the coordinates of sa
+    anchor_s_max_applied = Point(
+        [
+            tower_xz_point.coords[0][0],
+            s_max_point.coords[0][1] + z_distance_anchor_to_s_a,
+        ]
+    )
+
     # shifting anchor by this distance to the right to get s_a
+    s_a_point_interpolated = Point(
+        [
+            tower_xz_point.coords[0][0] + s_max_to_anchor,
+            tower_xz_point.coords[0][1] + z_distance_anchor_to_s_a,
+        ]
+    )
+
     tower_anchor_line = LineString([tower_xz_point, s_a_point_real])
-    s_a_point_force = tower_anchor_line.interpolate(force / scaling_factor)
 
     # shifting s_max z down by s_a distance to get a_3
-    s_max_length = s_a_point_force.distance(tower_xz_point)
+    s_max_length = s_a_point_interpolated.distance(tower_xz_point)
     a_3_point = Point(
         [s_max_point.coords[0][0], s_max_point.coords[0][1] - s_max_length]
     )
 
     # shifting s_a down by s_a_distance
-    s_a_length = s_a_point_force.distance(tower_xz_point)
+    s_a_length = s_a_point_interpolated.distance(tower_xz_point)
     a_4_point = Point(
-        [s_a_point_force.coords[0][0], s_a_point_force.coords[0][1] - s_a_length]
+        [
+            s_a_point_interpolated.coords[0][0],
+            s_a_point_interpolated.coords[0][1] - s_a_length,
+        ]
     )
 
     # z distance of anchor to a_4
@@ -711,7 +744,7 @@ def construct_tower_force_parallelogram(
         plotting.plot_parallelogram(
             ax,
             s_max_point,
-            s_a_point_force,
+            s_a_point_interpolated,
             a_3_point,
             a_4_point,
             a_5_point,
