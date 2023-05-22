@@ -294,6 +294,8 @@ def compute_required_supports(
         # decrement by 10kn increments
         if not (tower_and_anchors_hold and tree_and_anchors_hold):
             this_cable_road.s_current_tension -= 10000
+            if this_cable_road.s_current_tension < 10000:
+                return return_failed()
 
         print(this_cable_road.s_current_tension)
 

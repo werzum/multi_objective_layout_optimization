@@ -551,43 +551,49 @@ def plot_parallelogram(
         ],  # s3 to anchor with length of smax
         [
             Point([a_4_point.coords[0][0], a_4_point.coords[0][1]]),
-            Point([tower_xz_point.coords[0][0], a_4_point.coords[0][1]]),
+            Point(
+                [
+                    tower_xz_point.coords[0][0],
+                    a_4_point.coords[0][1]
+                    - abs(s_a_point_force.coords[0][1] - tower_xz_point.coords[0][1]),
+                ]
+            ),
         ],
     ]:
         ax.plot(*LineString(lines).xy, color="black")
 
-    ax.annotate(
-        "Force on Cable",
-        s_max_point.coords[0],
-        xytext=(3, -15),
-        fontsize=14,
-        textcoords="offset points",
-    )
-    ax.annotate(
-        "Force on Anchor",
-        s_a_point_force.coords[0],
-        xytext=(3, -15),
-        fontsize=14,
-        textcoords="offset points",
-    )
-    ax.annotate(
-        "Force on Tower",
-        a_5_point.coords[0],
-        xytext=(3, -15),
-        fontsize=14,
-        textcoords="offset points",
-    )
-    ax.annotate(
-        "Buckling Force left",
-        a_3_point.coords[0],
-        xytext=(5, -5),
-        fontsize=14,
-        textcoords="offset points",
-    )
-    ax.annotate(
-        "Buckling Force right",
-        a_4_point.coords[0],
-        xytext=(3, -15),
-        fontsize=14,
-        textcoords="offset points",
-    )
+    # ax.annotate(
+    #     "Force on Cable",
+    #     s_max_point.coords[0],
+    #     xytext=(3, -15),
+    #     fontsize=14,
+    #     textcoords="offset points",
+    # )
+    # ax.annotate(
+    #     "Force on Anchor",
+    #     s_a_point_force.coords[0],
+    #     xytext=(3, -15),
+    #     fontsize=14,
+    #     textcoords="offset points",
+    # )
+    # ax.annotate(
+    #     "Force on Tower",
+    #     a_5_point.coords[0],
+    #     xytext=(3, -15),
+    #     fontsize=14,
+    #     textcoords="offset points",
+    # )
+    # ax.annotate(
+    #     "Buckling Force left",
+    #     a_3_point.coords[0],
+    #     xytext=(5, -5),
+    #     fontsize=14,
+    #     textcoords="offset points",
+    # )
+    # ax.annotate(
+    #     "Buckling Force right",
+    #     a_4_point.coords[0],
+    #     xytext=(3, -15),
+    #     fontsize=14,
+    #     textcoords="offset points",
+    # )
