@@ -18,6 +18,17 @@ def value_within_range(min, max, distance):
         return False
 
 
+def print_point_coordinates(point_list: list[Point]):
+    for point in point_list:
+        print(point[0], point[1])
+
+
+def print_line_coordinates(line_list: list[LineString]):
+    for line in line_list:
+        print_point_coordinates([line.coords[0]])
+        print_point_coordinates([line.coords[1]])
+
+
 def angle_between(v1: LineString, v2: LineString) -> float:
     """Returns the angle between to 2d vectors. Returns 0 to 180 degrees angles - note that the direction of the vector matters!
     Will however not discern between a -20 and 20 rotation wrt the v1.

@@ -115,10 +115,13 @@ def check_if_support_withstands_tension(
     """
     print("checking if support withstands tension")
     scaling_factor = 10000
+
+    center_point_xz = Point(left_cable_road.end_point.coords[0][0], attached_at_height)
     ### Calculate the force on the support for the both cable roads
     force_on_support_left = compute_tension_loaded_vs_unloaded_cableroad(
         left_cable_road,
         right_cable_road,
+        center_point_xz,
         scaling_factor,
         return_lines=False,
         loaded_cr_left=True,
@@ -126,6 +129,7 @@ def check_if_support_withstands_tension(
     force_on_support_right = compute_tension_loaded_vs_unloaded_cableroad(
         left_cable_road,
         right_cable_road,
+        center_point_xz,
         scaling_factor,
         return_lines=False,
         loaded_cr_left=False,
@@ -467,6 +471,11 @@ def check_if_tree_anchors_hold(
     maximum_tower_force = 200000
     scaling_factor = 10000  # unit length = 1m = 10kn of tension
 
+    # create the center point of the CR for checking the tension
+    center_point_xz = Point(
+        this_cable_road.end_point.coords[0][0], this_cable_road.end_point_height
+    )
+
     for index, support_tree in tree_anchor_support_trees.iterrows():
         # create the line between CR and anchor point
         support_tree_to_anchor_line = LineString(
@@ -497,6 +506,7 @@ def check_if_tree_anchors_hold(
             force_on_tree_anchor_support = compute_tension_loaded_vs_unloaded_cableroad(
                 this_cable_road,
                 tower_to_anchor_cr,
+                center_point_xz,
                 scaling_factor,
                 # ax=ax,
                 return_lines=False,
