@@ -685,12 +685,26 @@ def construct_tower_force_parallelogram(
         float: the force applied the tower
     """
     # x distance from s_max to anchor
-    s_max_to_anchor = abs(s_max_point.coords[0][0] - tower_xz_point.coords[0][0])
+    s_max_to_anchor = s_max_point.distance(tower_xz_point)
+
+    # set up the interpolation loop for the s_a point
+    tower_s_max_x_point = Point(tower_xz_point.coords[0][0], s_max_point.coords[0][1])
+    interpolate_steps = 0.5
+    s_a_point_interpolated = LineString([tower_xz_point, s_a_point_real]).interpolate(
+        interpolate_steps
+    )
+    # go stepwise along the line to find the right point which allows the right length
+    while s_a_point_interpolated.distance(tower_s_max_x_point) < s_max_to_anchor:
+        interpolate_steps += 0.1
+        s_a_point_interpolated = LineString(
+            [tower_xz_point, s_a_point_real]
+        ).interpolate(interpolate_steps)
 
     # get the z distance from anchor to sa point
     z_distance_anchor_to_s_a = abs(
-        s_a_point_real.coords[0][1] - tower_xz_point.coords[0][1]
+        s_a_point_interpolated.coords[0][1] - tower_xz_point.coords[0][1]
     )
+
     # and the central point along the tower xz line with the coordinates of sa
     anchor_s_max_applied = Point(
         [
@@ -699,20 +713,10 @@ def construct_tower_force_parallelogram(
         ]
     )
 
-    # shifting anchor by this distance to the right to get s_a
-    s_a_point_interpolated = Point(
-        [
-            tower_xz_point.coords[0][0] + s_max_to_anchor,
-            tower_xz_point.coords[0][1] + z_distance_anchor_to_s_a,
-        ]
-    )
-
-    tower_anchor_line = LineString([tower_xz_point, s_a_point_real])
-
     # shifting s_max z down by s_a distance to get a_3
-    s_max_length = s_a_point_interpolated.distance(tower_xz_point)
+    s_a_to_anchor = s_a_point_interpolated.distance(tower_xz_point)
     a_3_point = Point(
-        [s_max_point.coords[0][0], s_max_point.coords[0][1] - s_max_length]
+        [s_max_point.coords[0][0], s_max_point.coords[0][1] - s_max_to_anchor]
     )
 
     # shifting s_a down by s_a_distance
@@ -749,9 +753,10 @@ def construct_tower_force_parallelogram(
             a_4_point,
             a_5_point,
             tower_xz_point,
+            anchor_s_max_applied,
             angle_point_xz,
             angle_point_sloped_xz,
-            s_max_length,
+            s_max_to_anchor,
         )
 
     return force_on_anchor, force_on_tower

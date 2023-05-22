@@ -509,6 +509,7 @@ def plot_parallelogram(
     a_4_point: Point,
     a_5_point: Point,
     tower_xz_point: Point,
+    anchor_s_max_applied: Point,
     angle_point_xz: Point,
     angle_point_sloped_xz: Point,
     s_max_length: float,
@@ -519,12 +520,13 @@ def plot_parallelogram(
 
     # plot the points
     ax.plot(*s_max_point.xy, "o", color="black")
+    ax.plot(*anchor_s_max_applied.xy, "o", color="green")
     ax.plot(*s_a_point_force.xy, "o", color="blue")
     ax.plot(*a_3_point.xy, "o", color="red")
     ax.plot(*a_4_point.xy, "o", color="red")
     ax.plot(*a_5_point.xy, "o", color="blue")
+    ax.plot(*tower_xz_point.xy, "o", color="orange")
 
-    ax.plot(*angle_point_xz.xy, "o", color="blue")
     ax.plot(*angle_point_sloped_xz.xy)
 
     for lines in [
@@ -535,16 +537,9 @@ def plot_parallelogram(
         [a_5_point, tower_xz_point],
         [a_5_point, a_3_point],
         [a_5_point, a_4_point],
-        [tower_xz_point, angle_point_xz],
         [tower_xz_point, angle_point_sloped_xz],
-        [
-            Point([tower_xz_point.coords[0][0], s_max_point.coords[0][1]]),
-            Point([s_max_point.coords[0][0], s_max_point.coords[0][1]]),
-        ],  # smax to anchor line
-        [
-            Point([s_a_point_force.coords[0][0], s_a_point_force.coords[0][1]]),
-            Point([tower_xz_point.coords[0][0], s_max_point.coords[0][1]]),
-        ],  # sa to anchor line
+        [s_a_point_force, anchor_s_max_applied],
+        [anchor_s_max_applied, s_max_point],
         [
             Point([a_3_point.coords[0][0], a_3_point.coords[0][1]]),
             Point(
@@ -593,13 +588,6 @@ def plot_parallelogram(
         "Buckling Force right",
         a_4_point.coords[0],
         xytext=(3, -15),
-        fontsize=14,
-        textcoords="offset points",
-    )
-    ax.annotate(
-        "Unloaded Cable",
-        angle_point_xz.coords[0],
-        xytext=(-97, 6),
         fontsize=14,
         textcoords="offset points",
     )
