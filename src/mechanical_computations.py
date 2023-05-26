@@ -91,8 +91,6 @@ def check_if_no_collisions_segments(this_cable_road: classes.Cable_Road):
 
 
 def check_if_support_withstands_tension(
-    diameter_at_height: float,
-    attached_at_height: int,
     max_supported_force: float,
     left_cable_road: classes.Cable_Road,
     right_cable_road: classes.Cable_Road,
@@ -116,23 +114,27 @@ def check_if_support_withstands_tension(
     print("checking if support withstands tension")
     scaling_factor = 10000
 
-    center_point_xz = Point(left_cable_road.end_point.coords[0][0], attached_at_height)
+    center_point_xz = Point(
+        left_cable_road.end_point.coords[0][0],
+        left_cable_road.end_point_height + left_cable_road.support_height,
+    )
+    # fig, (ax) = plt.subplots(1, 1, figsize=(9, 6))  # two rows, one column
     ### Calculate the force on the support for the both cable roads
     force_on_support_left = compute_tension_loaded_vs_unloaded_cableroad(
         left_cable_road,
         right_cable_road,
         center_point_xz,
         scaling_factor,
+        # ax=ax,
         return_lines=False,
-        loaded_cr_left=True,
     )
     force_on_support_right = compute_tension_loaded_vs_unloaded_cableroad(
-        left_cable_road,
         right_cable_road,
+        left_cable_road,
         center_point_xz,
         scaling_factor,
+        # ax=ax,
         return_lines=False,
-        loaded_cr_left=False,
     )
 
     print("forces on lr support", force_on_support_left, force_on_support_right)
@@ -178,12 +180,13 @@ def get_centroid_and_line(
             + cable_road.unloaded_line_to_floor_distances[index * index_swap]
         )
 
+    # distance = start_point.distance(cable_road.start_point) if move_centroid_left_from_start_point else start_point.distance(cable_road.end_point)
     # and get the centroid distance by shifting the x coordinate by half the length of the CR
     if move_centroid_left_from_start_point:
         # shift the x coordinate by half the length of the CR to get the middle
-        centroid_x_sideways = start_point.coords[0][0] - cable_road.c_rope_length // 2
+        centroid_x_sideways = start_point.coords[0][0] - (cable_road.c_rope_length / 2)
     else:
-        centroid_x_sideways = start_point.coords[0][0] + cable_road.c_rope_length // 2
+        centroid_x_sideways = start_point.coords[0][0] + (cable_road.c_rope_length / 2)
 
     centroid = Point([centroid_x_sideways, centroid_height])
     line_sp_centroid = LineString([start_point, centroid])
@@ -221,6 +224,7 @@ def compute_resulting_force_on_cable(
 def compute_tension_loaded_vs_unloaded_cableroad(
     loaded_cable_road: classes.Cable_Road,
     unloaded_cable_road: classes.Cable_Road,
+    # center_point: Point,
     center_point_xz: Point,
     scaling_factor: int,
     ax: plt.Axes = None,
@@ -294,7 +298,11 @@ def compute_tension_loaded_vs_unloaded_cableroad(
     )
 
     print("Angle:", angle_loaded_unloaded_cr)
+    if angle_loaded_unloaded_cr > 20:
+        print("Angle is too big, testing")
     print("Force on loaded cable:", force_on_loaded_cable)
+
+    # fig, (ax) = plt.subplots(1, 1, figsize=(9, 6))  # two rows, one column
 
     if ax:
         ax.plot(*center_point_xz.xy, "o", color="black")
@@ -490,15 +498,12 @@ def check_if_tree_anchors_hold(
             height_gdf,
             pre_tension=int(this_cable_road.s_current_tension),
         )
-        #
+
         # fig, (ax) = plt.subplots(1, 1, figsize=(9, 6))  # two rows, one column
         # initialize the variable
         force_on_tree_anchor_support = False
 
-        if (
-            tower_to_anchor_cr.end_point_height > tower_to_anchor_cr.start_point_height
-            and this_cable_road.start_point_height > this_cable_road.end_point_height
-        ):
+        if tower_to_anchor_cr.start_point_height < tower_to_anchor_cr.end_point_height:
             print("skipping CR since tree anchor is higher than tower")
             continue
         else:
@@ -510,7 +515,6 @@ def check_if_tree_anchors_hold(
                 scaling_factor,
                 # ax=ax,
                 return_lines=False,
-                loaded_cr_left=False,
             )
 
         # check if the tree can support this load at a height of 8m
@@ -700,6 +704,8 @@ def construct_tower_force_parallelogram(
         float: the force applied to the anchor
         float: the force applied the tower
     """
+    # adjust the scaling factor for more realistic results?
+    scaling_factor = scaling_factor * 0.1
     # x distance from s_max to anchor
     s_max_to_anchor = s_max_point.distance(tower_xz_point)
 

@@ -364,25 +364,36 @@ def compute_required_supports(
                 )
                 continue
 
+            # set up the support roads to be able to gradually increase the height of attachment
+            road_to_support_cable_road.end_point_height = (
+                road_to_support_cable_road.end_point_height
+                - road_to_support_cable_road.support_height
+            )
+            support_to_anchor_cable_road.start_point_height = (
+                support_to_anchor_cable_road.start_point_height
+                - support_to_anchor_cable_road.support_height
+            )
+
             # iterate through the possible attachments of the support and see if we touch ground
-            for diameters_index in range(len(candidate_tree.height_series)):
-                # skip if we are at height 0
-                if candidate_tree.height_series[diameters_index] == 0:
-                    continue
+            # start with at least three meters height
+            for height_index in range(3, len(candidate_tree.height_series)):
+                # increase the support height
+                road_to_support_cable_road.support_height = height_index
+                support_to_anchor_cable_road.support_height = height_index
+
                 support_withstands_tension = (
                     mechanical_computations.check_if_support_withstands_tension(
-                        candidate_tree.diameter_series[diameters_index],
-                        candidate_tree.height_series[diameters_index],
-                        candidate_tree.max_supported_force_series[diameters_index],
+                        candidate_tree.max_supported_force_series[height_index],
                         road_to_support_cable_road,
                         support_to_anchor_cable_road,
                     )
                 )
-                if not support_withstands_tension:
+                if not support_withstands_tension or height_index > 20:
                     # next candidate - tension just gets worse with more height
                     break
 
                 # 6. no collisions left and right? go to next candidate if this one is already not working out
+                # first set the height of the support
                 mechanical_computations.check_if_no_collisions_segments(
                     road_to_support_cable_road
                 )
