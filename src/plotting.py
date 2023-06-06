@@ -514,7 +514,7 @@ def plot_parallelogram(
     angle_point_sloped_xz: Point,
     s_max_length: float,
 ):
-    ax.clear()
+    # ax.clear()
     # ax.set_xlim(-35, -17)
     # ax.set_ylim(-5, 12)
 
@@ -562,20 +562,20 @@ def plot_parallelogram(
     ]:
         ax.plot(*LineString(lines).xy, color="black")
 
-    # ax.annotate(
-    #     "Force on Cable",
-    #     s_max_point.coords[0],
-    #     xytext=(3, -15),
-    #     fontsize=14,
-    #     textcoords="offset points",
-    # )
-    # ax.annotate(
-    #     "Force on Anchor",
-    #     s_a_point_force.coords[0],
-    #     xytext=(3, -15),
-    #     fontsize=14,
-    #     textcoords="offset points",
-    # )
+    ax.annotate(
+        "Force on Cable",
+        s_max_point.coords[0],
+        xytext=(3, -15),
+        fontsize=14,
+        textcoords="offset points",
+    )
+    ax.annotate(
+        "Force on Anchor",
+        s_a_point_force.coords[0],
+        xytext=(3, -15),
+        fontsize=14,
+        textcoords="offset points",
+    )
     # ax.annotate(
     #     "Force on Tower",
     #     a_5_point.coords[0],

@@ -69,7 +69,7 @@ def generate_possible_lines(
     line_df = line_df[line_df["slope_deviation"] < max_main_line_slope_deviation]
     print(len(line_df), " after slope deviations")
 
-    line_df = line_df.iloc[::10]
+    # line_df = line_df.iloc[::2]
 
     # filter the candidates for support trees
     # overall_trees, target, point, possible_line
@@ -376,6 +376,8 @@ def compute_required_supports(
 
             # iterate through the possible attachments of the support and see if we touch ground
             # start with at least three meters height
+            if len(candidate_tree.height_series) < 3:
+                continue
             for height_index in range(3, len(candidate_tree.height_series)):
                 # increase the support height
                 road_to_support_cable_road.support_height = height_index
@@ -394,13 +396,13 @@ def compute_required_supports(
 
                 # 6. no collisions left and right? go to next candidate if this one is already not working out
                 # first set the height of the support
-                mechanical_computations.check_if_no_collisions_segments(
+                mechanical_computations.check_if_no_collisions_cable_road(
                     road_to_support_cable_road
                 )
                 if not road_to_support_cable_road.no_collisions:
                     continue
 
-                mechanical_computations.check_if_no_collisions_segments(
+                mechanical_computations.check_if_no_collisions_cable_road(
                     support_to_anchor_cable_road
                 )
 
@@ -761,7 +763,7 @@ def test_collisions_left_right(
     """
 
     for cable_road in cable_roads:
-        mechanical_computations.check_if_no_collisions_segments(cable_road)
+        mechanical_computations.check_if_no_collisions_cable_road(cable_road)
         if not cable_road.no_collisions:
             (
                 current_supports,

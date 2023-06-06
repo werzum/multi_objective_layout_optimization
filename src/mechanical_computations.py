@@ -17,10 +17,8 @@ from src import (
 # high level functions
 
 
-def check_if_no_collisions_overall_line(
+def check_if_no_collisions_cable_road(
     this_cable_road: classes.Cable_Road,
-    plot_possible_lines: bool,
-    pos: list | None,
 ):
     """A function to check whether there are any points along the line candidate (spanned up by the starting/end points elevation plus the support height) which are less than min_height away from the line.
     Returns the cable_road object, and sets the no_collisions property correspondingly
@@ -47,47 +45,6 @@ def check_if_no_collisions_overall_line(
 
     # check if the line is above the ground and set it to false if we have a collision
     this_cable_road.no_collisions = lowest_point_height > min_height
-
-    # plot the lines if we have a successful candidate
-    if (
-        plot_possible_lines
-        and this_cable_road.floor_points
-        and this_cable_road.floor_height_below_line_points
-        and this_cable_road.anchors_hold
-        and this_cable_road.no_collisions
-        and pos
-    ):
-        print("plotting", this_cable_road)
-        plotting.plot_lines(this_cable_road, pos)
-
-
-def check_if_no_collisions_segments(this_cable_road: classes.Cable_Road):
-    print("checking collision segments")
-    # Process of updating the tension and checking if we touch ground and anchors hold
-    this_cable_road.no_collisions = False
-
-    # 1. calculate current deflections with a given tension
-    y_x_deflections = np.asarray(
-        [
-            pestal_load_path(this_cable_road, point)
-            for point in this_cable_road.points_along_line
-        ],
-        dtype=np.float32,
-    )
-
-    #  check the distances between each floor point and the ldh point
-    this_cable_road.sloped_line_to_floor_distances = (
-        this_cable_road.line_to_floor_distances - y_x_deflections
-    )
-
-    lowest_point_height = min(this_cable_road.sloped_line_to_floor_distances)
-
-    # check if the line is above the ground and set it to false if we have a collision
-    if lowest_point_height < this_cable_road.min_height:
-        this_cable_road.no_collisions = False
-    else:
-        # we found no collisions and exit the loop
-        this_cable_road.no_collisions = True
 
 
 def check_if_support_withstands_tension(
@@ -383,6 +340,7 @@ def initialize_line_tension(
     # )
 
 
+# TBD htis should be a cable road function
 def calculate_sloped_line_to_floor_distances(this_cable_road: classes.Cable_Road):
     """Calculate the distances between the line and the floor based on pointwise deflections.
 
@@ -600,15 +558,6 @@ def check_if_tower_and_anchor_trees_hold(
         return_lines=True,
     )
 
-    angle_point_xz = Point(
-        angle_point_xz.coords[0][0] + this_cable_road.start_point.coords[0][0],
-        angle_point_xz.coords[0][1],
-    )
-    angle_point_sloped_xz = Point(
-        angle_point_sloped_xz.coords[0][0] + this_cable_road.start_point.coords[0][0],
-        angle_point_sloped_xz.coords[0][1],
-    )
-
     # start point of the cr tower
     tower_xz_point = Point(
         [this_cable_road.start_point.coords[0][0], this_cable_road.start_point_height]
@@ -705,7 +654,7 @@ def construct_tower_force_parallelogram(
         float: the force applied the tower
     """
     # adjust the scaling factor for more realistic results?
-    scaling_factor = scaling_factor * 0.1
+    scaling_factor *= 0.1
     # x distance from s_max to anchor
     s_max_to_anchor = s_max_point.distance(tower_xz_point)
 
@@ -715,6 +664,7 @@ def construct_tower_force_parallelogram(
     s_a_point_interpolated = LineString([tower_xz_point, s_a_point_real]).interpolate(
         interpolate_steps
     )
+
     # go stepwise along the line to find the right point which allows the correct length
     while s_a_point_interpolated.distance(tower_s_max_x_point) < s_max_to_anchor:
         interpolate_steps += 0.1
@@ -722,6 +672,23 @@ def construct_tower_force_parallelogram(
             [tower_xz_point, s_a_point_real]
         ).interpolate(interpolate_steps)
         if interpolate_steps > s_max_to_anchor + 10:
+            if ax:
+                ax.plot(*s_a_point_interpolated.xy, color="red")
+                ax.annotate(
+                    "SA interpolated",
+                    s_a_point_interpolated.coords[0],
+                    xytext=(3, -15),
+                    fontsize=14,
+                    textcoords="offset points",
+                )
+                ax.plot(*tower_s_max_x_point.xy, color="green")
+                ax.annotate(
+                    "tower s max x point",
+                    tower_s_max_x_point.coords[0],
+                    xytext=(3, -15),
+                    fontsize=14,
+                    textcoords="offset points",
+                )
             print("noo")
             break
 
