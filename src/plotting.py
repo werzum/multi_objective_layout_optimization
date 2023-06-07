@@ -370,7 +370,7 @@ def plot_supported_cr_relief(sample_cable_road, line_gdf, height_gdf, index):
     for previous, current in zip(waypoints, waypoints[1:]):
         sample_line = LineString([previous, current])
         sample_cable_road.s_current_tension = line_gdf.iloc[index].current_tension
-        sample_cable_road = cable_road_computation.compute_initial_cable_road(
+        sample_cable_road = classes.Cable_Road(
             sample_line, height_gdf, pre_tension=sample_cable_road.s_current_tension
         )
 
@@ -427,7 +427,7 @@ def add_all_anchors_to_go_figure(
     for anchor in line_gdf.iloc[index].possible_anchor_triples[0]:
         anchor_point = Point(anchor.coords)
         anchor_line = LineString([anchor_point, sample_cable_road.start_point])
-        anchor_cable_road = cable_road_computation.compute_initial_cable_road(
+        anchor_cable_road = classes.Cable_Road(
             anchor_line, height_gdf, pre_tension=sample_cable_road.s_current_tension
         )
 

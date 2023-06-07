@@ -73,7 +73,7 @@ def check_if_support_withstands_tension(
 
     center_point_xz = Point(
         left_cable_road.end_point.coords[0][0],
-        left_cable_road.end_point_height + left_cable_road.support_height,
+        left_cable_road.total_end_point_height,
     )
     # fig, (ax) = plt.subplots(1, 1, figsize=(9, 6))  # two rows, one column
     ### Calculate the force on the support for the both cable roads
@@ -419,22 +419,16 @@ def parallelverschiebung(force: float, angle: float) -> float:
     Returns:
         resulting_force (float): The force that is exerted on the tower and anchor.
     """
-    # resulting_force = force * math.sin(0.5 * angle)
-    # note - the angle is converted to radians for the np.sin function
-    resulting_force = (force * np.sin(np.deg2rad(0.5 * angle))) * 2
-    # print(resulting_force)
-    return resulting_force
+
+    return (force * np.sin(np.deg2rad(0.5 * angle))) * 2
 
 
-def check_if_tree_anchors_hold(
+def check_if_supports_hold(
     this_cable_road: classes.Cable_Road,
     tree_anchor_support_trees: list,
     height_gdf: gpd.GeoDataFrame,
 ) -> bool:
-    print("checking if tree anchors hold")
-    # get force at last support
-    exerted_force = this_cable_road.s_current_tension
-    maximum_tower_force = 200000
+    print("checking if supports hold")
     scaling_factor = 10000  # unit length = 1m = 10kn of tension
 
     # create the center point of the CR for checking the tension
@@ -451,7 +445,7 @@ def check_if_tree_anchors_hold(
             ]
         )
 
-        tower_to_anchor_cr = cable_road_computation.compute_initial_cable_road(
+        tower_to_anchor_cr = classes.Cable_Road(
             support_tree_to_anchor_line,
             height_gdf,
             pre_tension=int(this_cable_road.s_current_tension),
@@ -461,19 +455,21 @@ def check_if_tree_anchors_hold(
         # initialize the variable
         force_on_tree_anchor_support = False
 
-        if tower_to_anchor_cr.start_point_height < tower_to_anchor_cr.end_point_height:
-            print("skipping CR since tree anchor is higher than tower")
-            continue
-        else:
-            # fig, (ax) = plt.subplots(1, 1, figsize=(9, 6))  # two rows, one column
-            force_on_tree_anchor_support = compute_tension_loaded_vs_unloaded_cableroad(
-                this_cable_road,
-                tower_to_anchor_cr,
-                center_point_xz,
-                scaling_factor,
-                # ax=ax,
-                return_lines=False,
-            )
+        # if tower_to_anchor_cr.start_point_height < tower_to_anchor_cr.end_point_height:
+        #     print("from", tower_to_anchor_cr.start_point_height)
+        #     print("to", tower_to_anchor_cr.end_point_height)
+        #     print("skipping CR since tree anchor is higher than tower")
+        #     continue
+        # else:
+        fig, (ax) = plt.subplots(1, 1, figsize=(9, 6))  # two rows, one column
+        force_on_tree_anchor_support = compute_tension_loaded_vs_unloaded_cableroad(
+            this_cable_road,
+            tower_to_anchor_cr,
+            center_point_xz,
+            scaling_factor,
+            ax=ax,
+            return_lines=False,
+        )
 
         # check if the tree can support this load at a height of 8m
         print("force on tree anchor support ", force_on_tree_anchor_support)
@@ -533,17 +529,17 @@ def check_if_tower_and_anchor_trees_hold(
         ]
     )
 
-    tower_to_anchor_cr = cable_road_computation.compute_initial_cable_road(
+    tower_to_anchor_cr = classes.Cable_Road(
         tower_to_anchor_line,
         height_gdf,
         pre_tension=int(this_cable_road.s_current_tension),
     )
 
-    # fig, (ax) = plt.subplots(1, 1, figsize=(9, 6))  # two rows, one column
-    # fig.set_dpi(200)
-    # do the parallelverschiebung to get acting force on the tower (s_max)
     center_point_xz = Point(
-        [this_cable_road.start_point.coords[0][0], this_cable_road.start_point_height]
+        [
+            this_cable_road.start_point.coords[0][0],
+            this_cable_road.total_start_point_height,
+        ]
     )
     (
         force_on_vertical,
@@ -560,7 +556,10 @@ def check_if_tower_and_anchor_trees_hold(
 
     # start point of the cr tower
     tower_xz_point = Point(
-        [this_cable_road.start_point.coords[0][0], this_cable_road.start_point_height]
+        [
+            this_cable_road.start_point.coords[0][0],
+            this_cable_road.total_start_point_height,
+        ]
     )
 
     cr_loaded_tangent = LineString([angle_point_sloped_xz, tower_xz_point])
@@ -623,7 +622,10 @@ def check_if_tower_and_anchor_trees_hold(
                 # do I need to build up a list?
                 this_cable_road.anchor_triplets = anchor_triplets[index]
                 return True
+            else:
+                print("did not find anchor tree that holds - iterating")
 
+    print("did not find anchor tree that holds - final")
     return False
 
 
@@ -654,7 +656,7 @@ def construct_tower_force_parallelogram(
         float: the force applied the tower
     """
     # adjust the scaling factor for more realistic results?
-    scaling_factor *= 0.1
+    # scaling_factor *= 0.1
     # x distance from s_max to anchor
     s_max_to_anchor = s_max_point.distance(tower_xz_point)
 
@@ -732,7 +734,8 @@ def construct_tower_force_parallelogram(
         ]
     )
 
-    force_on_anchor = s_max_to_anchor * scaling_factor
+    # determine the force on the anchor
+    force_on_anchor = s_a_point_interpolated.distance(tower_xz_point) * scaling_factor
     # now resulting force = distance from anchor to a_5*scaling factor
     force_on_tower = z_distance_anchor_a5 * scaling_factor
 
@@ -765,13 +768,10 @@ def pestal_load_path(cable_road: classes.Cable_Road, point: Point, loaded: bool 
     """
     T_0_basic_tensile_force = cable_road.s_current_tension
     q_s_rope_weight = 1.6
-    if loaded:
-        q_vertical_force = 15000
-    else:
-        q_vertical_force = 0
+    q_vertical_force = 15000 if loaded else 0
 
     h_height_difference = abs(
-        cable_road.end_point_height - cable_road.start_point_height
+        cable_road.total_end_point_height - cable_road.total_start_point_height
     )
 
     T_bar_tensile_force_at_center_span = T_0_basic_tensile_force + q_s_rope_weight * (
@@ -784,33 +784,26 @@ def pestal_load_path(cable_road: classes.Cable_Road, point: Point, loaded: bool 
 
     x = cable_road.start_point.distance(point)
 
-    y_deflection_at_point = (
+    return (
         (x * (cable_road.b_length_whole_section - x))
         / (H_t_horizontal_force_tragseil * cable_road.b_length_whole_section)
     ) * (q_vertical_force + ((cable_road.c_rope_length * q_s_rope_weight) / 2))
-
-    return y_deflection_at_point
 
 
 def euler_knicklast(tree_diameter: float, height_of_attachment: float) -> float:
     """Calculates the euler case 2 knicklast of a tree
     Args:
         tree_diameter (float): the diameter of the tree in cm
-        height_of_attachment (float): the height of the attachment
+        height_of_attachment (float): the height of the attachment in decim
     Returns:
-        float: the force the tree can withstand
+        float: the force the tree can withstand in Newton
     """
     if height_of_attachment == 0:
         height_of_attachment = 1
 
     E_module_wood = 11000
     security_factor = 5
-    withstood_force = (math.pi**2 * E_module_wood * math.pi * tree_diameter**4) / (
+
+    return (math.pi**2 * E_module_wood * math.pi * tree_diameter**4) / (
         height_of_attachment**2 * 64 * security_factor
     )
-
-    return withstood_force
-
-
-def compute_tension_single_cable_road():
-    """Check if the tree anchor supports the load put on it - compute the angle between sloped cable road and anchor line"""
