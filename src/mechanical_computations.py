@@ -38,8 +38,8 @@ def check_if_no_collisions_cable_road(
     if this_cable_road.c_rope_length < 5:
         this_cable_road.no_collisions = False
 
-    # 1. Test if the CR touches the ground
-    calculate_sloped_line_to_floor_distances(this_cable_road)
+    # 1. Test if the CR touches the ground in its loaded state
+    this_cable_road.calculate_cr_deflections(loaded=True)
 
     lowest_point_height = min(this_cable_road.sloped_line_to_floor_distances)
 
@@ -127,15 +127,9 @@ def get_centroid_and_line(
 
     # get the height by selecting a point along the road
     if sloped:
-        centroid_height = (
-            cable_road.floor_height_below_line_points[index * index_swap]
-            + cable_road.sloped_line_to_floor_distances[index * index_swap]
-        )
+        centroid_height = cable_road.absolute_loaded_line_height[index * index_swap]
     else:
-        centroid_height = (
-            cable_road.floor_height_below_line_points[index * index_swap]
-            + cable_road.unloaded_line_to_floor_distances[index * index_swap]
-        )
+        centroid_height = cable_road.absolute_unloaded_line_height[index * index_swap]
 
     # distance = start_point.distance(cable_road.start_point) if move_centroid_left_from_start_point else start_point.distance(cable_road.end_point)
     # and get the centroid distance by shifting the x coordinate by half the length of the CR
@@ -192,6 +186,8 @@ def compute_tension_loaded_vs_unloaded_cableroad(
     First we get the centroid of the CR, then we calculate the angle between the centroid and the end point.
     Then we interpolate these lines with the tension in the CR.
     Finally, we get the force on the cable road by the distance between the interpolated points.
+
+    The first CR is interpreted as the loaded one, the second one is the unloaded one
 
     Args:
 
@@ -256,10 +252,22 @@ def compute_tension_loaded_vs_unloaded_cableroad(
 
     print("Angle:", angle_loaded_unloaded_cr)
     if angle_loaded_unloaded_cr > 20:
+        fig, (ax) = plt.subplots(1, 1, figsize=(9, 6))  # two rows, one column
+        ax.plot(*center_point_xz.xy, "o", color="black")
+
+        for lines in [
+            loaded_line_sp_centroid,
+            unloaded_line_sp_centroid,
+            loaded_line_rotated,
+        ]:
+            ax.plot(*LineString(lines).xy, color="black")
+
+        for lines in [force_applied_loaded, force_applied_loaded_rotated]:
+            ax.plot(*LineString(lines).xy, color="orange")
+
+        ax.plot(*resulting_force_line.xy, color="green")
         print("Angle is too big, testing")
     print("Force on loaded cable:", force_on_loaded_cable)
-
-    # fig, (ax) = plt.subplots(1, 1, figsize=(9, 6))  # two rows, one column
 
     if ax:
         ax.plot(*center_point_xz.xy, "o", color="black")
@@ -279,8 +287,8 @@ def compute_tension_loaded_vs_unloaded_cableroad(
     if return_lines:
         return (
             force_on_loaded_cable,
-            loaded_line_rotated.interpolate(tension),
             loaded_line_sp_centroid.interpolate(tension),
+            unloaded_line_sp_centroid.interpolate(tension),
         )
     else:
         return force_on_loaded_cable
@@ -335,33 +343,6 @@ def initialize_line_tension(
         this_cable_road.s_current_tension = pre_tension
     else:
         this_cable_road.s_current_tension = this_cable_road.s_max_maximalspannkraft
-    # this_cable_road.s_current_tension = this_cable_road.s_max_maximalspannkraft * (
-    #     current_supports + 1 / (current_supports + 2)
-    # )
-
-
-# TBD htis should be a cable road function
-def calculate_sloped_line_to_floor_distances(this_cable_road: classes.Cable_Road):
-    """Calculate the distances between the line and the floor based on pointwise deflections.
-
-    Args:
-        this_cable_road (classes.Cable_Road): This cable road.
-
-    Returns: Nothing, just updates the cable road object.
-    """
-    # Calculate current deflections with a given tension
-    y_x_deflections = np.asarray(
-        [
-            pestal_load_path(this_cable_road, point)
-            for point in this_cable_road.points_along_line
-        ],
-        dtype=np.float32,
-    )
-
-    #  check the distances between each floor point and the ldh point
-    this_cable_road.sloped_line_to_floor_distances = (
-        this_cable_road.line_to_floor_distances - y_x_deflections
-    )
 
 
 def compute_angle_between_supports(
@@ -521,54 +502,22 @@ def check_if_tower_and_anchor_trees_hold(
     maximum_tower_force = 200000
     scaling_factor = 10000  # unit length = 1m = 10kn of tension
 
-    # get the line between CR and anchor point
-    tower_to_anchor_line = LineString(
-        [
-            this_cable_road.start_point,
-            anchor_triplets[0][0].coords[0],
-        ]
-    )
-
-    tower_to_anchor_cr = classes.Cable_Road(
-        tower_to_anchor_line,
-        height_gdf,
-        pre_tension=int(this_cable_road.s_current_tension),
-    )
-
-    center_point_xz = Point(
-        [
-            this_cable_road.start_point.coords[0][0],
-            this_cable_road.total_start_point_height,
-        ]
-    )
-    (
-        force_on_vertical,
-        angle_point_xz,
-        angle_point_sloped_xz,
-    ) = compute_tension_loaded_vs_unloaded_cableroad(
-        this_cable_road,
-        tower_to_anchor_cr,
-        center_point_xz,
-        scaling_factor,
-        ax,
-        return_lines=True,
-    )
-
     # start point of the cr tower
     tower_xz_point = Point(
         [
             this_cable_road.start_point.coords[0][0],
-            this_cable_road.total_start_point_height,
+            this_cable_road.absolute_tower_height,
         ]
     )
 
-    cr_loaded_tangent = LineString([angle_point_sloped_xz, tower_xz_point])
-
-    # if ax:
-    #     ax.clear()
-    #     ax.set_ylim(-60, 20)
-    #     ax.set_xlim(-100, 20)
-    #     ax.plot(*cr_loaded_tangent.xy, color="red")
+    # the S_Max point of the tower, by shifting the tower point by the exerted force to the left and then getting the sloped height
+    index = int(exerted_force // scaling_factor)
+    loaded_cr_interpolated_tension_point = Point(
+        [
+            this_cable_road.start_point.coords[0][0] - index,
+            this_cable_road.absolute_loaded_line_height[index],
+        ]
+    )
 
     for index in range(len(anchor_triplets)):
         # set the central anchor point as line
@@ -591,15 +540,14 @@ def check_if_tower_and_anchor_trees_hold(
             ]
         )
 
+        fig, (ax3) = plt.subplots(1, 1, figsize=(9, 6))  # two rows, one column
+
         force_on_anchor, force_on_tower = construct_tower_force_parallelogram(
             tower_xz_point,
-            angle_point_sloped_xz,
+            loaded_cr_interpolated_tension_point,
             anchor_xz_point,
             this_cable_road.s_current_tension,
             scaling_factor,
-            angle_point_xz,
-            angle_point_sloped_xz,
-            this_cable_road.floor_points,
             ax=ax3,
         )
 
@@ -616,7 +564,6 @@ def check_if_tower_and_anchor_trees_hold(
         print("force on anchor", force_on_anchor)
         print("force on twoer", force_on_tower)
         print("max supported force by anchor", max_holding_force[index])
-        print(maximum_tower_force)
         if force_on_tower < maximum_tower_force:
             if force_on_anchor < max_holding_force[index]:
                 # do I need to build up a list?
@@ -635,9 +582,6 @@ def construct_tower_force_parallelogram(
     s_a_point_real: Point,
     force: float,
     scaling_factor: int,
-    angle_point_xz: Point,
-    angle_point_sloped_xz: Point,
-    floor_points: list = None,
     ax: plt.Axes = None,
 ) -> tuple[float, float]:
     """Constructs a parallelogram with the anchor point as its base, the force on the anchor as its height and the angle between the anchor tangent and the cr tangent as its angle.
@@ -659,6 +603,7 @@ def construct_tower_force_parallelogram(
     # scaling_factor *= 0.1
     # x distance from s_max to anchor
     s_max_to_anchor = s_max_point.distance(tower_xz_point)
+    s_max_to_anchor_height = tower_xz_point.coords[0][1] - s_max_point.coords[0][1]
 
     # set up the interpolation loop for the s_a point
     tower_s_max_x_point = Point(tower_xz_point.coords[0][0], s_max_point.coords[0][1])
@@ -694,31 +639,44 @@ def construct_tower_force_parallelogram(
             print("noo")
             break
 
-    # get the z distance from anchor to sa point
-    z_distance_anchor_to_s_a = abs(
-        s_a_point_interpolated.coords[0][1] - tower_xz_point.coords[0][1]
+    # update the tower s max x point with the height of the s_a point
+    tower_s_max_x_point = Point(
+        tower_xz_point.coords[0][0],
+        s_max_point.coords[0][1]
+        + (s_a_point_interpolated.coords[0][1] - tower_xz_point.coords[0][1]),
     )
 
+    # get the z distance from anchor to sa point
+    s_a_interpolated_length = s_a_point_interpolated.distance(tower_xz_point)
+
     # and the central point along the tower xz line with the coordinates of sa
-    anchor_s_max_applied = Point(
+    tower_s_a_radius = Point(
         [
             tower_xz_point.coords[0][0],
-            s_max_point.coords[0][1] + z_distance_anchor_to_s_a,
+            tower_xz_point.coords[0][1] - s_a_interpolated_length,
+        ]
+    )
+
+    tower_s_max_radius = Point(
+        [
+            tower_xz_point.coords[0][0],
+            tower_xz_point.coords[0][1] - s_max_to_anchor,
         ]
     )
 
     # shifting s_max z down by s_a distance to get a_3
-    s_a_to_anchor = s_a_point_interpolated.distance(tower_xz_point)
     a_3_point = Point(
-        [s_max_point.coords[0][0], s_max_point.coords[0][1] - s_max_to_anchor]
+        [
+            s_max_point.coords[0][0],
+            tower_s_max_radius.coords[0][1] - s_max_to_anchor_height,
+        ]
     )
 
     # shifting s_a down by s_a_distance
-    s_a_length = s_a_point_interpolated.distance(tower_xz_point)
     a_4_point = Point(
         [
             s_a_point_interpolated.coords[0][0],
-            s_a_point_interpolated.coords[0][1] - s_a_length,
+            s_a_point_interpolated.coords[0][1] - s_a_interpolated_length,
         ]
     )
 
@@ -748,9 +706,9 @@ def construct_tower_force_parallelogram(
             a_4_point,
             a_5_point,
             tower_xz_point,
-            anchor_s_max_applied,
-            angle_point_xz,
-            angle_point_sloped_xz,
+            tower_s_max_radius,
+            tower_s_a_radius,
+            tower_s_max_x_point,
             s_max_to_anchor,
         )
 

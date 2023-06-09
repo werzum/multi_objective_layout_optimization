@@ -14,11 +14,12 @@ class Cable_Road:
         current_supports=0,
     ):
         """heights"""
-        self.start_support_height = 11
-        self.end_support_height = 11
+        self.start_support_height = 8
+        self.end_support_height = 8
         self.min_height = 3
         self.start_point_height = 0.0
         self.end_point_height = 0.0
+        self.tower_height = 11
         self.floor_height_below_line_points = (
             []
         )  # the elevation of the floor below the line
@@ -43,7 +44,7 @@ class Cable_Road:
         self.anchors_hold = True
         self.s_current_tension = 0.0
 
-        # and further init:
+        # and further init with start and end point heights
         self.start_point_height = geometry_operations.fetch_point_elevation(
             self.start_point, height_gdf, self.max_deviation
         )
@@ -51,14 +52,13 @@ class Cable_Road:
             self.end_point, height_gdf, self.max_deviation
         )
 
-        # fetch the floor points along the line
+        # fetch the floor points along the line - xy view
         self.points_along_line = geometry_operations.generate_road_points(
-            self.line, interval=2
+            self.line, interval=1
         )
 
         # get the height of those points and set them as attributes to the CR object
-        self.compute_line_height(height_gdf)
-
+        self.compute_floor_height_below_line_points(height_gdf)
         # generate floor points and their distances
         self.floor_points = list(
             zip(
@@ -68,42 +68,37 @@ class Cable_Road:
             )
         )
 
-        # get the rope length
+        # set up further rope parameters
         self.b_length_whole_section = self.start_point.distance(self.end_point)
-
         self.c_rope_length = geometry_utilities.distance_between_3d_points(
             self.line_start_point_array, self.line_end_point_array
         )
-
         mechanical_computations.initialize_line_tension(
             self, current_supports, pre_tension
         )
 
-        # and calculate the sloped ltfd
-        y_x_deflections_loaded = np.asarray(
+        # and finally the loaded and unlaoded line to floor distances
+        self.compute_loaded_unloaded_line_height()
+
+    # Computing the line to floor distances
+    @property
+    def line_start_point_array(self):
+        return np.array(
             [
-                mechanical_computations.pestal_load_path(self, point)
-                for point in self.points_along_line
-            ],
-            dtype=np.float32,
+                self.start_point.x,
+                self.start_point.y,
+                self.total_start_point_height,
+            ]
         )
 
-        # as well as the empty deflections
-        y_x_deflections_unloaded = np.asarray(
+    @property
+    def line_end_point_array(self):
+        return np.array(
             [
-                mechanical_computations.pestal_load_path(self, point, loaded=False)
-                for point in self.points_along_line
-            ],
-            dtype=np.float32,
-        )
-
-        #  check the distances between each floor point and the ldh point
-        self.sloped_line_to_floor_distances = (
-            self.line_to_floor_distances - y_x_deflections_loaded
-        )
-
-        self.unloaded_line_to_floor_distances = (
-            self.line_to_floor_distances - y_x_deflections_unloaded
+                self.end_point.x,
+                self.end_point.y,
+                self.total_end_point_height,
+            ]
         )
 
     @property
@@ -128,26 +123,20 @@ class Cable_Road:
         return self.end_point_height + self.end_support_height
 
     @property
-    def line_start_point_array(self):
-        return np.array(
-            [
-                self.start_point.x,
-                self.start_point.y,
-                self.total_start_point_height,
-            ]
+    def absolute_tower_height(self):
+        return self.start_point_height + self.tower_height
+
+    @property
+    def absolute_unloaded_line_height(self):
+        return (
+            self.floor_height_below_line_points + self.unloaded_line_to_floor_distances
         )
 
     @property
-    def line_end_point_array(self):
-        return np.array(
-            [
-                self.end_point.x,
-                self.end_point.y,
-                self.total_end_point_height,
-            ]
-        )
+    def absolute_loaded_line_height(self):
+        return self.floor_height_below_line_points + self.sloped_line_to_floor_distances
 
-    def compute_line_height(self, height_gdf: gpd.GeoDataFrame):
+    def compute_floor_height_below_line_points(self, height_gdf: gpd.GeoDataFrame):
         """compute the height of the line above the floor as well as the start and end point in 3d.
         Sets the floor_height_below_line_points and the line_start_point_array and line_end_point_array
         Args:
@@ -175,3 +164,31 @@ class Cable_Road:
             ]["elev"].values[0]
             for i in range(len(x_point_min))
         ]
+
+    def compute_loaded_unloaded_line_height(self):
+        """compute the loaded and unloaded line to floor distances"""
+        self.calculate_cr_deflections(loaded=True)
+        self.calculate_cr_deflections(loaded=False)
+
+    def calculate_cr_deflections(self, loaded: bool = True):
+        """calculate the deflections of the CR line due to the load, either loaded or unlaoded
+        Args:
+            loaded (bool, optional): whether the line is loaded or not. Defaults to True.
+        """
+
+        y_x_deflections = np.asarray(
+            [
+                mechanical_computations.pestal_load_path(self, point, loaded)
+                for point in self.points_along_line
+            ],
+            dtype=np.float32,
+        )
+
+        if loaded:
+            self.sloped_line_to_floor_distances = (
+                self.line_to_floor_distances - y_x_deflections
+            )
+        else:
+            self.unloaded_line_to_floor_distances = (
+                self.line_to_floor_distances - y_x_deflections
+            )

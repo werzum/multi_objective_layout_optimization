@@ -179,6 +179,9 @@ def compute_required_supports(
     tower_and_anchors_hold = False
     # set supports_Hold to false if we have supports and need to check them, else set to true
     supports_hold = False if current_supports > 0 else True
+    # and set the support height to tower height and update the line heights accordingly
+    this_cable_road.start_support_height = this_cable_road.tower_height
+    this_cable_road.compute_loaded_unloaded_line_height()
 
     # decrement by 10kn increments while checking if the towers and intermediate supports hold
     while not (tower_and_anchors_hold and supports_hold):
@@ -267,7 +270,7 @@ def compute_required_supports(
             # start with at least three meters height
             if len(candidate_tree.height_series) < 3:
                 continue
-            for height_index in range(3, len(candidate_tree.height_series)):
+            for height_index in range(6, len(candidate_tree.height_series)):
                 print("raising height to ", height_index)
                 # increase the support height
                 road_to_support_cable_road.end_support_height = height_index
@@ -280,7 +283,7 @@ def compute_required_supports(
                         support_to_anchor_cable_road,
                     )
                 )
-                if not support_withstands_tension or height_index > 20:
+                if (not support_withstands_tension) or (height_index) > 20:
                     # next candidate - tension just gets worse with more height
                     break
 

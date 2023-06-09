@@ -509,25 +509,23 @@ def plot_parallelogram(
     a_4_point: Point,
     a_5_point: Point,
     tower_xz_point: Point,
-    anchor_s_max_applied: Point,
-    angle_point_xz: Point,
-    angle_point_sloped_xz: Point,
+    tower_s_max_radius: Point,
+    tower_s_a_radius: Point,
+    tower_s_max_x_point: Point,
     s_max_length: float,
 ):
     # ax.clear()
-    # ax.set_xlim(-35, -17)
-    # ax.set_ylim(-5, 12)
+    ax.set_xlim(-50, 20)
+    ax.set_ylim(-50, 20)
 
     # plot the points
     ax.plot(*s_max_point.xy, "o", color="black")
-    ax.plot(*anchor_s_max_applied.xy, "o", color="green")
+    ax.plot(*tower_s_max_radius.xy, "o", color="green")
     ax.plot(*s_a_point_force.xy, "o", color="blue")
     ax.plot(*a_3_point.xy, "o", color="red")
     ax.plot(*a_4_point.xy, "o", color="red")
     ax.plot(*a_5_point.xy, "o", color="blue")
     ax.plot(*tower_xz_point.xy, "o", color="orange")
-
-    ax.plot(*angle_point_sloped_xz.xy)
 
     for lines in [
         [s_max_point, tower_xz_point],
@@ -537,9 +535,8 @@ def plot_parallelogram(
         [a_5_point, tower_xz_point],
         [a_5_point, a_3_point],
         [a_5_point, a_4_point],
-        [tower_xz_point, angle_point_sloped_xz],
-        [s_a_point_force, anchor_s_max_applied],
-        [anchor_s_max_applied, s_max_point],
+        [s_a_point_force, tower_s_max_x_point],
+        [tower_s_max_x_point, s_max_point],
         [
             Point([a_3_point.coords[0][0], a_3_point.coords[0][1]]),
             Point(

@@ -21,11 +21,9 @@ def generate_road_points(
     # thanks to https://stackoverflow.com/questions/62990029/how-to-get-equally-spaced-points-on-a-line-in-shapely
     distance_delta = interval
     distances = np.arange(0, road_geometry.length, distance_delta)
-    road_points = [road_geometry.interpolate(distance) for distance in distances] + [
+    return [road_geometry.interpolate(distance) for distance in distances] + [
         Point(road_geometry.coords[1])
     ]
-
-    return road_points
 
 
 def compute_points_covered_by_geometry(
