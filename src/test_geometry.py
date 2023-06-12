@@ -5,7 +5,12 @@ import pytest
 
 from shapely.geometry import LineString, Point
 
-import geometry_utilities, geometry_operations, helper_functions_tests
+from src import (
+    geometry_utilities,
+    geometry_operations,
+    helper_functions_tests,
+    mechanical_computations,
+)
 
 
 def test_angle_between_3d():
@@ -87,3 +92,16 @@ def test_cable_road_creation():
     )
 
     print(cable_road)
+
+
+def test_euler_knicklast():
+    # testing different variations from the Tragkraft von Stützenbäumen as per Pestal
+    assert np.isclose(mechanical_computations.euler_knicklast(19, 8), 1500, rtol=0.2)
+
+    assert np.isclose(mechanical_computations.euler_knicklast(30, 20), 1500, rtol=0.2)
+
+    assert np.isclose(mechanical_computations.euler_knicklast(50, 20), 12000, rtol=0.20)
+
+    assert np.isclose(mechanical_computations.euler_knicklast(50, 40), 3000, rtol=0.20)
+
+    assert np.isclose(mechanical_computations.euler_knicklast(40, 10), 19000, rtol=0.20)

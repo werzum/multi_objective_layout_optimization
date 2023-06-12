@@ -1,7 +1,7 @@
 import pandas as pd
 from shapely.geometry import LineString, Point
 
-import cable_road_computation, data_loading
+from src import cable_road_computation, data_loading
 
 
 def create_cable_road():

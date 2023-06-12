@@ -752,16 +752,20 @@ def euler_knicklast(tree_diameter: float, height_of_attachment: float) -> float:
     """Calculates the euler case 2 knicklast of a tree
     Args:
         tree_diameter (float): the diameter of the tree in cm
-        height_of_attachment (float): the height of the attachment in decim
+        height_of_attachment (float): the height of the attachment in meters
     Returns:
         float: the force the tree can withstand in Newton
     """
     if height_of_attachment == 0:
         height_of_attachment = 1
 
-    E_module_wood = 11000
+    # convert meters to cm
+    height_of_attachment *= 100
+
+    # emodule in cm
+    E_module_wood = 80000
     security_factor = 5
 
     return (math.pi**2 * E_module_wood * math.pi * tree_diameter**4) / (
-        height_of_attachment**2 * 64 * security_factor
+        (height_of_attachment**2) * 64 * security_factor
     )
