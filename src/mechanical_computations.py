@@ -252,20 +252,20 @@ def compute_tension_loaded_vs_unloaded_cableroad(
 
     print("Angle:", angle_loaded_unloaded_cr)
     if angle_loaded_unloaded_cr > 20:
-        fig, (ax) = plt.subplots(1, 1, figsize=(9, 6))  # two rows, one column
-        ax.plot(*center_point_xz.xy, "o", color="black")
+        # fig, (ax) = plt.subplots(1, 1, figsize=(9, 6))  # two rows, one column
+        # ax.plot(*center_point_xz.xy, "o", color="black")
 
-        for lines in [
-            loaded_line_sp_centroid,
-            unloaded_line_sp_centroid,
-            loaded_line_rotated,
-        ]:
-            ax.plot(*LineString(lines).xy, color="black")
+        # for lines in [
+        #     loaded_line_sp_centroid,
+        #     unloaded_line_sp_centroid,
+        #     loaded_line_rotated,
+        # ]:
+        #     ax.plot(*LineString(lines).xy, color="black")
 
-        for lines in [force_applied_loaded, force_applied_loaded_rotated]:
-            ax.plot(*LineString(lines).xy, color="orange")
+        # for lines in [force_applied_loaded, force_applied_loaded_rotated]:
+        #     ax.plot(*LineString(lines).xy, color="orange")
 
-        ax.plot(*resulting_force_line.xy, color="green")
+        # ax.plot(*resulting_force_line.xy, color="green")
         print("Angle is too big, testing")
     print("Force on loaded cable:", force_on_loaded_cable)
 
@@ -335,7 +335,6 @@ def compute_angle_between_lines(
 def initialize_line_tension(
     this_cable_road: classes.Cable_Road, current_supports: int, pre_tension: int = 0
 ):
-    print("initialize_line_tension")
     # set tension of the cable_road
     s_br_mindestbruchlast = 170000  # in newton
     this_cable_road.s_max_maximalspannkraft = s_br_mindestbruchlast / 2
@@ -540,7 +539,7 @@ def check_if_tower_and_anchor_trees_hold(
             ]
         )
 
-        fig, (ax3) = plt.subplots(1, 1, figsize=(9, 6))  # two rows, one column
+        # fig, (ax3) = plt.subplots(1, 1, figsize=(9, 6))  # two rows, one column
 
         force_on_anchor, force_on_tower = construct_tower_force_parallelogram(
             tower_xz_point,
@@ -726,7 +725,7 @@ def pestal_load_path(cable_road: classes.Cable_Road, point: Point, loaded: bool 
     """
     T_0_basic_tensile_force = cable_road.s_current_tension
     q_s_rope_weight = 1.6
-    q_vertical_force = 15000 if loaded else 0
+    q_vertical_force = 10000 if loaded else 0
 
     h_height_difference = abs(
         cable_road.total_end_point_height - cable_road.total_start_point_height

@@ -305,8 +305,9 @@ def plot_cr_relief(
     line_gdf: gpd.GeoDataFrame,
     height_gdf: gpd.GeoDataFrame,
     index: int,
+    passed_fig: go.Figure = None,
 ):
-    """Plot the relief of a single cable road with a scatterplot of relief, line and floor points.
+    """Plot the relief of a single cable road with a scatterplot of relief, line and floor points. Refers the plot to the type of cable road (supported or unsupported)
 
     Args:
         sample_cable_road (classes.Cable_Road): _description_
@@ -314,14 +315,25 @@ def plot_cr_relief(
         height_gdf (gpd.GeoDataFrame): _description_
         index (int): the index of the dataframe to extract more data
     """
+
+    if line_gdf.iloc[index]["number_of_supports"]:
+        plot_supported_cr_relief(
+            sample_cable_road, line_gdf, height_gdf, index, passed_fig
+        )
+    else:
+        plot_unsupported_cr_relief(
+            sample_cable_road, line_gdf, height_gdf, index, passed_fig
+        )
+
+
+def plot_unsupported_cr_relief(
+    sample_cable_road, line_gdf, height_gdf, index, passed_fig: go.Figure = None
+):
     x_sample_cr = [point[0] for point in sample_cable_road.floor_points]
     y_sample_cr = [point[1] for point in sample_cable_road.floor_points]
-    z_sloped = (
-        sample_cable_road.floor_height_below_line_points
-        + sample_cable_road.sloped_line_to_floor_distances
-    )
+    z_sloped = sample_cable_road.absolute_loaded_line_height
 
-    fig = go.Figure()
+    fig = go.Figure() if passed_fig is None else passed_fig
 
     add_straight_line_to_go_figure(sample_cable_road, fig)
     add_relief_to_go_figure(sample_cable_road, fig)
@@ -343,19 +355,14 @@ def plot_cr_relief(
         title="Detail View of Single Cable Road Path under Load", width=1200, height=800
     )
     # fig.write_html("02_Figures/Cable_Road_3d.html")
-    fig.show("notebook_connected")
+    if passed_fig is None:
+        fig.show("notebook_connected")
 
 
-def plot_supported_cr_relief(sample_cable_road, line_gdf, height_gdf, index):
-    """Plot the relief of a single cable road with supports - show a scatterplot of relief, line and floor points
-    Args:
-        sample_cable_road (classes.Cable_Road): _description_
-        line_gdf (gpd.GeoDataFrame): _description_
-        height_gdf (gpd.GeoDataFrame): _description_
-        index (int): the index of the dataframe to extract more data
-    """
-
-    fig = go.Figure()
+def plot_supported_cr_relief(
+    sample_cable_road, line_gdf, height_gdf, index, passed_fig: go.Figure = None
+):
+    fig = go.Figure() if passed_fig is None else passed_fig
 
     add_relief_to_go_figure(sample_cable_road, fig)
     add_all_anchors_to_go_figure(sample_cable_road, line_gdf, height_gdf, index, fig)
@@ -374,9 +381,6 @@ def plot_supported_cr_relief(sample_cable_road, line_gdf, height_gdf, index):
             sample_line, height_gdf, pre_tension=sample_cable_road.s_current_tension
         )
 
-        mechanical_computations.calculate_sloped_line_to_floor_distances(
-            sample_cable_road
-        )
         add_straight_line_to_go_figure(sample_cable_road, fig)
 
         x_sample_cr = [point[0] for point in sample_cable_road.floor_points]
@@ -405,7 +409,8 @@ def plot_supported_cr_relief(sample_cable_road, line_gdf, height_gdf, index):
         title="Relief Map with possible Cable Roads",
     )
 
-    fig.show("notebook_connected")
+    if passed_fig is None:
+        fig.show("notebook_connected")
 
 
 def add_all_anchors_to_go_figure(

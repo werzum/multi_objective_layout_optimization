@@ -5,6 +5,21 @@ import geopandas as gpd
 from src import geometry_operations, geometry_utilities, mechanical_computations
 
 
+def set_up_CR_from_linegdf(line_gdf, index, height_gdf):
+    """Helper function to abstract setting up a sample cable road from the line_gdf
+    Args:
+        line_gdf (gpd.GeoDataFrame): the line_gdf
+        index (int): the index of the line_gdf to use
+        height_gdf (gpd.GeoDataFrame): the height_gdf
+
+    Returns:
+        Cable_Road: the cable road
+    """
+
+    sample_line = line_gdf.iloc[index].geometry
+    return Cable_Road(sample_line, height_gdf, line_gdf.iloc[index].current_tension)
+
+
 class Cable_Road:
     def __init__(
         self,
@@ -43,6 +58,13 @@ class Cable_Road:
         self.no_collisions = True
         self.anchors_hold = True
         self.s_current_tension = 0.0
+
+        print(
+            "Cable road created from line: ",
+            self.line.coords[0],
+            "to ",
+            self.line.coords[1],
+        )
 
         # and further init with start and end point heights
         self.start_point_height = geometry_operations.fetch_point_elevation(
