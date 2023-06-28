@@ -1,0 +1,242 @@
+from shapely.geometry import LineString, Point
+import numpy as np
+import geopandas as gpd
+
+from src.main import (
+    geometry_operations,
+    geometry_utilities,
+    mechanical_computations,
+)
+
+
+def set_up_CR_from_linegdf(line_gdf, index, height_gdf):
+    """Helper function to abstract setting up a sample cable road from the line_gdf
+    Args:
+        line_gdf (gpd.GeoDataFrame): the line_gdf
+        index (int): the index of the line_gdf to use
+        height_gdf (gpd.GeoDataFrame): the height_gdf
+
+    Returns:
+        Cable_Road: the cable road
+    """
+
+    sample_line = line_gdf.iloc[index].geometry
+    return Cable_Road(sample_line, height_gdf, line_gdf.iloc[index].current_tension)
+
+
+class Cable_Road:
+    def __init__(
+        self,
+        line,
+        height_gdf,
+        pre_tension=0,
+        current_supports=0,
+    ):
+        """heights"""
+        self.start_support_height = 8
+        self.end_support_height = 8
+        self.min_height = 3
+        self.start_point_height = 0.0
+        self.end_point_height = 0.0
+        self.tower_height = 11
+        self.floor_height_below_line_points = (
+            []
+        )  # the elevation of the floor below the line
+        self.sloped_line_to_floor_distances = np.array([])
+        self.unloaded_line_to_floor_distances = np.array([])
+        """ geometry features """
+        self.line = line
+        self.start_point = Point(line.coords[0])
+        self.end_point = Point(line.coords[1])
+        self.points_along_line = []
+        self.floor_points = []
+        self.max_deviation = 0.1
+        self.anchor_triplets = []
+        """ Fixed cable road parameters """
+        self.q_s_self_weight_center_span = 10
+        self.q_load = 80000
+        self.c_rope_length = 0.0
+        self.b_length_whole_section = 0.0
+        self.s_max_maximalspannkraft = 0.0
+        """ Modifiable collision parameters """
+        self.no_collisions = True
+        self.anchors_hold = True
+        self.s_current_tension = 0.0
+
+        self.support_segments = []  # list of SupportSegment objects
+
+        print(
+            "Cable road created from line: ",
+            self.line.coords[0],
+            "to ",
+            self.line.coords[1],
+        )
+
+        # and further init with start and end point heights
+        self.start_point_height = geometry_operations.fetch_point_elevation(
+            self.start_point, height_gdf, self.max_deviation
+        )
+        self.end_point_height = geometry_operations.fetch_point_elevation(
+            self.end_point, height_gdf, self.max_deviation
+        )
+
+        # fetch the floor points along the line - xy view
+        self.points_along_line = geometry_operations.generate_road_points(
+            self.line, interval=1
+        )
+
+        # get the height of those points and set them as attributes to the CR object
+        self.compute_floor_height_below_line_points(height_gdf)
+        # generate floor points and their distances
+        self.floor_points = list(
+            zip(
+                [point.x for point in self.points_along_line],
+                [point.y for point in self.points_along_line],
+                self.floor_height_below_line_points,
+            )
+        )
+
+        # set up further rope parameters
+        self.b_length_whole_section = self.start_point.distance(self.end_point)
+        self.c_rope_length = geometry_utilities.distance_between_3d_points(
+            self.line_start_point_array, self.line_end_point_array
+        )
+
+        self.initialize_line_tension(current_supports, pre_tension)
+
+        # and finally the loaded and unlaoded line to floor distances
+        self.compute_loaded_unloaded_line_height()
+
+    # Computing the line to floor distances
+    @property
+    def line_start_point_array(self):
+        return np.array(
+            [
+                self.start_point.x,
+                self.start_point.y,
+                self.total_start_point_height,
+            ]
+        )
+
+    @property
+    def line_end_point_array(self):
+        return np.array(
+            [
+                self.end_point.x,
+                self.end_point.y,
+                self.total_end_point_height,
+            ]
+        )
+
+    @property
+    def line_to_floor_distances(self):
+        return np.asarray(
+            [
+                geometry_utilities.lineseg_dist(
+                    point,
+                    self.line_start_point_array,
+                    self.line_end_point_array,
+                )
+                for point in self.floor_points
+            ]
+        )
+
+    @property
+    def total_start_point_height(self):
+        return self.start_point_height + self.start_support_height
+
+    @property
+    def total_end_point_height(self):
+        return self.end_point_height + self.end_support_height
+
+    @property
+    def absolute_tower_height(self):
+        return self.start_point_height + self.tower_height
+
+    @property
+    def absolute_unloaded_line_height(self):
+        return (
+            self.floor_height_below_line_points + self.unloaded_line_to_floor_distances
+        )
+
+    @property
+    def absolute_loaded_line_height(self):
+        return self.floor_height_below_line_points + self.sloped_line_to_floor_distances
+
+    def compute_floor_height_below_line_points(self, height_gdf: gpd.GeoDataFrame):
+        """compute the height of the line above the floor as well as the start and end point in 3d.
+        Sets the floor_height_below_line_points and the line_start_point_array and line_end_point_array
+        Args:
+            height_gdf (gpd.GeoDataFrame): the floor height data
+        """
+        # generate four lists of x and y values with min and max values for each point
+        x_point_min, x_point_max, y_point_min, y_point_max = zip(
+            *[
+                (
+                    point.x - self.max_deviation,
+                    point.x + self.max_deviation,
+                    point.y - self.max_deviation,
+                    point.y + self.max_deviation,
+                )
+                for point in self.points_along_line
+            ]
+        )
+
+        # for each value in the list, find the elevation of the floor below the line in the height_gdf by selecting the
+        # first matching value in the height_gdf
+        self.floor_height_below_line_points = [
+            height_gdf[
+                height_gdf.x.between(x_point_min[i], x_point_max[i])
+                & (height_gdf.y.between(y_point_min[i], y_point_max[i]))
+            ]["elev"].values[0]
+            for i in range(len(x_point_min))
+        ]
+
+    def compute_loaded_unloaded_line_height(self):
+        """compute the loaded and unloaded line to floor distances"""
+        self.calculate_cr_deflections(loaded=True)
+        self.calculate_cr_deflections(loaded=False)
+
+    def calculate_cr_deflections(self, loaded: bool = True):
+        """calculate the deflections of the CR line due to the load, either loaded or unlaoded
+        Args:
+            loaded (bool, optional): whether the line is loaded or not. Defaults to True.
+        """
+
+        y_x_deflections = np.asarray(
+            [
+                mechanical_computations.pestal_load_path(self, point, loaded)
+                for point in self.points_along_line
+            ],
+            dtype=np.float32,
+        )
+
+        if loaded:
+            self.sloped_line_to_floor_distances = (
+                self.line_to_floor_distances - y_x_deflections
+            )
+        else:
+            self.unloaded_line_to_floor_distances = (
+                self.line_to_floor_distances - y_x_deflections
+            )
+
+    def initialize_line_tension(self, current_supports: int, pre_tension: int = 0):
+        # set tension of the cable_road
+        s_br_mindestbruchlast = 170000  # in newton
+        self.s_max_maximalspannkraft = s_br_mindestbruchlast / 2
+        if pre_tension:
+            self.s_current_tension = pre_tension
+        else:
+            self.s_current_tension = self.s_max_maximalspannkraft
+
+
+class SupportSegment:
+    def __init__(
+        self,
+        road_to_support_cable_road: Cable_Road,
+        support_to_anchor_cable_road: Cable_Road,
+        candidate_tree: gpd.GeoSeries,
+    ):
+        self.road_to_support_cable_road = road_to_support_cable_road
+        self.support_to_anchor_cable_road = support_to_anchor_cable_road
+        self.candidate_tree = candidate_tree
