@@ -15,13 +15,14 @@ import vispy
 
 import plotly.graph_objects as go
 
-from src import (
+from src.main import (
     mechanical_computations,
     cable_road_computation,
     classes,
     geometry_operations,
-    test_helper_functions,
 )
+
+from src.tests import helper_functions
 
 
 def plot_gdfs(gdfs: list):
@@ -395,9 +396,10 @@ def plot_supported_cr_relief(
     add_relief_to_go_figure(sample_cable_road, fig)
     add_all_anchors_to_go_figure(sample_cable_road, line_gdf, height_gdf, index, fig)
 
-    cable_road_segments = test_helper_functions.create_cable_road_segments(
-        line_gdf, height_gdf, index
-    )
+    # TODO - iterate over the segments
+    # cable_road_segments = helper_functions.create_cable_road_segments(
+    #     line_gdf, height_gdf, index
+    # )
 
     # for all individual road segments
     for cable_road in cable_road_segments:

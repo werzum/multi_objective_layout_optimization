@@ -9,19 +9,79 @@ from src.main import (
 )
 
 
-def set_up_CR_from_linegdf(line_gdf, index, height_gdf):
-    """Helper function to abstract setting up a sample cable road from the line_gdf
-    Args:
-        line_gdf (gpd.GeoDataFrame): the line_gdf
-        index (int): the index of the line_gdf to use
-        height_gdf (gpd.GeoDataFrame): the height_gdf
+# TODO - dont need this since we store the CR object in the line_gdf and therefore dont need to restore it?
+# def set_up_CR_from_linegdf(line_gdf, index, height_gdf):
+#     """Helper function to abstract setting up a sample cable road from the line_gdf
+#     Args:
+#         line_gdf (gpd.GeoDataFrame): the line_gdf
+#         index (int): the index of the line_gdf to use
+#         height_gdf (gpd.GeoDataFrame): the height_gdf
 
-    Returns:
-        Cable_Road: the cable road
-    """
+#     Returns:
+#         Cable_Road: the cable road
+#     """
 
-    sample_line = line_gdf.iloc[index].geometry
-    return Cable_Road(sample_line, height_gdf, line_gdf.iloc[index].current_tension)
+#     sample_line = line_gdf.iloc[index].geometry
+#     left_support = Support(8,
+#     return Cable_Road(sample_line, height_gdf, line_gdf.iloc[index].current_tension)
+
+
+# def create_support_from_CR(cable_road: Cable_Road, use_left_support: bool, height_gdf):
+#     if use_left_support:
+#         support = Support(8, cable_road.line.)
+#     else:
+#         support = cable_road.right_support
+
+
+def initialize_cable_road_with_supports(
+    line: LineString,
+    height_gdf,
+    pre_tension=0,
+    is_tower=False,
+    left_max_supported_force=0.0,
+    right_max_supported_force=0.0,
+):
+    left_support = Support(
+        8,
+        Point(line.coords[0]),
+        height_gdf,
+        is_tower,
+        left_max_supported_force,
+    )
+    right_support = Support(
+        8,
+        Point(line.coords[-1]),
+        height_gdf,
+        right_max_supported_force,
+    )
+    return Cable_Road(line, height_gdf, left_support, right_support, pre_tension)
+
+
+class Support:
+    def __init__(
+        self,
+        attachment_height: float,
+        xy_location: Point,
+        height_gdf: gpd.GeoDataFrame,
+        max_deviation: float = 1,
+        max_supported_force: float = 0.0,
+        max_holding_force: float = 0.0,
+    ):
+        self.attachment_height = attachment_height
+        self.xy_location = xy_location
+        self.max_deviation = max_deviation
+        self.is_tower = False
+        self.max_supported_force = max_supported_force
+        self.max_holding_force = max_holding_force
+
+        # get the elevation of the floor below the support
+        self.floor_height = geometry_operations.fetch_point_elevation(
+            self.xy_location, height_gdf, self.max_deviation
+        )
+
+    @property
+    def total_height(self):
+        return self.floor_height + self.attachment_height
 
 
 class Cable_Road:
@@ -29,16 +89,15 @@ class Cable_Road:
         self,
         line,
         height_gdf,
+        left_support: Support,
+        right_support: Support,
         pre_tension=0,
         current_supports=0,
     ):
+        self.left_support: Support = left_support
+        self.right_support: Support = right_support
+
         """heights"""
-        self.start_support_height = 8
-        self.end_support_height = 8
-        self.min_height = 3
-        self.start_point_height = 0.0
-        self.end_point_height = 0.0
-        self.tower_height = 11
         self.floor_height_below_line_points = (
             []
         )  # the elevation of the floor below the line
@@ -63,21 +122,15 @@ class Cable_Road:
         self.anchors_hold = True
         self.s_current_tension = 0.0
 
-        self.support_segments = []  # list of SupportSegment objects
+        self.supported_segments: list[
+            SupportedSegment
+        ] = []  # list of SupportedSegment objects, ie. sub cable roads
 
         print(
             "Cable road created from line: ",
             self.line.coords[0],
             "to ",
             self.line.coords[1],
-        )
-
-        # and further init with start and end point heights
-        self.start_point_height = geometry_operations.fetch_point_elevation(
-            self.start_point, height_gdf, self.max_deviation
-        )
-        self.end_point_height = geometry_operations.fetch_point_elevation(
-            self.end_point, height_gdf, self.max_deviation
         )
 
         # fetch the floor points along the line - xy view
@@ -114,7 +167,7 @@ class Cable_Road:
             [
                 self.start_point.x,
                 self.start_point.y,
-                self.total_start_point_height,
+                self.left_support.total_height,
             ]
         )
 
@@ -124,7 +177,7 @@ class Cable_Road:
             [
                 self.end_point.x,
                 self.end_point.y,
-                self.total_end_point_height,
+                self.right_support.total_height,
             ]
         )
 
@@ -140,18 +193,6 @@ class Cable_Road:
                 for point in self.floor_points
             ]
         )
-
-    @property
-    def total_start_point_height(self):
-        return self.start_point_height + self.start_support_height
-
-    @property
-    def total_end_point_height(self):
-        return self.end_point_height + self.end_support_height
-
-    @property
-    def absolute_tower_height(self):
-        return self.start_point_height + self.tower_height
 
     @property
     def absolute_unloaded_line_height(self):
@@ -230,13 +271,13 @@ class Cable_Road:
             self.s_current_tension = self.s_max_maximalspannkraft
 
 
-class SupportSegment:
+class SupportedSegment:
     def __init__(
         self,
-        road_to_support_cable_road: Cable_Road,
-        support_to_anchor_cable_road: Cable_Road,
-        candidate_tree: gpd.GeoSeries,
+        cable_road: Cable_Road,
+        left_support: Support,
+        right_support: Support,
     ):
-        self.road_to_support_cable_road = road_to_support_cable_road
-        self.support_to_anchor_cable_road = support_to_anchor_cable_road
-        self.candidate_tree = candidate_tree
+        self.cable_road = cable_road
+        self.left_support = left_support
+        self.right_support = right_support

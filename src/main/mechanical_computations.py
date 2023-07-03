@@ -6,7 +6,7 @@ import vispy.scene
 import geopandas as gpd
 import matplotlib.pyplot as plt
 
-from src import (
+from src.main import (
     geometry_utilities,
     geometry_operations,
     classes,
@@ -47,7 +47,7 @@ def check_if_no_collisions_cable_road(
 
 
 def check_if_support_withstands_tension(
-    support_segment: classes.SupportSegment, max_supported_force: float
+    current_segment: classes.SupportedSegment, next_segment: classes.SupportedSegment
 ) -> bool:
     """
     This function calculates the exerted force on a support tree, based on the tension in a loaded cable road
@@ -65,26 +65,29 @@ def check_if_support_withstands_tension(
         bool: True if the support can handle more force than is being exerted on it, and False otherwise.
 
     """
+
     print("checking if support withstands tension")
     scaling_factor = 10000
 
+    # create the xz center point (ie the support location)
     center_point_xz = Point(
-        support_segment.road_to_support_cable_road.end_point.coords[0][0],
-        support_segment.road_to_support_cable_road.total_end_point_height,
+        current_segment.right_support.xy_location.x,
+        current_segment.right_support.total_height,
     )
-    # fig, (ax) = plt.subplots(1, 1, figsize=(9, 6))  # two rows, one column
+
+    # fig, (ax) = plt.subplots(1, 1, figsize=(9, 6))
     ### Calculate the force on the support for the both cable roads
     force_on_support_left = compute_tension_loaded_vs_unloaded_cableroad(
-        support_segment.road_to_support_cable_road,
-        support_segment.support_to_anchor_cable_road,
+        current_segment.cable_road,
+        next_segment.cable_road,
         center_point_xz,
         scaling_factor,
         ax=ax,
         return_lines=False,
     )
     force_on_support_right = compute_tension_loaded_vs_unloaded_cableroad(
-        support_segment.support_to_anchor_cable_road,
-        support_segment.road_to_support_cable_road,
+        next_segment.cable_road,
+        current_segment.cable_road,
         center_point_xz,
         scaling_factor,
         ax=ax,
@@ -93,7 +96,9 @@ def check_if_support_withstands_tension(
 
     print("forces on lr support", force_on_support_left, force_on_support_right)
     # return true if the support can bear more than the exerted force
-    return max_supported_force > max(force_on_support_left, force_on_support_right)
+    return current_segment.right_support.max_supported_force > max(
+        force_on_support_left, force_on_support_right
+    )
 
 
 def get_centroid_and_line(
@@ -459,7 +464,7 @@ def check_if_tower_and_anchor_trees_hold(
     tower_xz_point = Point(
         [
             this_cable_road.start_point.coords[0][0],
-            this_cable_road.absolute_tower_height,
+            this_cable_road.left_support.total_height,
         ]
     )
 
@@ -497,7 +502,6 @@ def check_if_tower_and_anchor_trees_hold(
             tower_xz_point,
             loaded_cr_interpolated_tension_point,
             anchor_xz_point,
-            this_cable_road.s_current_tension,
             scaling_factor,
         )
 
@@ -628,7 +632,7 @@ def pestal_load_path(cable_road: classes.Cable_Road, point: Point, loaded: bool 
     q_vertical_force = 10000 if loaded else 0
 
     h_height_difference = abs(
-        cable_road.total_end_point_height - cable_road.total_start_point_height
+        cable_road.right_support.total_height - cable_road.left_support.total_height
     )
 
     T_bar_tensile_force_at_center_span = T_0_basic_tensile_force + q_s_rope_weight * (

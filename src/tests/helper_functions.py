@@ -2,7 +2,7 @@ import pandas as pd
 import geopandas as gpd
 from shapely.geometry import LineString, Point
 
-from src import classes
+from src.main import classes
 
 
 def set_up_gdfs():
