@@ -69,7 +69,7 @@ def generate_possible_lines(
     line_df = line_df[line_df["slope_deviation"] < max_main_line_slope_deviation]
     print(len(line_df), " after slope deviations")
 
-    # line_df = line_df.iloc[::10]
+    line_df = line_df.iloc[::10]
 
     # filter the candidates for support trees
     # overall_trees, target, point, possible_line
@@ -96,24 +96,19 @@ def generate_possible_lines(
     # check if we have no height obstructions - compute the supports we need according to line tension and anchor configs
     pos = []
 
-    (line_df["Cable Road Object"],) = zip(
-        *[
-            compute_required_supports(
-                line["line_candidates"],
-                line["possible_anchor_triples"],
-                line["max_holding_force"],
-                line["tree_anchor_support_trees"],
-                height_gdf,
-                0,
-                overall_trees,
-                [],
-                plot_possible_lines,
-                view,
-                pos,
-            )
-            for index, line in line_df.iterrows()
-        ]
-    )
+    line_df["Cable Road Object"] = [
+        compute_required_supports(
+            line["possible_anchor_triples"],
+            line["max_holding_force"],
+            line["tree_anchor_support_trees"],
+            height_gdf,
+            overall_trees,
+            [],
+            0,
+            from_line=line["line_candidates"],
+        )
+        for index, line in line_df.iterrows()
+    ]
 
     # and filter lines out without successful lines
     line_df = line_df[line_df["number_of_supports"].apply(lambda x: x is not False)]
@@ -228,7 +223,6 @@ def compute_required_supports(
             anchor_triplets,
             tree_anchor_support_trees,
             height_gdf,
-            current_supports,
         )
     this_cable_road.anchors_hold = True
 
@@ -271,7 +265,6 @@ def compute_required_supports(
                 this_cable_road,
                 candidate_index,
                 height_gdf,
-                current_supports,
             )
 
             segments_feasible = check_segment_for_feasibility(
@@ -378,12 +371,11 @@ def raise_height_and_check_tension(
 
 
 def set_up_recursive_supports(
-    this_cable_road,
-    overall_trees,
-    current_supports,
-    distance_candidates,
-    location_supports,
-    height_gdf,
+    this_cable_road: classes.Cable_Road,
+    overall_trees: gpd.GeoDataFrame,
+    distance_candidates: gpd.GeoSeries,
+    location_supports: list,
+    height_gdf: gpd.GeoDataFrame,
 ) -> classes.Cable_Road:
     """set up the next iteration for finding supports.
     We select the first candidate as support, create a segment for it and add it to the cable road.
@@ -392,7 +384,6 @@ def set_up_recursive_supports(
 
     # proceed with the working cr and find sub-supports - fetch the candidate we last looked at
     # increment the supports correspondingly
-    current_supports += 1
     first_candidate_point = overall_trees.iloc[distance_candidates.index[0]].geometry
     location_supports.append(first_candidate_point)
 
@@ -405,9 +396,9 @@ def set_up_recursive_supports(
         right_segment,
         support_tree,
     ) = create_left_right_segments_and_support_tree(
-        overall_trees, this_cable_road, candidate, height_gdf, current_supports
+        overall_trees, this_cable_road, candidate, height_gdf
     )
-    this_cable_road.support_segments.append(left_segment, right_segment)
+    this_cable_road.supported_segments.extend((left_segment, right_segment))
 
     return this_cable_road
 
@@ -671,7 +662,7 @@ def generate_tree_anchor_support_trees(
 
 
 def create_candidate_points_and_lines(
-    candidate: gpd.GeoDataFrame,
+    candidate_index: int,
     start_point: Point,
     end_point: Point,
     candidate_point: Point,
@@ -681,7 +672,7 @@ def create_candidate_points_and_lines(
     road_to_support_line = LineString([start_point, candidate_point])
     support_to_anchor_line = LineString([candidate_point, end_point])
     # get the location of the support point - why am Ii not able to do this with intermediate_support_candidates?
-    new_support_point = overall_trees.iloc[candidate].geometry
+    new_support_point = overall_trees.iloc[candidate_index].geometry
     road_to_support_line = LineString([start_point, new_support_point])
     support_to_anchor_line = LineString([new_support_point, end_point])
 
@@ -734,7 +725,7 @@ def setup_support_candidates(
 
 
 def create_left_right_segments_and_support_tree(
-    overall_trees, this_cable_road, candidate, height_gdf, current_supports
+    overall_trees, this_cable_road, candidate_index, height_gdf
 ) -> tuple[classes.SupportedSegment, classes.SupportedSegment, gpd.GeoSeries]:
     """Create the sideways cable roads as well as the candidate tree and return them
 
@@ -751,7 +742,7 @@ def create_left_right_segments_and_support_tree(
     """
 
     # need to add the height and force per tree here
-    candidate_tree = overall_trees.iloc[candidate]
+    candidate_tree = overall_trees.iloc[candidate_index]
 
     # create lines and points left and right
     (
@@ -759,7 +750,7 @@ def create_left_right_segments_and_support_tree(
         road_to_support_line,
         support_to_anchor_line,
     ) = create_candidate_points_and_lines(
-        candidate,
+        candidate_index,
         this_cable_road.start_point,
         this_cable_road.end_point,
         candidate_tree.geometry,
@@ -769,10 +760,10 @@ def create_left_right_segments_and_support_tree(
     # Create the supports for the left CR segment
     road_to_support_cable_road_left_support = this_cable_road.left_support
     road_to_support_cable_road_right_support = classes.Support(
-        6,
-        road_to_support_line.coords[1],
-        height_gdf,
-        max_supported_force=candidate.max_supported_force,
+        attachment_height=6,
+        xy_location=Point(road_to_support_line.coords[1]),
+        height_gdf=height_gdf,
+        max_supported_force=candidate_tree.max_supported_force_series,
     )
 
     # Create the supports for the right CR segment

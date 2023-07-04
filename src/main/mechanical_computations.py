@@ -583,8 +583,8 @@ def euler_knicklast(tree_diameter: float, height_of_attachment: float) -> float:
     Returns:
         float: the force the tree can withstand in Newton
     """
-    # if not height_of_attachment:
-    # height_of_attachment = 1
+    if not height_of_attachment:
+        height_of_attachment = 1
 
     # convert meters to cm
     height_of_attachment *= 100

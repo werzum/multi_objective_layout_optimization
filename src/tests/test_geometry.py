@@ -5,10 +5,9 @@ import pytest
 
 from shapely.geometry import LineString, Point
 
-from src import (
+from src.main import (
     geometry_utilities,
     geometry_operations,
-    helper_functions_tests,
     mechanical_computations,
 )
 

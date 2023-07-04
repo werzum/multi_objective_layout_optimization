@@ -35,24 +35,25 @@ from src.main import (
 
 def initialize_cable_road_with_supports(
     line: LineString,
-    height_gdf,
+    height_gdf: gpd.GeoDataFrame,
     pre_tension=0,
     is_tower=False,
     left_max_supported_force=0.0,
     right_max_supported_force=0.0,
 ):
     left_support = Support(
-        8,
-        Point(line.coords[0]),
-        height_gdf,
-        is_tower,
-        left_max_supported_force,
+        attachment_height=11,
+        xy_location=Point(line.coords[0]),
+        height_gdf=height_gdf,
+        max_supported_force=left_max_supported_force,
+        is_tower=is_tower,
     )
     right_support = Support(
-        8,
-        Point(line.coords[-1]),
-        height_gdf,
-        right_max_supported_force,
+        attachment_height=8,
+        xy_location=Point(line.coords[-1]),
+        height_gdf=height_gdf,
+        max_supported_force=right_max_supported_force,
+        is_tower=False,
     )
     return Cable_Road(line, height_gdf, left_support, right_support, pre_tension)
 
@@ -66,11 +67,12 @@ class Support:
         max_deviation: float = 1,
         max_supported_force: float = 0.0,
         max_holding_force: float = 0.0,
+        is_tower: bool = False,
     ):
         self.attachment_height = attachment_height
         self.xy_location = xy_location
         self.max_deviation = max_deviation
-        self.is_tower = False
+        self.is_tower = is_tower
         self.max_supported_force = max_supported_force
         self.max_holding_force = max_holding_force
 
