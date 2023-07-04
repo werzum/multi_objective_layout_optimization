@@ -51,42 +51,25 @@ def test_unsupported_cable_road_parameters(line_gdf, height_gdf):
 
 
 def test_supported_cable_road_parameters(line_gdf, height_gdf):
-    cable_road = 
-    # cable_road_list = helper_functions.create_cable_road_segments(
-    #     line_gdf, height_gdf, 0
-    # )
+    cable_road = helper_functions.load_cable_road(line_gdf, height_gdf, 1)
 
-    # (
-    #     max_supported_forces,
-    #     anchor_triplets,
-    #     tree_anchor_support_trees,
-    #     current_supports,
-    # ) = line_gdf[
-    #     [
-    #         "max_holding_force",
-    #         "possible_anchor_triples",
-    #         "tree_anchor_support_trees",
-    #         "number_of_supports",
-    #     ]
-    # ].iloc[
-    #     0
-    # ]
+    for cable_road_segment in cable_road.support_segments:
+        mechanical_computations.check_if_no_collisions_cable_road(cable_road_segment)
+        assert cable_road.no_collisions == False
+        assert cable_road.anchors_hold == True
 
-    # for cable_road in cable_road_list:
-    #     mechanical_computations.check_if_no_collisions_cable_road(cable_road)
-    #     assert cable_road.no_collisions == True
+        tower_and_anchors_hold = (
+            mechanical_computations.check_if_tower_and_anchor_trees_hold(
+                cable_road_segment, max_supported_forces, anchor_triplets, height_gdf
+            )
+        )
+        assert tower_and_anchors_hold == True
 
-    #     tower_and_anchors_hold = (
-    #         mechanical_computations.check_if_tower_and_anchor_trees_hold(
-    #             cable_road, max_supported_forces, anchor_triplets, height_gdf
-    #         )
-    #     )
-    #     assert tower_and_anchors_hold == True
+        supports_hold = mechanical_computations.check_if_supports_hold(
+            cable_road_segment, tree_anchor_support_trees, height_gdf
+        )
+        assert supports_hold == True
 
-    #     supports_hold = mechanical_computations.check_if_supports_hold(
-    #         cable_road, tree_anchor_support_trees, height_gdf
-    #     )
-    #     assert supports_hold == True
-
-    for segment in cable_road:
-        cable_road_computation.check_support_tension_and_collision(segment, height_gdf)
+        cable_road_computation.check_support_tension_and_collision(
+            cable_road_segment, height_gdf
+        )

@@ -1,5 +1,6 @@
 import math
 from shapely.geometry import LineString, Point, Polygon
+from shapely.geometry.base import BaseGeometry
 from shapely.affinity import rotate
 import numpy as np
 import vispy.scene
@@ -142,9 +143,7 @@ def get_centroid_and_line(
         centroid_x_sideways = start_point.coords[0][0] + (cable_road.c_rope_length / 2)
 
     centroid = Point([centroid_x_sideways, centroid_height])
-    line_sp_centroid = LineString([start_point, centroid])
-
-    return line_sp_centroid
+    return LineString([start_point, centroid])
 
 
 def compute_resulting_force_on_cable(
@@ -180,7 +179,7 @@ def compute_tension_loaded_vs_unloaded_cableroad(
     center_point_xz: Point,
     scaling_factor: int,
     return_lines: bool = False,
-) -> float | tuple[float, Point, Point]:
+) -> float | tuple[float, BaseGeometry, BaseGeometry]:
     """
     This function calculates the force on a support tree, based on the tension in a loaded cable road.
     First we get the centroid of the CR, then we calculate the angle between the centroid and the end point.
@@ -358,81 +357,6 @@ def parallelverschiebung(force: float, angle: float) -> float:
     """
 
     return (force * np.sin(np.deg2rad(0.5 * angle))) * 2
-
-
-# def check_if_supports_hold(
-#     this_cable_road: classes.Cable_Road,
-#     tree_anchor_support_trees: list,
-#     height_gdf: gpd.GeoDataFrame,
-# ) -> bool:
-#     """
-#     Checks if the supports hold the cable road. We take the list of possible supports
-#     and for each construct two cable roads (support to anchor and tower to anchor).
-#     Then we compute the tension in the cable road and check if the tension is smaller
-#     than the max supported force by the tree.
-
-#     Args:
-#         this_cable_road (Cable_Road): The cable road that we want to check.
-#         tree_anchor_support_trees (list): The list of possible supports.
-#         height_gdf (GeoDataFrame): The GeoDataFrame containing the height data.
-#     Returns:
-#         supports_hold (bool): True if the supports hold the cable road, False otherwise.
-#     """
-
-#     print("checking if supports hold")
-#     scaling_factor = 10000  # unit length = 1m = 10kn of tension
-
-#     # create the center point of the CR for checking the tension
-#     center_point_xz = Point(
-#         this_cable_road.end_point.coords[0][0], this_cable_road.end_point_height
-#     )
-
-#     for index, support_tree in tree_anchor_support_trees.iterrows():
-#         # create the line between CR and anchor point
-#         support_tree_to_anchor_line = LineString(
-#             [
-#                 this_cable_road.end_point,
-#                 support_tree.geometry,
-#             ]
-#         )
-
-#         tower_to_anchor_cr = classes.Cable_Road(
-#             support_tree_to_anchor_line,
-#             height_gdf,
-#             pre_tension=int(this_cable_road.s_current_tension),
-#         )
-
-#         # fig, (ax) = plt.subplots(1, 1, figsize=(9, 6))  # two rows, one column
-#         # initialize the variable
-#         force_on_tree_anchor_support = False
-
-#         # fig, (ax) = plt.subplots(1, 1, figsize=(9, 6))  # two rows, one column
-#         force_on_tree_anchor_support = compute_tension_loaded_vs_unloaded_cableroad(
-#             this_cable_road,
-#             tower_to_anchor_cr,
-#             center_point_xz,
-#             scaling_factor,
-#             # ax=ax,
-#             return_lines=False,
-#         )
-
-#         # check if the tree can support this load at a height of 8m
-#         print("force on tree anchor support ", force_on_tree_anchor_support)
-#         index_max_supported_force = min(
-#             8, len(support_tree["max_supported_force_series"]) - 1
-#         )
-#         print(
-#             "vs support tree max supp force",
-#             support_tree["max_supported_force_series"][index_max_supported_force],
-#         )
-#         if (
-#             force_on_tree_anchor_support
-#             < support_tree["max_supported_force_series"][index_max_supported_force]
-#         ):
-#             return True
-
-#     # Iterated through all candidates and didnt find one that supports the load - return false
-#     return False
 
 
 def check_if_tower_and_anchor_trees_hold(

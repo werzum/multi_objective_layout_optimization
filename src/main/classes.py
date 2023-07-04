@@ -92,7 +92,7 @@ class Cable_Road:
         left_support: Support,
         right_support: Support,
         pre_tension=0,
-        current_supports=0,
+        number_sub_segments=0,
     ):
         self.left_support: Support = left_support
         self.right_support: Support = right_support
@@ -122,6 +122,8 @@ class Cable_Road:
         self.anchors_hold = True
         self.s_current_tension = 0.0
 
+        # Parameters to keep track of segments+
+        self.number_sub_segments = number_sub_segments
         self.supported_segments: list[
             SupportedSegment
         ] = []  # list of SupportedSegment objects, ie. sub cable roads
@@ -155,7 +157,7 @@ class Cable_Road:
             self.line_start_point_array, self.line_end_point_array
         )
 
-        self.initialize_line_tension(current_supports, pre_tension)
+        self.initialize_line_tension(number_sub_segments, pre_tension)
 
         # and finally the loaded and unlaoded line to floor distances
         self.compute_loaded_unloaded_line_height()
@@ -203,6 +205,19 @@ class Cable_Road:
     @property
     def absolute_loaded_line_height(self):
         return self.floor_height_below_line_points + self.sloped_line_to_floor_distances
+
+    def count_segments(self, number_sub_segments) -> int:
+        """recursively counts the number of segments in the cable road"""
+        if self.supported_segments:
+            number_sub_segments += 2
+            for segment in self.supported_segments:
+                number_sub_segments += segment.cable_road.count_segments(
+                    number_sub_segments
+                )
+
+            return number_sub_segments
+        else:
+            return number_sub_segments
 
     def compute_floor_height_below_line_points(self, height_gdf: gpd.GeoDataFrame):
         """compute the height of the line above the floor as well as the start and end point in 3d.

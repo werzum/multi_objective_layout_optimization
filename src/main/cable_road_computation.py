@@ -96,11 +96,7 @@ def generate_possible_lines(
     # check if we have no height obstructions - compute the supports we need according to line tension and anchor configs
     pos = []
 
-    (
-        line_df["number_of_supports"],
-        line_df["location_of_int_supports"],
-        line_df["current_tension"],
-    ) = zip(
+    (line_df["Cable Road Object"],) = zip(
         *[
             compute_required_supports(
                 line["line_candidates"],
@@ -154,7 +150,6 @@ def decrement_tension_until_towers_anchors_supports_hold(
     anchor_triplets,
     tree_anchor_support_trees,
     height_gdf,
-    current_supports,
 ):
     tower_and_anchors_hold = (
         mechanical_computations.check_if_tower_and_anchor_trees_hold(
@@ -162,7 +157,7 @@ def decrement_tension_until_towers_anchors_supports_hold(
         )
     )
     print("Tower and anchors hold:", tower_and_anchors_hold)
-    if tower_and_anchors_hold and current_supports > 0:
+    if tower_and_anchors_hold and this_cable_road.supported_segments:
         for current_segment, next_segment in pairwise(
             this_cable_road.supported_segments
         ):
@@ -181,19 +176,17 @@ def decrement_tension_until_towers_anchors_supports_hold(
 
 
 def compute_required_supports(
-    possible_line: LineString,
     anchor_triplets: list,
     max_supported_forces: list[float],
     tree_anchor_support_trees: list,
     height_gdf: gpd.GeoDataFrame,
-    current_supports: int,
     overall_trees: gpd.GeoDataFrame,
     location_supports: list,
-    plot_possible_lines: bool = False,
-    view: vispy.scene.ViewBox | None = None,
-    pos: list | None = None,
-    pre_tension: int = None,
-) -> tuple[int, list[Point], int]:
+    current_supports: int = 0,
+    pre_tension: int = 0,
+    from_line: LineString = None,
+    from_segment: classes.SupportedSegment = None,
+) -> classes.Cable_Road:
     # sourcery skip: boolean-if-exp-identity, remove-unnecessary-cast
     """A function to check whether there are any points along the line candidate (spanned up by the starting/end points
      elevation plus the support height) which are less than min_height away from the line.
@@ -201,14 +194,21 @@ def compute_required_supports(
     Args:
         possible_line (_type_): _description_
         height_gdf (_type_): _description_
+        current_supports (_type_): Parameter to keep track of CRs - defaults to 0, which is overwritten if we have a CR
 
     Returns:
         _type_: _description_
     """
     # TODO - set this up with check if  this is the first iteration, so we can properly set up the tower
-    this_cable_road = classes.initialize_cable_road_with_supports(
-        possible_line, height_gdf, pre_tension=pre_tension, is_tower=True
-    )
+    if from_line:
+        this_cable_road = classes.initialize_cable_road_with_supports(
+            from_line, height_gdf, pre_tension=pre_tension, is_tower=True
+        )
+    elif from_segment:
+        this_cable_road = from_segment.cable_road
+    else:
+        raise ValueError("No line or segment given")
+
     print("Tension to begin with is", this_cable_road.s_current_tension)
 
     # set supports_Hold to false if we have supports and need to check them, else set to true
@@ -246,7 +246,7 @@ def compute_required_supports(
     )
     if return_early:
         # TODO - fix this, provide with sensible args
-        return return_sucessful()
+        return return_sucessful(this_cable_road)
 
     # enter the next recursive loop if not b creating supports
     else:
@@ -287,7 +287,7 @@ def compute_required_supports(
             )
             if segments_feasible:
                 # TODO - fix this return
-                return return_sucessful()
+                return return_sucessful(this_cable_road)
 
         # if we passed through the loop without finding suitable candidates, set the first candidate as support and find sub-supports recursively
         print(
@@ -305,47 +305,56 @@ def compute_required_supports(
         )
 
         # test for collisions left and right - enter the recursive loop to compute subsupports
-        (
-            current_supports,
-            location_supports,
-            current_tension,
-        ) = test_collisions_left_right(
-            [*this_cable_road.supported_segments],
-            current_supports,
-            location_supports,
-            tree_anchor_support_trees,
+        left_CR = compute_required_supports(
             anchor_triplets,
             max_supported_forces,
-            overall_trees,
+            tree_anchor_support_trees,
             height_gdf,
-            plot_possible_lines,
-            view,
-            pos,
+            overall_trees,
+            location_supports,
+            current_supports=current_supports + 1,
+            pre_tension=this_cable_road.s_current_tension,
+            from_line=None,
+            from_segment=left_segment,
+        )
+
+        right_CR = compute_required_supports(
+            anchor_triplets,
+            max_supported_forces,
+            tree_anchor_support_trees,
+            height_gdf,
+            overall_trees,
+            location_supports,
+            current_supports=current_supports + 1,
+            pre_tension=this_cable_road.s_current_tension,
+            from_line=None,
+            from_segment=right_segment,
+        )
+
+        # update the current CR with the sub CRs and count the supports
+        this_cable_road.number_sub_segments = this_cable_road.count_segments(
+            this_cable_road.number_sub_segments
         )
 
         # computed sub-supports and see if we had enough
-        if current_supports and current_supports > 4 or current_supports is False:
-            print("didnt find enough supports")
+        if this_cable_road.number_sub_segments > 4:
+            print("too many supports, returning failed")
             return return_failed()
         else:
             print("found enough supports and returning successful cable road")
-            return return_sucessful(
-                current_supports, location_supports, this_cable_road
-            )
+            return return_sucessful(this_cable_road)
 
 
 # helper function to have return functions in one place
-def return_failed() -> tuple[bool, bool, bool]:
-    return False, False, False
+def return_failed() -> bool:
+    return False
 
 
 # TODO - how to collect the supports and locations for all sub crs?
 def return_sucessful(
-    current_supports: int,
-    location_supports: list[Point],
     this_cable_road: classes.Cable_Road,
-) -> tuple[int, list[Point], int]:
-    return current_supports, location_supports, current_tension(this_cable_road)
+) -> classes.Cable_Road:
+    return this_cable_road
 
 
 def current_tension(this_cable_road: classes.Cable_Road) -> int:
@@ -363,7 +372,9 @@ def raise_height_and_check_tension(
     left_segment.right_support.attachment_height = height_index
     right_segment.left_support.attachment_height = height_index
 
-    return check_support_tension_and_collision(support_segment, height_index)
+    return check_support_tension_and_collision(
+        left_segment, right_segment, height_index
+    )
 
 
 def set_up_recursive_supports(
@@ -453,7 +464,7 @@ def check_segment_for_feasibility(
         current_supports += 1
         # TODO - this needs to be thought through
         location_supports.append(segment.candidate_tree.geometry)
-        return return_sucessful(current_supports, location_supports, this_cable_road)
+        return return_sucessful(this_cable_road)
     return False
 
 
@@ -471,7 +482,7 @@ def evaluate_cr_collisions(
 
     if this_cable_road.no_collisions:
         print("Found no collisions")
-        return return_sucessful(current_supports, location_supports, this_cable_road)
+        return return_sucessful(this_cable_road)
     else:
         print("Found collisions")
         return return_failed()
@@ -775,7 +786,6 @@ def create_left_right_segments_and_support_tree(
         road_to_support_cable_road_left_support,
         road_to_support_cable_road_right_support,
         pre_tension=this_cable_road.s_current_tension,
-        current_supports=current_supports,
     )
     support_to_anchor_cable_road = classes.Cable_Road(
         support_to_anchor_line,
@@ -783,7 +793,6 @@ def create_left_right_segments_and_support_tree(
         support_to_anchor_cable_road_left_support,
         support_to_anchor_cable_road_right_support,
         pre_tension=this_cable_road.s_current_tension,
-        current_supports=current_supports,
     )
 
     # and both segments, which in turn contain the corresponding CRs and the supports
@@ -800,64 +809,3 @@ def create_left_right_segments_and_support_tree(
     )
 
     return left_segment, right_segment, candidate_tree
-
-
-def test_collisions_left_right(
-    cable_roads: list[classes.SupportedSegment],
-    current_supports: int,
-    location_supports: list[Point],
-    tree_anchor_support_trees: list,
-    anchor_triplets: list[list[Point]],
-    max_supported_forces: list[float],
-    overall_trees: gpd.GeoDataFrame,
-    height_gdf: gpd.GeoDataFrame,
-    plot_possible_lines: bool = False,
-    view: vispy.scene.ViewBox | None = None,
-    pos: list | None = None,
-) -> tuple[int, list[Point], int]:
-    """test if the left and right cr have collisions and return the new support locations if not
-
-    Args:
-        road_to_support_cable_road (_type_): _description_
-        support_to_anchor_cable_road (_type_): _description_
-        current_supports (_type_): _description_
-        location_supports (_type_): _description_
-        overall_trees (_type_): _description_
-        pos (_type_): _description_
-        plot_possible_lines (_type_): _description_
-        view (_type_): _description_
-        anchor_triplets (_type_): _description_
-        max_supported_forces (_type_): _description_
-        height_gdf (_type_): _description_
-
-    Returns:
-        False, False or current_supports, location_supports
-    """
-
-    for segment in cable_roads:
-        mechanical_computations.check_if_no_collisions_cable_road(segment.cable_road)
-        if not segment.cable_road.no_collisions:
-            (
-                current_supports,
-                location_supports,
-                current_tension,
-            ) = compute_required_supports(
-                segment.cable_road.line,
-                anchor_triplets,
-                max_supported_forces,
-                tree_anchor_support_trees,
-                height_gdf,
-                current_supports,
-                overall_trees,
-                location_supports,
-                plot_possible_lines,
-                view,
-                pos,
-                segment.cable_road.s_current_tension,
-            )
-            # if we have more than 4 supports or didnt find any, we stop
-            if current_supports and current_supports > 4 or not current_supports:
-                return return_failed()
-
-    # TODO - rework return successfull
-    return return_sucessful(current_supports, location_supports, cable_road)
