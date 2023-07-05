@@ -83,7 +83,6 @@ def check_if_support_withstands_tension(
         next_segment.cable_road,
         center_point_xz,
         scaling_factor,
-        ax=ax,
         return_lines=False,
     )
     force_on_support_right = compute_tension_loaded_vs_unloaded_cableroad(
@@ -91,15 +90,14 @@ def check_if_support_withstands_tension(
         current_segment.cable_road,
         center_point_xz,
         scaling_factor,
-        ax=ax,
         return_lines=False,
     )
 
     print("forces on lr support", force_on_support_left, force_on_support_right)
     # return true if the support can bear more than the exerted force
-    return current_segment.right_support.max_supported_force > max(
-        force_on_support_left, force_on_support_right
-    )
+    return current_segment.right_support.max_supported_force[
+        current_segment.right_support.attachment_height
+    ] > max(force_on_support_left, force_on_support_right)
 
 
 def get_centroid_and_line(

@@ -208,7 +208,7 @@ class Cable_Road:
     def absolute_loaded_line_height(self):
         return self.floor_height_below_line_points + self.sloped_line_to_floor_distances
 
-    def count_segments(self, number_sub_segments) -> int:
+    def count_segments(self, number_sub_segments: int = 0) -> int:
         """recursively counts the number of segments in the cable road"""
         if self.supported_segments:
             number_sub_segments += 2
@@ -217,9 +217,7 @@ class Cable_Road:
                     number_sub_segments
                 )
 
-            return number_sub_segments
-        else:
-            return number_sub_segments
+        return number_sub_segments
 
     def compute_floor_height_below_line_points(self, height_gdf: gpd.GeoDataFrame):
         """compute the height of the line above the floor as well as the start and end point in 3d.
