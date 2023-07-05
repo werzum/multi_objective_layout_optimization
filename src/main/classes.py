@@ -9,55 +9,6 @@ from src.main import (
 )
 
 
-# TODO - dont need this since we store the CR object in the line_gdf and therefore dont need to restore it?
-# def set_up_CR_from_linegdf(line_gdf, index, height_gdf):
-#     """Helper function to abstract setting up a sample cable road from the line_gdf
-#     Args:
-#         line_gdf (gpd.GeoDataFrame): the line_gdf
-#         index (int): the index of the line_gdf to use
-#         height_gdf (gpd.GeoDataFrame): the height_gdf
-
-#     Returns:
-#         Cable_Road: the cable road
-#     """
-
-#     sample_line = line_gdf.iloc[index].geometry
-#     left_support = Support(8,
-#     return Cable_Road(sample_line, height_gdf, line_gdf.iloc[index].current_tension)
-
-
-# def create_support_from_CR(cable_road: Cable_Road, use_left_support: bool, height_gdf):
-#     if use_left_support:
-#         support = Support(8, cable_road.line.)
-#     else:
-#         support = cable_road.right_support
-
-
-def initialize_cable_road_with_supports(
-    line: LineString,
-    height_gdf: gpd.GeoDataFrame,
-    pre_tension=0,
-    is_tower=False,
-    left_max_supported_force=0.0,
-    right_max_supported_force=0.0,
-):
-    left_support = Support(
-        attachment_height=11,
-        xy_location=Point(line.coords[0]),
-        height_gdf=height_gdf,
-        max_supported_force=left_max_supported_force,
-        is_tower=is_tower,
-    )
-    right_support = Support(
-        attachment_height=8,
-        xy_location=Point(line.coords[-1]),
-        height_gdf=height_gdf,
-        max_supported_force=right_max_supported_force,
-        is_tower=False,
-    )
-    return Cable_Road(line, height_gdf, left_support, right_support, pre_tension)
-
-
 class Support:
     def __init__(
         self,
@@ -296,3 +247,36 @@ class SupportedSegment:
         self.cable_road = cable_road
         self.left_support = left_support
         self.right_support = right_support
+
+
+# Helper Functions for setting up the cable road
+
+
+def initialize_cable_road_with_supports(
+    line: LineString,
+    height_gdf: gpd.GeoDataFrame,
+    pre_tension=0,
+    is_tower=False,
+    left_max_supported_force=0.0,
+    right_max_supported_force=0.0,
+):
+    left_support = Support(
+        attachment_height=11,
+        xy_location=Point(line.coords[0]),
+        height_gdf=height_gdf,
+        max_supported_force=left_max_supported_force,
+        is_tower=is_tower,
+    )
+    right_support = Support(
+        attachment_height=8,
+        xy_location=Point(line.coords[-1]),
+        height_gdf=height_gdf,
+        max_supported_force=right_max_supported_force,
+        is_tower=False,
+    )
+    return Cable_Road(line, height_gdf, left_support, right_support, pre_tension)
+
+
+def load_cable_road(line_gdf: gpd.GeoDataFrame, index: int) -> Cable_Road:
+    """Helper function to abstract setting up a sample cable road from the line_gdf"""
+    return line_gdf.iloc[index]["Cable Road Object"]

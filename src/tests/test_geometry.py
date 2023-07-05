@@ -11,6 +11,8 @@ from src.main import (
     mechanical_computations,
 )
 
+from src.tests import helper_functions, test_cable_roads
+
 
 def test_angle_between_3d():
     v1 = np.array([1, 0, 0])
@@ -63,3 +65,27 @@ def test_euler_knicklast():
     assert np.isclose(mechanical_computations.euler_knicklast(50, 40), 3000, rtol=0.20)
 
     assert np.isclose(mechanical_computations.euler_knicklast(40, 10), 19000, rtol=0.20)
+
+
+def test_cr_feasability():
+    (
+        cable_road,
+        line_gdf,
+        tree_gdf,
+        height_gdf,
+    ) = test_cable_roads.main_test_cable_roads()
+
+    tree_0 = tree_gdf[tree_gdf["BHD"] > 40].iloc[0]
+    assert (
+        len(tree_gdf[tree_gdf["BHD"] > 40]) > 200
+    )  # make sure we have enough strong trees
+    assert tree_0["max_holding_force"] > 50.000
+    assert tree_0["max_supported_force_series"][6] > 50.000
+
+    # test if the cable road works on (simulted) strong anchors
+    assert (
+        mechanical_computations.check_if_tower_and_anchor_trees_hold(
+            cable_road, [50000, 50000, 50000], cable_road.anchor_triplets, height_gdf
+        )
+        == True
+    )
