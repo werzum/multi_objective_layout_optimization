@@ -1,6 +1,7 @@
 from shapely.geometry import LineString, Point
 import numpy as np
 import geopandas as gpd
+from itertools import pairwise
 
 from src.main import (
     geometry_operations,
@@ -12,20 +13,20 @@ from src.main import (
 class Support:
     def __init__(
         self,
-        attachment_height: float,
+        attachment_height: int,
         xy_location: Point,
         height_gdf: gpd.GeoDataFrame,
         max_deviation: float = 1,
-        max_supported_force: float = 0.0,
+        max_supported_force: list[float] = [],
         max_holding_force: float = 0.0,
         is_tower: bool = False,
     ):
-        self.attachment_height = attachment_height
-        self.xy_location = xy_location
-        self.max_deviation = max_deviation
-        self.is_tower = is_tower
-        self.max_supported_force = max_supported_force
-        self.max_holding_force = max_holding_force
+        self.attachment_height: int = attachment_height
+        self.xy_location: Point = xy_location
+        self.max_deviation: float = max_deviation
+        self.is_tower: bool = is_tower
+        self.max_supported_force: list[float] = max_supported_force
+        self.max_holding_force: float = max_holding_force
 
         # get the elevation of the floor below the support
         self.floor_height = geometry_operations.fetch_point_elevation(
@@ -35,6 +36,14 @@ class Support:
     @property
     def total_height(self):
         return self.floor_height + self.attachment_height
+
+    @property
+    def max_supported_force_at_attachment_height(self):
+        return self.max_supported_force[self.attachment_height]
+
+    @max_supported_force_at_attachment_height.setter
+    def max_supported_force_at_attachment_height(self, value):
+        self.max_supported_force[self.attachment_height] = value
 
 
 class Cable_Road:
@@ -67,7 +76,6 @@ class Cable_Road:
         """ Fixed cable road parameters """
         self.q_s_self_weight_center_span = 10
         self.q_load = 80000
-        self.c_rope_length = 0.0
         self.b_length_whole_section = 0.0
         self.s_max_maximalspannkraft = 0.0
         """ Modifiable collision parameters """
@@ -105,15 +113,26 @@ class Cable_Road:
         )
 
         # set up further rope parameters
-        self.b_length_whole_section = self.start_point.distance(self.end_point)
+        # length of the rope in xz view
         self.c_rope_length = geometry_utilities.distance_between_3d_points(
             self.line_start_point_array, self.line_end_point_array
         )
+
+        self.b_length_whole_section = self.start_point.distance(self.end_point)
 
         self.initialize_line_tension(number_sub_segments, pre_tension)
 
         # and finally the loaded and unlaoded line to floor distances
         self.compute_loaded_unloaded_line_height()
+
+    @property
+    def xz_left_start_point(self):
+        return Point(
+            [
+                self.left_support.xy_location.x,
+                self.left_support.total_height,
+            ]
+        )
 
     # Computing the line to floor distances
     @property
@@ -158,6 +177,16 @@ class Cable_Road:
     @property
     def absolute_loaded_line_height(self):
         return self.floor_height_below_line_points + self.sloped_line_to_floor_distances
+
+    @property
+    def rope_points_xz(self):
+        return list(
+            zip(
+                [point.x for point in self.points_along_line],
+                [point.y for point in self.points_along_line],
+                self.absolute_loaded_line_height,
+            )
+        )
 
     def count_segments(self, number_sub_segments: int = 0) -> int:
         """recursively counts the number of segments in the cable road"""

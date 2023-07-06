@@ -67,7 +67,7 @@ def test_euler_knicklast():
     assert np.isclose(mechanical_computations.euler_knicklast(40, 10), 19000, rtol=0.20)
 
 
-def test_cr_feasability():
+def test_cr_parameter_feasability():
     (
         cable_road,
         line_gdf,
@@ -85,7 +85,7 @@ def test_cr_feasability():
     # test if the cable road works on (simulted) strong anchors
     assert (
         mechanical_computations.check_if_tower_and_anchor_trees_hold(
-            cable_road, [50000, 50000, 50000], cable_road.anchor_triplets, height_gdf
+            cable_road, [50000, 50000, 50000], [cable_road.anchor_triplets], height_gdf
         )
         == True
     )

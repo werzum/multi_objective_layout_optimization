@@ -71,10 +71,7 @@ def check_if_support_withstands_tension(
     scaling_factor = 10000
 
     # create the xz center point (ie the support location)
-    center_point_xz = Point(
-        current_segment.right_support.xy_location.x,
-        current_segment.right_support.total_height,
-    )
+    center_point_xz = next_segment.cable_road.xz_left_start_point
 
     # fig, (ax) = plt.subplots(1, 1, figsize=(9, 6))
     ### Calculate the force on the support for the both cable roads
@@ -95,14 +92,14 @@ def check_if_support_withstands_tension(
 
     print("forces on lr support", force_on_support_left, force_on_support_right)
     # return true if the support can bear more than the exerted force
-    return current_segment.right_support.max_supported_force[
-        current_segment.right_support.attachment_height
-    ] > max(force_on_support_left, force_on_support_right)
+    return current_segment.right_support.max_supported_force_at_attachment_height > max(
+        force_on_support_left, force_on_support_right
+    )
 
 
-def get_centroid_and_line(
+def get_xz_line_from_cr_startpoint_to_centroid(
     cable_road: classes.Cable_Road,
-    start_point: Point,
+    xz_start_point: Point,
     move_centroid_left_from_start_point: bool,
     sloped: bool,
     index: int,
@@ -112,7 +109,7 @@ def get_centroid_and_line(
 
     Args:
         cable_road (classes.Cable_Road): The cable road object
-        start_point (Point): The start point of the cable road
+        xz_start_point (Point): The xz start point of the cable road
         move_centroid_left_from_start_point (bool): Whether to move left or right
         sloped (bool): Whether to use the sloped or unloaded line
         index (int): The index of the point along the line
@@ -122,7 +119,7 @@ def get_centroid_and_line(
 
     # start from the back of the array if the end point is the same as the center point
     end_point_equals_center_point = (
-        cable_road.end_point.coords[0] == start_point.coords[0]
+        cable_road.end_point.coords[0] == xz_start_point.coords[0]
     )
     index_swap = -1 if end_point_equals_center_point else 1
 
@@ -132,16 +129,20 @@ def get_centroid_and_line(
     else:
         centroid_height = cable_road.absolute_unloaded_line_height[index * index_swap]
 
-    # distance = start_point.distance(cable_road.start_point) if move_centroid_left_from_start_point else start_point.distance(cable_road.end_point)
+    # distance = start_point.distance(xz_start_point) if move_centroid_left_from_start_point else start_point.distance(cable_road.end_point)
     # and get the centroid distance by shifting the x coordinate by half the length of the CR
     if move_centroid_left_from_start_point:
         # shift the x coordinate by half the length of the CR to get the middle
-        centroid_x_sideways = start_point.coords[0][0] - (cable_road.c_rope_length / 2)
+        centroid_x_sideways = xz_start_point.coords[0][0] - (
+            cable_road.c_rope_length / 2
+        )
     else:
-        centroid_x_sideways = start_point.coords[0][0] + (cable_road.c_rope_length / 2)
+        centroid_x_sideways = xz_start_point.coords[0][0] + (
+            cable_road.c_rope_length / 2
+        )
 
     centroid = Point([centroid_x_sideways, centroid_height])
-    return LineString([start_point, centroid])
+    return LineString([xz_start_point, centroid])
 
 
 def compute_resulting_force_on_cable(
@@ -209,11 +210,11 @@ def compute_tension_loaded_vs_unloaded_cableroad(
     unloaded_index = len(unloaded_cable_road.points_along_line) // 2
 
     # get the centroid, lines and angles of the two CRs, once tensioned, once empty
-    loaded_line_sp_centroid = get_centroid_and_line(
+    loaded_line_sp_centroid = get_xz_line_from_cr_startpoint_to_centroid(
         loaded_cable_road, center_point_xz, True, True, loaded_index
     )
 
-    unloaded_line_sp_centroid = get_centroid_and_line(
+    unloaded_line_sp_centroid = get_xz_line_from_cr_startpoint_to_centroid(
         unloaded_cable_road, center_point_xz, False, False, unloaded_index
     )
 
