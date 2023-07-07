@@ -10,6 +10,48 @@ from src.main import (
 )
 
 
+class Point_3D:
+    def __init__(self, x, y, z):
+        self.x = x
+        self.y = y
+        self.z = z
+
+    @property
+    def xyz(self):
+        return np.array([self.x, self.y, self.z])
+
+    def distance(self, other):
+        """Returns the distance between two 3dpoints"""
+        return np.sqrt(
+            (self.x - other.x) ** 2 + (self.y - other.y) ** 2 + (self.z - other.z) ** 2
+        )
+
+
+class LineString_3D:
+    def __init__(self, start_point: Point_3D, end_point: Point_3D):
+        self.start_point = start_point
+        self.end_point = end_point
+
+    def interpolate(self, distance: float) -> Point_3D:
+        """Returns the interpolated point at a given distance from the start point
+        Args:
+            distance (float): distance from the start point
+        Returns:
+            Point_3D: interpolated point"""
+
+        vector = self.end_point.xyz - self.start_point.xyz
+        # normalize the vector
+        vector = vector / np.linalg.norm(vector)
+        # multiply the vector with the distance
+        vector = vector * distance
+        # add the vector to the start point
+        return Point_3D(
+            self.start_point.x + vector[0],
+            self.start_point.y + vector[1],
+            self.start_point.z + vector[2],
+        )
+
+
 class Support:
     def __init__(
         self,
@@ -38,6 +80,10 @@ class Support:
         return self.floor_height + self.attachment_height
 
     @property
+    def xyz_location(self):
+        return Point_3D(self.xy_location.x, self.xy_location.y, self.total_height)
+
+    @property
     def max_supported_force_at_attachment_height(self):
         return self.max_supported_force[self.attachment_height]
 
@@ -51,13 +97,13 @@ class Cable_Road:
         self,
         line,
         height_gdf,
-        left_support: Support,
-        right_support: Support,
+        start_support: Support,
+        end_support: Support,
         pre_tension=0,
         number_sub_segments=0,
     ):
-        self.left_support: Support = left_support
-        self.right_support: Support = right_support
+        self.start_support: Support = start_support
+        self.end_support: Support = end_support
 
         """heights"""
         self.floor_height_below_line_points = (
@@ -67,8 +113,8 @@ class Cable_Road:
         self.unloaded_line_to_floor_distances = np.array([])
         """ geometry features """
         self.line = line
-        self.start_point = Point(line.coords[0])
-        self.end_point = Point(line.coords[1])
+        # self.start_point = Point(line.coords[0])
+        # self.end_point = Point(line.coords[1])
         self.points_along_line = []
         self.floor_points = []
         self.max_deviation = 0.1
@@ -115,10 +161,12 @@ class Cable_Road:
         # set up further rope parameters
         # length of the rope in xz view
         self.c_rope_length = geometry_utilities.distance_between_3d_points(
-            self.line_start_point_array, self.line_end_point_array
+            self.start_support.xyz_location, self.end_support.xyz_location
         )
 
-        self.b_length_whole_section = self.start_point.distance(self.end_point)
+        self.b_length_whole_section = self.start_support.xy_location.distance(
+            self.end_support.xy_location
+        )
 
         self.initialize_line_tension(number_sub_segments, pre_tension)
 
@@ -126,32 +174,11 @@ class Cable_Road:
         self.compute_loaded_unloaded_line_height()
 
     @property
-    def xz_left_start_point(self):
+    def xz_start_point_start_point(self):
         return Point(
             [
-                self.left_support.xy_location.x,
-                self.left_support.total_height,
-            ]
-        )
-
-    # Computing the line to floor distances
-    @property
-    def line_start_point_array(self):
-        return np.array(
-            [
-                self.start_point.x,
-                self.start_point.y,
-                self.left_support.total_height,
-            ]
-        )
-
-    @property
-    def line_end_point_array(self):
-        return np.array(
-            [
-                self.end_point.x,
-                self.end_point.y,
-                self.right_support.total_height,
+                self.start_support.xy_location.x,
+                self.start_support.total_height,
             ]
         )
 
@@ -161,8 +188,8 @@ class Cable_Road:
             [
                 geometry_utilities.lineseg_dist(
                     point,
-                    self.line_start_point_array,
-                    self.line_end_point_array,
+                    self.start_support.xyz_location,
+                    self.end_support.xyz_location,
                 )
                 for point in self.floor_points
             ]
@@ -270,12 +297,12 @@ class SupportedSegment:
     def __init__(
         self,
         cable_road: Cable_Road,
-        left_support: Support,
-        right_support: Support,
+        start_support: Support,
+        end_support: Support,
     ):
         self.cable_road = cable_road
-        self.left_support = left_support
-        self.right_support = right_support
+        self.start_support = start_support
+        self.end_support = end_support
 
 
 # Helper Functions for setting up the cable road
@@ -286,24 +313,24 @@ def initialize_cable_road_with_supports(
     height_gdf: gpd.GeoDataFrame,
     pre_tension=0,
     is_tower=False,
-    left_max_supported_force=0.0,
-    right_max_supported_force=0.0,
+    start_point_max_supported_force=0.0,
+    end_point_max_supported_force=0.0,
 ):
-    left_support = Support(
+    start_support = Support(
         attachment_height=11,
         xy_location=Point(line.coords[0]),
         height_gdf=height_gdf,
-        max_supported_force=left_max_supported_force,
+        max_supported_force=start_point_max_supported_force,
         is_tower=is_tower,
     )
-    right_support = Support(
+    end_support = Support(
         attachment_height=8,
         xy_location=Point(line.coords[-1]),
         height_gdf=height_gdf,
-        max_supported_force=right_max_supported_force,
+        max_supported_force=end_point_max_supported_force,
         is_tower=False,
     )
-    return Cable_Road(line, height_gdf, left_support, right_support, pre_tension)
+    return Cable_Road(line, height_gdf, start_support, end_support, pre_tension)
 
 
 def load_cable_road(line_gdf: gpd.GeoDataFrame, index: int) -> Cable_Road:

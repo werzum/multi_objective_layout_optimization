@@ -92,7 +92,7 @@ def check_if_support_withstands_tension(
 
     print("forces on lr support", force_on_support_left, force_on_support_right)
     # return true if the support can bear more than the exerted force
-    return current_segment.right_support.max_supported_force_at_attachment_height > max(
+    return current_segment.end_support.max_supported_force_at_attachment_height > max(
         force_on_support_left, force_on_support_right
     )
 
@@ -386,8 +386,8 @@ def check_if_tower_and_anchor_trees_hold(
     # start point of the cr tower
     tower_xz_point = Point(
         [
-            this_cable_road.start_point.coords[0][0],
-            this_cable_road.left_support.total_height,
+            this_cable_road.start_support.coords[0][0],
+            this_cable_road.start_support,
         ]
     )
 
@@ -555,7 +555,7 @@ def pestal_load_path(cable_road: classes.Cable_Road, point: Point, loaded: bool 
     q_vertical_force = 10000 if loaded else 0
 
     h_height_difference = abs(
-        cable_road.right_support.total_height - cable_road.left_support.total_height
+        cable_road.end_support.total_height - cable_road.start_point.total_height
     )
 
     T_bar_tensile_force_at_center_span = T_0_basic_tensile_force + q_s_rope_weight * (
