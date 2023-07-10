@@ -71,7 +71,7 @@ def check_if_support_withstands_tension(
     scaling_factor = 10000
 
     # create the xz center point (ie the support location)
-    center_point_xz = next_segment.cable_road.xz_left_start_point
+    center_point_xz = next_segment.cable_road.start_support.xyz_location
 
     # fig, (ax) = plt.subplots(1, 1, figsize=(9, 6))
     ### Calculate the force on the support for the both cable roads
@@ -97,31 +97,34 @@ def check_if_support_withstands_tension(
     )
 
 
-def get_xz_line_from_cr_startpoint_to_centroid(
+def get_line_3d_from_cr_startpoint_to_centroid(
     cable_road: classes.Cable_Road,
-    xz_start_point: Point,
-    move_centroid_left_from_start_point: bool,
+    move_towards_start_point: bool,
     sloped: bool,
     index: int,
-) -> LineString:
+) -> classes.LineString_3D:
     """
     Compute the centroid of the cable road and the line that connects the centroid to the start point
 
     Args:
         cable_road (classes.Cable_Road): The cable road object
         xz_start_point (Point): The xz start point of the cable road
-        move_centroid_left_from_start_point (bool): Whether to move left or right
+        move_towards_start_point (bool): Whether to move left or right
         sloped (bool): Whether to use the sloped or unloaded line
         index (int): The index of the point along the line
     Returns:
         LineString: The line that connects the centroid to the start point
     """
 
-    # start from the back of the array if the end point is the same as the center point
-    end_point_equals_center_point = (
-        cable_road.end_point.coords[0] == xz_start_point.coords[0]
+    # get the 3d start point
+    start_point_3d = (
+        cable_road.end_support.xyz_location
+        if move_towards_start_point
+        else cable_road.start_support.xyz_location
     )
-    index_swap = -1 if end_point_equals_center_point else 1
+
+    # start from the back of the array if we move towards the start point
+    index_swap = -1 if move_towards_start_point else 1
 
     # get the height by selecting a point along the road
     if sloped:
@@ -129,20 +132,15 @@ def get_xz_line_from_cr_startpoint_to_centroid(
     else:
         centroid_height = cable_road.absolute_unloaded_line_height[index * index_swap]
 
-    # distance = start_point.distance(xz_start_point) if move_centroid_left_from_start_point else start_point.distance(cable_road.end_point)
-    # and get the centroid distance by shifting the x coordinate by half the length of the CR
-    if move_centroid_left_from_start_point:
-        # shift the x coordinate by half the length of the CR to get the middle
-        centroid_x_sideways = xz_start_point.coords[0][0] - (
-            cable_road.c_rope_length / 2
-        )
-    else:
-        centroid_x_sideways = xz_start_point.coords[0][0] + (
-            cable_road.c_rope_length / 2
-        )
+    # get the xy point along the line
+    xy_point_along_line = cable_road.points_along_line[index * index_swap]
 
-    centroid = Point([centroid_x_sideways, centroid_height])
-    return LineString([xz_start_point, centroid])
+    # construct a 3d point along the line with the given height
+    centroid_xyz = classes.Point_3D(
+        xy_point_along_line.x, xy_point_along_line.y, centroid_height
+    )
+
+    return classes.LineString_3D(start_point_3d, centroid_xyz)
 
 
 def compute_resulting_force_on_cable(
@@ -175,7 +173,7 @@ def compute_resulting_force_on_cable(
 def compute_tension_loaded_vs_unloaded_cableroad(
     loaded_cable_road: classes.Cable_Road,
     unloaded_cable_road: classes.Cable_Road,
-    center_point_xz: Point,
+    center_point: classes.Point_3D,
     scaling_factor: int,
     return_lines: bool = False,
 ) -> float | tuple[float, BaseGeometry, BaseGeometry]:
@@ -190,7 +188,7 @@ def compute_tension_loaded_vs_unloaded_cableroad(
     Args:
         loaded_cable_road (classes.Cable_Road): The loaded cable road
         unloaded_cable_road (classes.Cable_Road): The unloaded cable road
-        center_point_xz (Point): The center point of the cable road in xz view
+        center_point_xz (Point): The central support of the cable road
         scaling_factor (int): The scaling factor to convert the distance to a force
         return_lines (bool): Whether to return the lines or not
 
@@ -210,12 +208,18 @@ def compute_tension_loaded_vs_unloaded_cableroad(
     unloaded_index = len(unloaded_cable_road.points_along_line) // 2
 
     # get the centroid, lines and angles of the two CRs, once tensioned, once empty
-    loaded_line_sp_centroid = get_xz_line_from_cr_startpoint_to_centroid(
-        loaded_cable_road, center_point_xz, True, True, loaded_index
+    loaded_line_sp_centroid = get_line_3d_from_cr_startpoint_to_centroid(
+        loaded_cable_road,
+        move_towards_start_point=True,
+        sloped=True,
+        index=loaded_index,
     )
 
-    unloaded_line_sp_centroid = get_xz_line_from_cr_startpoint_to_centroid(
-        unloaded_cable_road, center_point_xz, False, False, unloaded_index
+    unloaded_line_sp_centroid = get_line_3d_from_cr_startpoint_to_centroid(
+        unloaded_cable_road,
+        move_towards_start_point=False,
+        sloped=False,
+        index=unloaded_index,
     )
 
     # get the angle between the loaded and the unloaded cable road
@@ -227,7 +231,7 @@ def compute_tension_loaded_vs_unloaded_cableroad(
     loaded_line_rotated = rotate(
         loaded_line_sp_centroid,
         angle_loaded_unloaded_cr,
-        origin=center_point_xz,
+        origin=center_point,
     )
 
     force_on_loaded_cable = compute_resulting_force_on_cable(
@@ -238,10 +242,10 @@ def compute_tension_loaded_vs_unloaded_cableroad(
     )
 
     force_applied_loaded = LineString(
-        [loaded_line_sp_centroid.interpolate(tension), center_point_xz]
+        [loaded_line_sp_centroid.interpolate(tension), center_point]
     )
     force_applied_loaded_rotated = LineString(
-        [loaded_line_rotated.interpolate(tension), center_point_xz]
+        [loaded_line_rotated.interpolate(tension), center_point]
     )
 
     resulting_force_line = LineString(

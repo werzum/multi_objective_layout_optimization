@@ -58,8 +58,8 @@ class Support:
         attachment_height: int,
         xy_location: Point,
         height_gdf: gpd.GeoDataFrame,
+        max_supported_force: list[float],
         max_deviation: float = 1,
-        max_supported_force: list[float] = [],
         max_holding_force: float = 0.0,
         is_tower: bool = False,
     ):
@@ -311,10 +311,10 @@ class SupportedSegment:
 def initialize_cable_road_with_supports(
     line: LineString,
     height_gdf: gpd.GeoDataFrame,
+    start_point_max_supported_force: list[float],
+    end_point_max_supported_force: list[float],
     pre_tension=0,
     is_tower=False,
-    start_point_max_supported_force=0.0,
-    end_point_max_supported_force=0.0,
 ):
     start_support = Support(
         attachment_height=11,

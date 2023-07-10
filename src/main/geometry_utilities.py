@@ -4,6 +4,7 @@ import math
 import warnings
 
 from shapely.geometry import LineString, Point
+from src.main import classes
 
 
 def unit_vector(vector):
@@ -145,3 +146,29 @@ def distance_between_3d_points(point1, point2):
     squared_dist = np.sum((point1 - point2) ** 2, axis=0)
     dist = np.sqrt(squared_dist)
     return dist
+
+
+from pyquaternion import Quaternion
+
+
+def rotate_3d_point_in_z_direction(
+    point: classes.Point_3D, angle: float
+) -> classes.Point_3D:
+    """Rotate a 3d point around the z-axis
+
+    Args:
+        point (classes.Point_3D): Point to rotate
+        angle (float): Angle to rotate in degrees
+
+    Returns:
+        classes.Point_3D: Rotated point
+    """
+    # convert angle to radians
+    angle = math.radians(angle)
+
+    # create a quaternion and create new vector
+    q1 = Quaternion(axis=[-1, 1, 0], angle=angle)
+    rotated_point = q1.rotate(point.xyz)
+
+    # create new point
+    return classes.Point_3D(*rotated_point)

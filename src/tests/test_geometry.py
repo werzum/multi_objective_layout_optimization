@@ -9,6 +9,7 @@ from src.main import (
     geometry_utilities,
     geometry_operations,
     mechanical_computations,
+    classes,
 )
 
 from src.tests import helper_functions, test_cable_roads
@@ -89,3 +90,15 @@ def test_cr_parameter_feasability():
         )
         == True
     )
+
+
+def test_rotation():
+    # ensure that if we rotate the z axis down at x and y, we get a lower z
+    v = classes.Point_3D(0, 0, 1)
+    v_prime = geometry_utilities.rotate_3d_point_in_z_direction(v, 20)
+    np.testing.assert_allclose(v_prime.xyz, np.array([0.3, 0.3, 0.9]), atol=1e-1)
+
+    # ensure that if our point also has a x and y component, it is also rotated
+    v = classes.Point_3D(1, 1, 1)
+    v_prime = geometry_utilities.rotate_3d_point_in_z_direction(v, 20)
+    np.testing.assert_allclose(v_prime.xyz, np.array([1.2, 1.2, 0.5]), atol=1e-1)
