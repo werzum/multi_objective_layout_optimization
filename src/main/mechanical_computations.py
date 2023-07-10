@@ -144,8 +144,8 @@ def get_line_3d_from_cr_startpoint_to_centroid(
 
 
 def compute_resulting_force_on_cable(
-    straight_line: LineString,
-    sloped_line: LineString,
+    straight_line: classes.LineString_3D,
+    sloped_line: classes.LineString_3D,
     tension: float,
     scaling_factor: int,
 ) -> float:
@@ -175,8 +175,7 @@ def compute_tension_loaded_vs_unloaded_cableroad(
     unloaded_cable_road: classes.Cable_Road,
     center_point: classes.Point_3D,
     scaling_factor: int,
-    return_lines: bool = False,
-) -> float | tuple[float, BaseGeometry, BaseGeometry]:
+) -> float:
     """
     This function calculates the force on a support tree, based on the tension in a loaded cable road.
     First we get the centroid of the CR, then we calculate the angle between the centroid and the end point.
@@ -194,8 +193,6 @@ def compute_tension_loaded_vs_unloaded_cableroad(
 
     Returns:
         float: The force on the support in Newton, scaled back
-        Point: The interpolated point on the straight line in xz view
-        Point: The interpolated point on the sloped line in xz view
     """
     # get the tension that we want to apply on the CR
     tension = (
@@ -223,46 +220,19 @@ def compute_tension_loaded_vs_unloaded_cableroad(
     )
 
     # get the angle between the loaded and the unloaded cable road
-    angle_loaded_unloaded_cr = 180 - geometry_utilities.angle_between(
+    angle_loaded_unloaded_cr = 180 - geometry_utilities.angle_between_3d(
         loaded_line_sp_centroid, unloaded_line_sp_centroid
     )
 
     # rotate the loaded cable by this angle to be able to compare the distance
-    loaded_line_rotated = rotate(
-        loaded_line_sp_centroid,
-        angle_loaded_unloaded_cr,
-        origin=center_point,
+    loaded_line_rotated = geometry_utilities.rotate_3d_line_in_z_direction(
+        loaded_line_sp_centroid, angle_loaded_unloaded_cr
     )
 
-    force_on_loaded_cable = compute_resulting_force_on_cable(
-        loaded_line_sp_centroid,
-        loaded_line_rotated,
-        tension,
-        scaling_factor,
+    # get the distance between the rotated line and the unloaded line as per the force-interpolated points
+    return compute_resulting_force_on_cable(
+        loaded_line_sp_centroid, loaded_line_rotated, tension, scaling_factor
     )
-
-    force_applied_loaded = LineString(
-        [loaded_line_sp_centroid.interpolate(tension), center_point]
-    )
-    force_applied_loaded_rotated = LineString(
-        [loaded_line_rotated.interpolate(tension), center_point]
-    )
-
-    resulting_force_line = LineString(
-        [
-            loaded_line_sp_centroid.interpolate(tension),
-            loaded_line_rotated.interpolate(tension),
-        ]
-    )
-
-    if return_lines:
-        return (
-            force_on_loaded_cable,
-            loaded_line_sp_centroid.interpolate(tension),
-            unloaded_line_sp_centroid.interpolate(tension),
-        )
-    else:
-        return force_on_loaded_cable
 
 
 def compute_angle_between_lines(

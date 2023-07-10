@@ -172,3 +172,25 @@ def rotate_3d_point_in_z_direction(
 
     # create new point
     return classes.Point_3D(*rotated_point)
+
+
+def rotate_3d_line_in_z_direction(
+    line: classes.LineString_3D, angle: float
+) -> classes.LineString_3D:
+    """Rotate a 3d line around the z-axis
+
+    Args:
+        line1 (classes.LineString_3D): Line to rotate - rotate the end point
+        angle (float): Angle to rotate in degrees
+
+    Returns:
+        classes.LineString_3D: Rotated line
+    """
+    # define  the end point relative to the start point
+    end_point_relative = classes.Point_3D(*(line.end_point.xyz - line.start_point.xyz))
+    # rotate it around the given angle
+    end_point_rotated = rotate_3d_point_in_z_direction(end_point_relative, angle)
+    # create new line
+    return classes.LineString_3D(
+        line.start_point, classes.Point_3D(*end_point_rotated.xyz)
+    )
