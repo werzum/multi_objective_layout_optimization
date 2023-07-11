@@ -105,7 +105,7 @@ def test_xz_line_from_cr_startpoint_to_centroid(line_gdf: gpd.GeoDataFrame):
     )
 
 
-def test_compute_resulting_force_on_cable(line: gpd.GeoDataFrame):
+def test_compute_resulting_force_on_cable():
     # go to the bottom right
     straight_line = LineString([(0, 0), (3, 3)])
     sloped_line = LineString([(0, 0), (4, 1.5)])
@@ -115,3 +115,15 @@ def test_compute_resulting_force_on_cable(line: gpd.GeoDataFrame):
     )
 
     assert np.isclose(resulting_force, 20000, rtol=0.2)
+
+
+def test_compute_tension_loaded_vs_unloaded_cableroad(cable_road: classes.Cable_Road):
+    loaded_cr = cable_road.supported_segments[0].cable_road
+    unloaded_cr = cable_road.supported_segments[1].cable_road
+    center_point = loaded_cr.end_support
+
+    force = mechanical_computations.compute_tension_loaded_vs_unloaded_cableroad(
+        loaded_cr, unloaded_cr, center_point, scaling_factor=10000
+    )
+
+    assert np.isclose(force, 20000, rtol=0.2)

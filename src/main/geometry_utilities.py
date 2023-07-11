@@ -163,15 +163,22 @@ def rotate_3d_point_in_z_direction(
     Returns:
         classes.Point_3D: Rotated point
     """
-    # convert angle to radians
-    angle = math.radians(angle)
+    original_vector = point.xyz
+    original_norm = np.linalg.norm(original_vector)
 
-    # create a quaternion and create new vector
-    q1 = Quaternion(axis=[-1, 1, 0], angle=angle)
-    rotated_point = q1.rotate(point.xyz)
+    # calculate the z angle transformation
+    a = math.cos(np.deg2rad(angle))
+    new_vector = np.array(
+        [original_vector[0], original_vector[1], original_vector[2] * a]
+    )
+
+    # get the ratio of the original norm to the new norm and multiply the new vector with it
+    new_norm = np.linalg.norm(new_vector)
+    ratio = original_norm / new_norm
+    new_vector = new_vector * ratio
 
     # create new point
-    return classes.Point_3D(*rotated_point)
+    return classes.Point_3D(*new_vector)
 
 
 def rotate_3d_line_in_z_direction(

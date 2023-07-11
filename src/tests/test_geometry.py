@@ -103,6 +103,11 @@ def test_rotation():
     v_prime = geometry_utilities.rotate_3d_point_in_z_direction(v, 20)
     np.testing.assert_allclose(v_prime.xyz, np.array([1.2, 1.2, 0.5]), atol=1e-1)
 
+    # ensure that if the point is in another direction, it is also rotated correctly
+    v = classes.Point_3D(-1, 1, 1)
+    v_prime = geometry_utilities.rotate_3d_point_in_z_direction(v, 20)
+    np.testing.assert_allclose(v_prime.xyz, np.array([-1.2, 1.2, 0.5]), atol=1e-1)
+
 
 def test_3d_line_rotate():
     line = classes.LineString_3D(classes.Point_3D(0, 0, 0), classes.Point_3D(1, 1, 1))
@@ -112,3 +117,10 @@ def test_3d_line_rotate():
     np.testing.assert_allclose(line.start_point.xyz, np.array([0, 0, 0]), atol=1e-1)
     # but the end has (in the correct direction)
     np.testing.assert_allclose(line.end_point.xyz, np.array([1.2, 1.2, 0.5]), atol=1e-1)
+
+    # ensure that it also works in the other direction
+    line = classes.LineString_3D(classes.Point_3D(0, 0, 0), classes.Point_3D(-1, -1, 1))
+    line = geometry_utilities.rotate_3d_line_in_z_direction(line, 20)
+    np.testing.assert_allclose(
+        line.end_point.xyz, np.array([-1.2, -1.2, 0.5]), atol=1e-1
+    )
