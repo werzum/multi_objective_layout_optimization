@@ -94,33 +94,37 @@ def test_cr_parameter_feasability():
 
 def test_rotation():
     # ensure that if we rotate the z axis down at x and y, we get a lower z
-    v = classes.Point_3D(0, 0, 1)
-    v_prime = geometry_utilities.rotate_3d_point_in_z_direction(v, 20)
-    np.testing.assert_allclose(v_prime.xyz, np.array([0.3, 0.3, 0.9]), atol=1e-1)
+    v = classes.Point_3D(1, 0, 1)
+    v_prime = geometry_utilities.rotate_3d_point_in_z_direction(v, 45)
+    np.testing.assert_allclose(v_prime.xyz, np.array([1.4, 0, 0]), atol=1e-1)
 
-    # ensure that if our point also has a x and y component, it is also rotated
+    # if we "flip" the z axis, do we get the correct result?
+    v_prime = geometry_utilities.rotate_3d_point_in_z_direction(v, 90)
+    np.testing.assert_allclose(v_prime.xyz, np.array([1, 0, -1]), atol=1e-1)
+
+    # ensure that it also works when we have both x and y component
     v = classes.Point_3D(1, 1, 1)
-    v_prime = geometry_utilities.rotate_3d_point_in_z_direction(v, 20)
-    np.testing.assert_allclose(v_prime.xyz, np.array([1.2, 1.2, 0.5]), atol=1e-1)
+    v_prime = geometry_utilities.rotate_3d_point_in_z_direction(v, 45)
+    np.testing.assert_allclose(v_prime.xyz, np.array([1.2, 1.2, 0]), atol=1e-1)
 
-    # ensure that if the point is in another direction, it is also rotated correctly
-    v = classes.Point_3D(-1, 1, 1)
-    v_prime = geometry_utilities.rotate_3d_point_in_z_direction(v, 20)
-    np.testing.assert_allclose(v_prime.xyz, np.array([-1.2, 1.2, 0.5]), atol=1e-1)
+    # how about negative xy components with higher values?
+    v = classes.Point_3D(-10, 10, 10)
+    v_prime = geometry_utilities.rotate_3d_point_in_z_direction(v, 45)
+    np.testing.assert_allclose(v_prime.xyz, np.array([-12, 12, 0]), atol=1)
 
 
 def test_3d_line_rotate():
     line = classes.LineString_3D(classes.Point_3D(0, 0, 0), classes.Point_3D(1, 1, 1))
-    line = geometry_utilities.rotate_3d_line_in_z_direction(line, 20)
+    line = geometry_utilities.rotate_3d_line_in_z_direction(line, 22)
 
     # ensure the start has not moved
     np.testing.assert_allclose(line.start_point.xyz, np.array([0, 0, 0]), atol=1e-1)
     # but the end has (in the correct direction)
-    np.testing.assert_allclose(line.end_point.xyz, np.array([1.2, 1.2, 0.5]), atol=1e-1)
+    np.testing.assert_allclose(line.end_point.xyz, np.array([1.1, 1.1, 0.7]), atol=1e-1)
 
     # ensure that it also works in the other direction
     line = classes.LineString_3D(classes.Point_3D(0, 0, 0), classes.Point_3D(-1, -1, 1))
-    line = geometry_utilities.rotate_3d_line_in_z_direction(line, 20)
+    line = geometry_utilities.rotate_3d_line_in_z_direction(line, 22)
     np.testing.assert_allclose(
-        line.end_point.xyz, np.array([-1.2, -1.2, 0.5]), atol=1e-1
+        line.end_point.xyz, np.array([-1.1, -1.1, 0.7]), atol=1e-1
     )

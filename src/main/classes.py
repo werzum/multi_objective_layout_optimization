@@ -67,7 +67,7 @@ class Support:
         self.xy_location: Point = xy_location
         self.max_deviation: float = max_deviation
         self.is_tower: bool = is_tower
-        self.max_supported_force: list[float] = max_supported_force
+        self.max_supported_force = max_supported_force
         self.max_holding_force: float = max_holding_force
 
         # get the elevation of the floor below the support
@@ -99,8 +99,8 @@ class Cable_Road:
         height_gdf,
         start_support: Support,
         end_support: Support,
-        pre_tension=0,
-        number_sub_segments=0,
+        pre_tension: float = 0,
+        number_sub_segments: int = 0,
     ):
         self.start_support: Support = start_support
         self.end_support: Support = end_support
@@ -160,8 +160,8 @@ class Cable_Road:
 
         # set up further rope parameters
         # length of the rope in xz view
-        self.c_rope_length = geometry_utilities.distance_between_3d_points(
-            self.start_support.xyz_location, self.end_support.xyz_location
+        self.c_rope_length = self.start_support.xyz_location.distance(
+            self.end_support.xyz_location
         )
 
         self.b_length_whole_section = self.start_support.xy_location.distance(
@@ -188,8 +188,8 @@ class Cable_Road:
             [
                 geometry_utilities.lineseg_dist(
                     point,
-                    self.start_support.xyz_location,
-                    self.end_support.xyz_location,
+                    self.start_support.xyz_location.xyz,
+                    self.end_support.xyz_location.xyz,
                 )
                 for point in self.floor_points
             ]
@@ -206,7 +206,7 @@ class Cable_Road:
         return self.floor_height_below_line_points + self.sloped_line_to_floor_distances
 
     @property
-    def rope_points_xz(self):
+    def rope_points_xyz(self):
         return list(
             zip(
                 [point.x for point in self.points_along_line],

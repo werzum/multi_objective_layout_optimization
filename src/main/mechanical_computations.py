@@ -80,14 +80,12 @@ def check_if_support_withstands_tension(
         next_segment.cable_road,
         center_point_xz,
         scaling_factor,
-        return_lines=False,
     )
     force_on_support_right = compute_tension_loaded_vs_unloaded_cableroad(
         next_segment.cable_road,
         current_segment.cable_road,
         center_point_xz,
         scaling_factor,
-        return_lines=False,
     )
 
     print("forces on lr support", force_on_support_left, force_on_support_right)
@@ -219,9 +217,10 @@ def compute_tension_loaded_vs_unloaded_cableroad(
         index=unloaded_index,
     )
 
+    # TODO is this the right way? they both have the same start point, so maybe we can do that? should we remove the 180? need to write some tests here
     # get the angle between the loaded and the unloaded cable road
     angle_loaded_unloaded_cr = 180 - geometry_utilities.angle_between_3d(
-        loaded_line_sp_centroid, unloaded_line_sp_centroid
+        loaded_line_sp_centroid.end_point.xyz, unloaded_line_sp_centroid.end_point.xyz
     )
 
     # rotate the loaded cable by this angle to be able to compare the distance
@@ -358,47 +357,36 @@ def check_if_tower_and_anchor_trees_hold(
     scaling_factor = 10000  # unit length = 1m = 10kn of tension
 
     # start point of the cr tower
-    tower_xz_point = Point(
-        [
-            this_cable_road.start_support.coords[0][0],
-            this_cable_road.start_support,
-        ]
-    )
+    tower_xz_point = this_cable_road.start_support.xyz_location
 
     # the S_Max point of the tower, by shifting the tower point by the exerted force to the left and then getting the sloped height
     index = int(exerted_force // scaling_factor)
-    loaded_cr_interpolated_tension_point = Point(
-        [
-            this_cable_road.start_point.coords[0][0] - index,
-            this_cable_road.absolute_loaded_line_height[index],
-        ]
+    loaded_cr_interpolated_tension_point = classes.Point_3D(
+        this_cable_road.points_along_line[index].x,
+        this_cable_road.points_along_line[index].y,
+        this_cable_road.absolute_loaded_line_height[index],
     )
 
     for index in range(len(anchor_triplets)):
         # set the central anchor point as line
         this_anchor_line = anchor_triplets[index][0]
-        anchor_start_point = Point(this_anchor_line.coords[0])
+        anchor_start_point_xy = Point(this_anchor_line.coords[0])
 
-        # construct the anchor tangent
+        # construct the anchor tangent from the anchor point to the tower
         anchor_point_height = geometry_operations.fetch_point_elevation(
-            anchor_start_point, height_gdf, 1
+            anchor_start_point_xy, height_gdf, 1
         )
-        anchor_start_point_distance = this_cable_road.start_point.distance(
-            anchor_start_point
+        anchor_start_point_xyz = classes.Point_3D(
+            anchor_start_point_xy.x, anchor_start_point_xy.y, anchor_point_height
         )
-
-        # anchor point on the xz plane
-        anchor_xz_point = Point(
-            [
-                this_cable_road.start_point.coords[0][0] + anchor_start_point_distance,
-                anchor_point_height,
-            ]
+        anchor_start_point_distance = (
+            this_cable_road.start_support.xyz_location.distance(anchor_start_point_xyz)
         )
 
         force_on_anchor, force_on_tower = construct_tower_force_parallelogram(
-            tower_xz_point,
+            this_cable_road.start_support.xyz_location,
             loaded_cr_interpolated_tension_point,
-            anchor_xz_point,
+            anchor_start_point_xyz,
             scaling_factor,
         )
 
@@ -415,16 +403,16 @@ def check_if_tower_and_anchor_trees_hold(
 
 
 def construct_tower_force_parallelogram(
-    tower_xz_point: Point,
-    s_max_point: Point,
-    s_a_point_real: Point,
+    tower_point: classes.Point_3D,
+    s_max_point: classes.Point_3D,
+    s_a_point_real: classes.Point_3D,
     scaling_factor: int,
 ) -> tuple[float, float]:
     """Constructs a parallelogram with the anchor point as its base, the force on the anchor as its height and the angle between the anchor tangent and the cr tangent as its angle.
     Based on Stampfer Forstmaschinen und Holzbringung Heft P. 17
 
     Args:
-        tower_xz_point (_type_): the central sideways-viewed top of the anchor
+        tower_point (_type_): the central sideways-viewed top of the anchor
         s_max_point (_type_): the sloped point of the cable road with the force applied in xz view
         s_a_point_real (_type_): the real anchor point (not the point with the force applied)
         force (float): the force applied to the cable road
@@ -435,80 +423,64 @@ def construct_tower_force_parallelogram(
         float: the force applied to the anchor
         float: the force applied the tower
     """
-    s_max_to_anchor = s_max_point.distance(tower_xz_point)
-    s_max_to_anchor_height = tower_xz_point.coords[0][1] - s_max_point.coords[0][1]
+    s_max_to_anchor_dist = s_max_point.distance(tower_point)
+    s_max_to_anchor_height = tower_point.z - s_max_point.z
 
-    # set up the interpolation loop for the s_a point
-    tower_s_max_x_point = Point(tower_xz_point.coords[0][0], s_max_point.coords[0][1])
-    interpolate_steps = 0.5
-    s_a_point_interpolated = LineString([tower_xz_point, s_a_point_real]).interpolate(
-        interpolate_steps
-    )
+    tower_s_max_x_point = classes.Point_3D(tower_point.x, tower_point.y, s_max_point.z)
 
-    # go stepwise along the line to find the right point which allows the correct length
-    while s_a_point_interpolated.distance(tower_s_max_x_point) < s_max_to_anchor:
-        interpolate_steps += 0.1
-        s_a_point_interpolated = LineString(
-            [tower_xz_point, s_a_point_real]
-        ).interpolate(interpolate_steps)
-        if interpolate_steps > s_max_to_anchor + 10:
-            break
+    # get the point along the line which is the force distance away from the tower point
+    s_a_point_interpolated = classes.LineString_3D(
+        tower_point, s_a_point_real
+    ).interpolate(s_max_to_anchor_dist)
 
-    # update the tower s max x point with the height of the s_a point
-    tower_s_max_x_point = Point(
-        tower_xz_point.coords[0][0],
-        s_max_point.coords[0][1]
-        + (s_a_point_interpolated.coords[0][1] - tower_xz_point.coords[0][1]),
-    )
+    # # update the tower s max x point with the height of the s_a point
+    # tower_s_max_x_point = Point(
+    #     tower_point.coords[0][0],
+    #     s_max_point.coords[0][1]
+    #     + (s_a_point_interpolated.coords[0][1] - tower_point.coords[0][1]),
+    # )
 
     # get the z distance from anchor to sa point
-    s_a_interpolated_length = s_a_point_interpolated.distance(tower_xz_point)
+    s_a_interpolated_length = s_a_point_interpolated.distance(tower_point)
 
     # and the central point along the tower xz line with the coordinates of sa
-    tower_s_a_radius = Point(
-        [
-            tower_xz_point.coords[0][0],
-            tower_xz_point.coords[0][1] - s_a_interpolated_length,
-        ]
+    tower_s_a_radius = classes.Point_3D(
+        tower_point.x,
+        tower_point.y,
+        tower_point.z - s_a_interpolated_length,
     )
 
-    tower_s_max_radius = Point(
-        [
-            tower_xz_point.coords[0][0],
-            tower_xz_point.coords[0][1] - s_max_to_anchor,
-        ]
+    tower_s_max_radius = classes.Point_3D(
+        tower_point.x,
+        tower_point.y,
+        tower_point.z - s_max_to_anchor_height,
     )
 
     # shifting s_max z down by s_a distance to get a_3
-    a_3_point = Point(
-        [
-            s_max_point.coords[0][0],
-            tower_s_max_radius.coords[0][1] - s_max_to_anchor_height,
-        ]
+    a_3_point = classes.Point_3D(
+        s_max_point.x, s_max_point.y, tower_s_max_radius.z - s_max_to_anchor_height
     )
 
     # shifting s_a down by s_a_distance
-    a_4_point = Point(
-        [
-            s_a_point_interpolated.coords[0][0],
-            s_a_point_interpolated.coords[0][1] - s_a_interpolated_length,
-        ]
+    a_4_point = classes.Point_3D(
+        s_a_point_interpolated.x,
+        s_a_point_interpolated.y,
+        s_a_point_interpolated.z - s_a_interpolated_length,
     )
 
     # z distance of anchor to a_4
-    z_distance_anchor_to_a_3 = tower_xz_point.coords[0][1] - a_3_point.coords[0][1]
-    z_distance_anchor_to_a_4 = tower_xz_point.coords[0][1] - a_4_point.coords[0][1]
+    z_distance_anchor_to_a_3 = tower_point.z - a_3_point.z
+    z_distance_anchor_to_a_4 = tower_point.z - a_4_point.z
     z_distance_anchor_a5 = z_distance_anchor_to_a_3 + z_distance_anchor_to_a_4
     # and now shifting the tower point down by this distance
-    a_5_point = Point(
-        [
-            tower_xz_point.coords[0][0],
-            tower_xz_point.coords[0][1] - z_distance_anchor_a5,
-        ]
+    a_5_point = classes.Point_3D(
+        tower_point.x,
+        tower_point.y,
+        tower_point.z - z_distance_anchor_a5,
     )
 
     # determine the force on the anchor
-    force_on_anchor = s_a_point_interpolated.distance(tower_xz_point) * scaling_factor
+    force_on_anchor = s_a_point_interpolated.distance(tower_point) * scaling_factor
     # now resulting force = distance from anchor to a_5*scaling factor
     force_on_tower = z_distance_anchor_a5 * scaling_factor
 
@@ -529,7 +501,7 @@ def pestal_load_path(cable_road: classes.Cable_Road, point: Point, loaded: bool 
     q_vertical_force = 10000 if loaded else 0
 
     h_height_difference = abs(
-        cable_road.end_support.total_height - cable_road.start_point.total_height
+        cable_road.end_support.total_height - cable_road.start_support.total_height
     )
 
     T_bar_tensile_force_at_center_span = T_0_basic_tensile_force + q_s_rope_weight * (
@@ -540,7 +512,7 @@ def pestal_load_path(cable_road: classes.Cable_Road, point: Point, loaded: bool 
         cable_road.b_length_whole_section / cable_road.c_rope_length
     )  # improvised value - need to do the parallelverchiebung here
 
-    x = cable_road.start_point.distance(point)
+    x = cable_road.start_support.xy_location.distance(point)
 
     return (
         (x * (cable_road.b_length_whole_section - x))

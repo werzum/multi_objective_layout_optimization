@@ -167,7 +167,8 @@ def rotate_3d_point_in_z_direction(
     original_norm = np.linalg.norm(original_vector)
 
     # calculate the z angle transformation
-    a = math.cos(np.deg2rad(angle))
+    a = math.cos(np.deg2rad(angle * 2))
+    # a *= 2  # for some reason we have to do this
     new_vector = np.array(
         [original_vector[0], original_vector[1], original_vector[2] * a]
     )
