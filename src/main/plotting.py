@@ -319,7 +319,7 @@ def plot_cr_relief(
         index (int): the index of the dataframe to extract more data
     """
 
-    if line_gdf.iloc[index]["number_of_supports"]:
+    if sample_cable_road.supported_segments:
         plot_supported_cr_relief(
             sample_cable_road,
             line_gdf,
@@ -402,7 +402,8 @@ def plot_supported_cr_relief(
     # )
 
     # for all individual road segments
-    for cable_road in cable_road_segments:
+    for segment in sample_cable_road.supported_segments:
+        cable_road = segment.cable_road
         if show_straight_line:
             add_straight_line_to_go_figure(cable_road, fig)
 
@@ -454,9 +455,21 @@ def add_all_anchors_to_go_figure(
 
     for anchor in line_gdf.iloc[index].possible_anchor_triples[0]:
         anchor_point = Point(anchor.coords)
-        anchor_line = LineString([anchor_point, sample_cable_road.start_point])
+        anchor_line = LineString(
+            [anchor_point, sample_cable_road.start_support.xy_location]
+        )
+        anchor_support = classes.Support(
+            sample_cable_road.start_support.total_height,
+            anchor_point,
+            height_gdf,
+            80000,
+        )
         anchor_cable_road = classes.Cable_Road(
-            anchor_line, height_gdf, pre_tension=sample_cable_road.s_current_tension
+            anchor_line,
+            height_gdf,
+            sample_cable_road.start_support,
+            anchor_support,
+            pre_tension=sample_cable_road.s_current_tension,
         )
 
         x_anchor_cr = [point[0] for point in anchor_cable_road.floor_points]
