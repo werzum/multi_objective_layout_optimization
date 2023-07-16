@@ -220,7 +220,7 @@ class Cable_Road:
         if self.supported_segments:
             number_sub_segments += 2
             for segment in self.supported_segments:
-                number_sub_segments += segment.cable_road.count_segments(
+                number_sub_segments = segment.cable_road.count_segments(
                     number_sub_segments
                 )
 

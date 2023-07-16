@@ -360,7 +360,9 @@ def check_if_tower_and_anchor_trees_hold(
     tower_xz_point = this_cable_road.start_support.xyz_location
 
     # the S_Max point of the tower, by shifting the tower point by the exerted force to the left and then getting the sloped height
-    index = int(exerted_force // scaling_factor)
+    index = min(
+        int(exerted_force // scaling_factor), len(this_cable_road.points_along_line) - 1
+    )
     loaded_cr_interpolated_tension_point = classes.Point_3D(
         this_cable_road.points_along_line[index].x,
         this_cable_road.points_along_line[index].y,
@@ -427,11 +429,12 @@ def construct_tower_force_parallelogram(
     s_max_to_anchor_height = tower_point.z - s_max_point.z
 
     tower_s_max_x_point = classes.Point_3D(tower_point.x, tower_point.y, s_max_point.z)
+    tower_s_max_x_point_distance = tower_point.distance(tower_s_max_x_point)
 
     # get the point along the line which is the force distance away from the tower point
     s_a_point_interpolated = classes.LineString_3D(
         tower_point, s_a_point_real
-    ).interpolate(s_max_to_anchor_dist)
+    ).interpolate(tower_s_max_x_point_distance)
 
     # # update the tower s max x point with the height of the s_a point
     # tower_s_max_x_point = Point(
