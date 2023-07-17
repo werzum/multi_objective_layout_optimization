@@ -6,6 +6,7 @@ import numpy as np
 import vispy.scene
 import geopandas as gpd
 import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 
 from src.main import (
     geometry_utilities,
@@ -173,6 +174,7 @@ def compute_tension_loaded_vs_unloaded_cableroad(
     unloaded_cable_road: classes.Cable_Road,
     center_point: classes.Point_3D,
     scaling_factor: int,
+    fig: go.Figure = None,
 ) -> float:
     """
     This function calculates the force on a support tree, based on the tension in a loaded cable road.
@@ -219,7 +221,7 @@ def compute_tension_loaded_vs_unloaded_cableroad(
 
     # TODO is this the right way? they both have the same start point, so maybe we can do that? should we remove the 180? need to write some tests here
     # get the angle between the loaded and the unloaded cable road
-    angle_loaded_unloaded_cr = 180 - geometry_utilities.angle_between_3d(
+    angle_loaded_unloaded_cr = geometry_utilities.angle_between_3d(
         loaded_line_sp_centroid.end_point.xyz, unloaded_line_sp_centroid.end_point.xyz
     )
 
@@ -228,6 +230,43 @@ def compute_tension_loaded_vs_unloaded_cableroad(
         loaded_line_sp_centroid, angle_loaded_unloaded_cr
     )
 
+    if fig:
+        print("Angle between lines", angle_loaded_unloaded_cr)
+        loaded_line_x, loaded_line_y, loaded_line_z = plotting.get_x_y_z_points(
+            loaded_cable_road
+        )
+        unloaded_line_x, unloaded_line_y, unloaded_line_z = plotting.get_x_y_z_points(
+            unloaded_cable_road
+        )
+        fig.add_trace(
+            go.Scatter3d(
+                x=loaded_line_x,
+                y=loaded_line_y,
+                z=loaded_line_z,
+                mode="lines",
+                line=dict(color="red", width=1),
+                name="loaded",
+            )
+        )
+        fig.add_trace(
+            go.Scatter3d(
+                x=unloaded_line_x,
+                y=unloaded_line_y,
+                z=unloaded_line_z,
+                mode="lines",
+                line=dict(color="blue", width=1),
+                name="unloaded",
+            )
+        )
+
+        for linestring in [
+            loaded_line_sp_centroid,
+            unloaded_line_sp_centroid,
+            loaded_line_rotated,
+        ]:
+            fig = plotting.plot_Linestring_3D(linestring, fig, "test")
+
+        fig.show("notebook_connected")
     # get the distance between the rotated line and the unloaded line as per the force-interpolated points
     return compute_resulting_force_on_cable(
         loaded_line_sp_centroid, loaded_line_rotated, tension, scaling_factor
@@ -336,6 +375,7 @@ def check_if_tower_and_anchor_trees_hold(
     max_holding_force: list[float],
     anchor_triplets: list,
     height_gdf: gpd.GeoDataFrame,
+    fig: go.Figure = None,
 ) -> bool:
     """Check if the tower and its anchors support the exerted forces. First we generate a sideways view of the configuration,
     and then check for every anchor triplet what force is applied to the tower and anchor.
@@ -384,12 +424,14 @@ def check_if_tower_and_anchor_trees_hold(
         anchor_start_point_distance = (
             this_cable_road.start_support.xyz_location.distance(anchor_start_point_xyz)
         )
+        print("exerted force", exerted_force)
 
         force_on_anchor, force_on_tower = construct_tower_force_parallelogram(
             this_cable_road.start_support.xyz_location,
             loaded_cr_interpolated_tension_point,
             anchor_start_point_xyz,
             scaling_factor,
+            fig,
         )
 
         if force_on_tower < maximum_tower_force:
@@ -404,11 +446,15 @@ def check_if_tower_and_anchor_trees_hold(
     return False
 
 
+from varname import nameof
+
+
 def construct_tower_force_parallelogram(
     tower_point: classes.Point_3D,
     s_max_point: classes.Point_3D,
     s_a_point_real: classes.Point_3D,
     scaling_factor: int,
+    fig: go.Figure = None,
 ) -> tuple[float, float]:
     """Constructs a parallelogram with the anchor point as its base, the force on the anchor as its height and the angle between the anchor tangent and the cr tangent as its angle.
     Based on Stampfer Forstmaschinen und Holzbringung Heft P. 17
@@ -429,7 +475,7 @@ def construct_tower_force_parallelogram(
     s_max_to_anchor_height = tower_point.z - s_max_point.z
 
     tower_s_max_x_point = classes.Point_3D(tower_point.x, tower_point.y, s_max_point.z)
-    tower_s_max_x_point_distance = tower_point.distance(tower_s_max_x_point)
+    tower_s_max_x_point_distance = s_max_point.distance(tower_s_max_x_point)
 
     # get the point along the line which is the force distance away from the tower point
     s_a_point_interpolated = classes.LineString_3D(
@@ -486,6 +532,46 @@ def construct_tower_force_parallelogram(
     force_on_anchor = s_a_point_interpolated.distance(tower_point) * scaling_factor
     # now resulting force = distance from anchor to a_5*scaling factor
     force_on_tower = z_distance_anchor_a5 * scaling_factor
+
+    if fig:
+        point_dict = {
+            "tower_point": tower_point,
+            "s_max_point": s_max_point,
+            "s_a_point_real": s_a_point_real,
+            "tower_s_max_x_point": tower_s_max_x_point,
+            "s_a_point_interpolated": s_a_point_interpolated,
+            "tower_s_a_radius": tower_s_a_radius,
+            "tower_s_max_radius": tower_s_max_radius,
+            "a_3_point": a_3_point,
+            "a_4_point": a_4_point,
+            "a_5_point": a_5_point,
+        }
+
+        for name, point in point_dict.items():
+            fig.add_trace(
+                go.Scatter3d(
+                    x=[point.x],
+                    y=[point.y],
+                    z=[point.z],
+                    mode="markers",
+                    marker=dict(size=5, color="red"),
+                    text=name,
+                )
+            )
+            print(name, point.xyz)
+
+        fig.update_traces(marker={"size": 3})
+        fig.update_layout(
+            margin=dict(l=0, r=0, b=0, t=0),
+            width=1000,
+            height=800,
+            title="Relief Map with possible Cable Roads",
+        )
+
+        print("force on anchor", force_on_anchor)
+        print("force on tower", force_on_tower)
+
+        fig.show("notebook_connected")
 
     return force_on_anchor, force_on_tower
 

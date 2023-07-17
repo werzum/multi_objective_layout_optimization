@@ -472,12 +472,7 @@ def add_all_anchors_to_go_figure(
             pre_tension=sample_cable_road.s_current_tension,
         )
 
-        x_anchor_cr = [point[0] for point in anchor_cable_road.floor_points]
-        y_anchor_cr = [point[1] for point in anchor_cable_road.floor_points]
-        z_line_to_floor = (
-            anchor_cable_road.floor_height_below_line_points
-            + anchor_cable_road.line_to_floor_distances
-        )
+        x_anchor_cr, y_anchor_cr, z_line_to_floor = get_x_y_z_points(anchor_cable_road)
 
         fig.add_trace(
             go.Scatter3d(
@@ -491,6 +486,20 @@ def add_all_anchors_to_go_figure(
         )
 
 
+def get_x_y_z_points(sample_cable_road):
+    """Get the x, y and z points of a cable road - helper function for plotting
+    Args:
+        sample_cable_road (classes.Cable_Road): The CR
+    Returns:
+        tuple: list of x, y and z point coordinates
+    """
+    x_sample_cr = [point[0] for point in sample_cable_road.floor_points]
+    y_sample_cr = [point[1] for point in sample_cable_road.floor_points]
+    z__sloped = sample_cable_road.absolute_loaded_line_height
+
+    return x_sample_cr, y_sample_cr, z__sloped
+
+
 def add_relief_to_go_figure(sample_cable_road: classes.Cable_Road, fig: go.Figure):
     """Add the relief of a single cable road to a figure.
 
@@ -499,9 +508,9 @@ def add_relief_to_go_figure(sample_cable_road: classes.Cable_Road, fig: go.Figur
         fig (go.Figure): _description_
     """
     # get the relief and plot it
-    x_sample_cr = [point[0] for point in sample_cable_road.floor_points]
-    y_sample_cr = [point[1] for point in sample_cable_road.floor_points]
-    z_floor_height = sample_cable_road.floor_height_below_line_points
+    x_sample_cr, y_sample_cr, z_floor_height = get_x_y_z_points(sample_cable_road)
+    z_floor_height = z_floor_height - sample_cable_road.line_to_floor_distances
+
     fig = fig.add_trace(
         go.Scatter3d(
             x=x_sample_cr,
@@ -543,96 +552,40 @@ def add_straight_line_to_go_figure(
 
 
 def plot_parallelogram(
-    ax: plt.Axes,
-    s_max_point: Point,
-    s_a_point_force: Point,
-    a_3_point: Point,
-    a_4_point: Point,
-    a_5_point: Point,
-    tower_xz_point: Point,
-    tower_s_max_radius: Point,
-    tower_s_a_radius: Point,
-    tower_s_max_x_point: Point,
-    s_max_length: float,
+    cable_road: classes.Cable_Road,
+    max_holding_force: list[float],
+    anchor_triplets: list,
+    height_gdf: gpd.GeoDataFrame,
+    fig: go.Figure = None,
 ):
-    ax.clear()
-    ax.set_aspect("equal", adjustable="box")
-    ax.set_xlim(-30, -15)
-    ax.set_ylim(-15, 15)
+    fig = go.Figure()
+    mechanical_computations.check_if_tower_and_anchor_trees_hold(
+        cable_road, max_holding_force, anchor_triplets, height_gdf, fig=fig
+    )
 
-    # plot the points
-    ax.plot(*s_max_point.xy, "o", color="black")
-    ax.plot(*tower_s_max_radius.xy, "o", color="green")
-    ax.plot(*s_a_point_force.xy, "o", color="blue")
-    ax.plot(*a_3_point.xy, "o", color="red")
-    ax.plot(*a_4_point.xy, "o", color="red")
-    ax.plot(*a_5_point.xy, "o", color="blue")
-    ax.plot(*tower_xz_point.xy, "o", color="orange")
 
-    for lines in [
-        [s_max_point, tower_xz_point],
-        [s_a_point_force, tower_xz_point],
-        [a_3_point, s_max_point],
-        [a_4_point, s_a_point_force],
-        [a_5_point, tower_xz_point],
-        [a_5_point, a_3_point],
-        [a_5_point, a_4_point],
-        [s_a_point_force, tower_s_max_x_point],
-        [tower_s_max_x_point, s_max_point],
-        [
-            Point([a_3_point.coords[0][0], a_3_point.coords[0][1]]),
-            Point(
-                [
-                    tower_xz_point.coords[0][0],
-                    tower_xz_point.coords[0][1] - s_max_length,
-                ]
-            ),
-        ],  # s3 to anchor with length of smax
-        [
-            Point([a_4_point.coords[0][0], a_4_point.coords[0][1]]),
-            Point(
-                [
-                    tower_xz_point.coords[0][0],
-                    a_4_point.coords[0][1]
-                    - abs(s_a_point_force.coords[0][1] - tower_xz_point.coords[0][1]),
-                ]
-            ),
-        ],
-    ]:
-        ax.plot(*LineString(lines).xy, color="black")
+def plot_tension_loaded_unloaded_cr(loaded_cr, unloaded_cr, center_point):
+    fig = go.Figure()
+    mechanical_computations.compute_tension_loaded_vs_unloaded_cableroad(
+        loaded_cr, unloaded_cr, center_point, 10000, fig=fig
+    )
+    mechanical_computations.compute_tension_loaded_vs_unloaded_cableroad(
+        unloaded_cr, loaded_cr, center_point, 10000, fig=fig
+    )
 
-    # ax.annotate(
-    #     "Force on Cable",
-    #     s_max_point.coords[0],
-    #     xytext=(3, -15),
-    #     fontsize=14,
-    #     textcoords="offset points",
-    # )
-    # ax.annotate(
-    #     "Force on Anchor",
-    #     s_a_point_force.coords[0],
-    #     xytext=(3, -15),
-    #     fontsize=14,
-    #     textcoords="offset points",
-    # )
-    # ax.annotate(
-    #     "Force on Tower",
-    #     a_5_point.coords[0],
-    #     xytext=(3, -15),
-    #     fontsize=14,
-    #     textcoords="offset points",
-    # )
-    # ax.annotate(
-    #     "Buckling Force left",
-    #     a_3_point.coords[0],
-    #     xytext=(5, -5),
-    #     fontsize=14,
-    #     textcoords="offset points",
-    # )
-    # ax.annotate(
-    #     "Buckling Force right",
-    #     a_4_point.coords[0],
-    #     xytext=(3, -15),
-    #     fontsize=14,
-    #     textcoords="offset points",
-    # )
+
+def plot_Linestring_3D(
+    line: classes.LineString_3D, fig: go.Figure, label: str
+) -> go.Figure:
+    fig.add_trace(
+        go.Scatter3d(
+            x=[line.start_point.x, line.end_point.x],
+            y=[line.start_point.y, line.end_point.y],
+            z=[line.start_point.z, line.end_point.z],
+            mode="lines",
+            line=dict(color="green", width=1),
+            name="str",
+        )
+    )
+
+    return fig

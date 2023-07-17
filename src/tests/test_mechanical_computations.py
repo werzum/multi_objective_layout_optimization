@@ -33,7 +33,7 @@ def test_check_if_support_withstands_tension(line_gdf: gpd.GeoDataFrame):
     cable_road.supported_segments[1].cable_road.s_current_tension = 85000
     cable_road.supported_segments[
         0
-    ].right_support.max_supported_force_at_attachment_height = 10000
+    ].end_support.max_supported_force_at_attachment_height = 10000
 
     support_withstands_tension = (
         mechanical_computations.check_if_support_withstands_tension(
@@ -47,7 +47,7 @@ def test_check_if_support_withstands_tension(line_gdf: gpd.GeoDataFrame):
     cable_road.supported_segments[1].cable_road.s_current_tension = 50000
     cable_road.supported_segments[
         0
-    ].right_support.max_supported_force_at_attachment_height = 100000
+    ].end_support.max_supported_force_at_attachment_height = 100000
 
     support_withstands_tension = (
         mechanical_computations.check_if_support_withstands_tension(
@@ -57,6 +57,7 @@ def test_check_if_support_withstands_tension(line_gdf: gpd.GeoDataFrame):
     assert support_withstands_tension == True
 
 
+# TODO - rework this for 3D
 def test_xz_line_from_cr_startpoint_to_centroid(line_gdf: gpd.GeoDataFrame):
     cable_road = classes.load_cable_road(line_gdf, 1)
     start_point = cable_road.xz_left_start_point
@@ -121,6 +122,9 @@ def test_compute_tension_loaded_vs_unloaded_cableroad(cable_road: classes.Cable_
     loaded_cr = cable_road.supported_segments[0].cable_road
     unloaded_cr = cable_road.supported_segments[1].cable_road
     center_point = loaded_cr.end_support
+
+    loaded_cr.s_current_tension = 50000
+    unloaded_cr.s_current_tension = 50000
 
     force = mechanical_computations.compute_tension_loaded_vs_unloaded_cableroad(
         loaded_cr, unloaded_cr, center_point, scaling_factor=10000

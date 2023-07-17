@@ -68,14 +68,7 @@ def test_euler_knicklast():
     assert np.isclose(mechanical_computations.euler_knicklast(40, 10), 19000, rtol=0.20)
 
 
-def test_cr_parameter_feasability():
-    (
-        cable_road,
-        line_gdf,
-        tree_gdf,
-        height_gdf,
-    ) = test_cable_roads.main_test_cable_roads()
-
+def test_cr_parameter_feasability(cable_road, line_gdf, tree_gdf, height_gdf):
     tree_0 = tree_gdf[tree_gdf["BHD"] > 40].iloc[0]
     assert (
         len(tree_gdf[tree_gdf["BHD"] > 40]) > 200

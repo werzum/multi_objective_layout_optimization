@@ -362,7 +362,7 @@ def raise_height_and_check_tension(
     start_segment: classes.SupportedSegment,
     end_segment: classes.SupportedSegment,
     height_index: int,
-) -> bool:
+) -> tuple[bool, bool]:
     """raise the height of the support and check if it now withstands tension"""
     print("raising height to ", height_index)
     # increase the support height
@@ -423,29 +423,24 @@ def check_segment_for_feasibility(
         return False
 
     # iterate through the possible attachments of the support and see if we touch ground
-    # start with at least three meters height
+    # start with at least six meters height, go up to 10
     support_withstands_tension = False
     min_height = 6
+    max_height = min(len(candidate_tree.height_series), 15)
+
     if len(candidate_tree.height_series) < min_height:
         return False
 
-    for height_index in range(min_height, len(candidate_tree.height_series)):
-        support_withstands_tension = raise_height_and_check_tension(
+    for height_index in range(min_height, max_height):
+        support_withstands_tension, no_collisions = raise_height_and_check_tension(
             start_segment, end_segment, height_index
         )
 
-        # if the support doesnt withstand tension, we continue to the next height
+        # if the support doesnt withstand tension, we break - this only gets worse with more height
         if not support_withstands_tension:
-            if start_segment.end_support.attachment_height > 20:
-                print("Attachment raised too high, segment not feasible")
-                return False
-            print("iterating through height series since support doesnt hold")
-            continue
+            break
 
-        if (
-            start_segment.cable_road.no_collisions
-            and end_segment.cable_road.no_collisions
-        ):
+        if no_collisions:
             # we found a viable configuration - break out of this loop
             break
         print("iterating through height series since we have collisions")
@@ -459,7 +454,8 @@ def check_segment_for_feasibility(
         print("found viable sub-config")
         this_cable_road.supported_segments.extend((start_segment, end_segment))
         return return_sucessful(this_cable_road)
-    return False
+    else:
+        return False
 
 
 def evaluate_cr_collisions(
@@ -492,7 +488,7 @@ def candidate_is_too_close_to_anchor(support_segment) -> bool:
 def check_support_tension_and_collision(
     start_segment: classes.SupportedSegment,
     end_segment: classes.SupportedSegment,
-) -> bool:
+) -> tuple[bool, bool]:
     """check if the support withstands tension and if there are collisions.
     Return false if support doesnt hold or if there are collisions
     Args:
@@ -501,7 +497,8 @@ def check_support_tension_and_collision(
         height_index (int): The height index of the support
 
     Returns:
-        bool: True if support holds and there are no collisions
+        bool: True if support holds
+        bool: True if there are no collisions
     """
     support_withstands_tension = (
         mechanical_computations.check_if_support_withstands_tension(
@@ -509,20 +506,14 @@ def check_support_tension_and_collision(
         )
     )
 
-    if (not support_withstands_tension) or (
-        start_segment.end_support.attachment_height
-    ) > 20:
-        # next candidate - tension just gets worse with more height
-        return False
-
-    # 6. no collisions left and right? go to next candidate if this one is already not working out
-    # first set the height of the support
+    # check if we have no collisions
     mechanical_computations.check_if_no_collisions_cable_road(start_segment.cable_road)
     mechanical_computations.check_if_no_collisions_cable_road(end_segment.cable_road)
+    no_collisions = (
+        start_segment.cable_road.no_collisions and end_segment.cable_road.no_collisions
+    )
 
-    if start_segment.cable_road.no_collisions and end_segment.cable_road.no_collisions:
-        return True
-    return False
+    return support_withstands_tension, no_collisions
 
 
 def generate_triple_angle(
