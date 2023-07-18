@@ -126,3 +126,8 @@ def test_3d_line_rotate():
     line = classes.LineString_3D(classes.Point_3D(0, 0, 0), classes.Point_3D(1, 1, 1))
     line_rotated = geometry_utilities.rotate_3d_line_in_z_direction(line, 22)
     assert line.length() == line_rotated.length()
+
+    # ensure that if we move the end by 45degs, the distance between two points is about the arc length
+    line = classes.LineString_3D(classes.Point_3D(0, 0, 0), classes.Point_3D(1, 1, 1))
+    line_rotated = geometry_utilities.rotate_3d_line_in_z_direction(line, 45)
+    assert np.isclose(line.end_point.distance(line_rotated.end_point), 0.7, atol=1e-1)

@@ -71,9 +71,6 @@ def check_if_support_withstands_tension(
     print("checking if support withstands tension")
     scaling_factor = 10000
 
-    # create the xz center point (ie the support location)
-    center_point_xz = next_segment.cable_road.start_support.xyz_location
-
     # fig, (ax) = plt.subplots(1, 1, figsize=(9, 6))
     ### Calculate the force on the support for the both cable roads
     force_on_support_left = compute_tension_loaded_vs_unloaded_cableroad(
@@ -229,6 +226,8 @@ def compute_tension_loaded_vs_unloaded_cableroad(
         loaded_line_sp_centroid, angle_loaded_unloaded_cr
     )
 
+    print("Angle between lines", angle_loaded_unloaded_cr)
+
     if fig:
         fig.data = []  # reset the figure
         print("Angle between lines", angle_loaded_unloaded_cr)
@@ -274,6 +273,13 @@ def compute_tension_loaded_vs_unloaded_cableroad(
             title="Relief Map with possible Cable Roads",
         )
         fig.show("notebook_connected")
+        print(
+            "Resulting force:",
+            compute_resulting_force_on_cable(
+                loaded_line_sp_centroid, loaded_line_rotated, tension, scaling_factor
+            ),
+        )
+        print("Tension:", tension)
     # get the distance between the rotated line and the unloaded line as per the force-interpolated points
     return compute_resulting_force_on_cable(
         loaded_line_sp_centroid, loaded_line_rotated, tension, scaling_factor
@@ -594,7 +600,7 @@ def pestal_load_path(cable_road: classes.Cable_Road, point: Point, loaded: bool 
     """
     T_0_basic_tensile_force = cable_road.s_current_tension
     q_s_rope_weight = 1.6
-    q_vertical_force = 10000 if loaded else 0
+    q_vertical_force = 15000 if loaded else 0
 
     h_height_difference = abs(
         cable_road.end_support.total_height - cable_road.start_support.total_height

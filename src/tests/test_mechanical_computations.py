@@ -14,26 +14,28 @@ from src.tests import helper_functions
 
 
 def test_check_if_no_collisions_cable_road(line_gdf: gpd.GeoDataFrame):
-    cable_road = classes.load_cable_road(line_gdf, 1)
+    cable_road = classes.load_cable_road(line_gdf, 2)
+    assert cable_road.count_segments() == 0
 
     cable_road.s_current_tension = 20000
     mechanical_computations.check_if_no_collisions_cable_road(cable_road)
     assert cable_road.no_collisions == False
 
-    cable_road.s_current_tension = 100000
+    cable_road.s_current_tension = 120000
     mechanical_computations.check_if_no_collisions_cable_road(cable_road)
     assert cable_road.no_collisions == True
 
 
 def test_check_if_support_withstands_tension(line_gdf: gpd.GeoDataFrame):
-    cable_road = classes.load_cable_road(line_gdf, 1)
+    cable_road = classes.load_cable_road(line_gdf, 3)
+    assert cable_road.count_segments() == 2
 
-    # set to a high CR tension and low support force
-    cable_road.supported_segments[0].cable_road.s_current_tension = 85000
-    cable_road.supported_segments[1].cable_road.s_current_tension = 85000
+    # set to a high CR tension and low support force - but not to 80.000, since then we dont have any slack, which determines the force on the support
+    cable_road.supported_segments[0].cable_road.s_current_tension = 100000
+    cable_road.supported_segments[1].cable_road.s_current_tension = 100000
     cable_road.supported_segments[
         0
-    ].end_support.max_supported_force_at_attachment_height = 10000
+    ].end_support.max_supported_force_at_attachment_height = 1000
 
     support_withstands_tension = (
         mechanical_computations.check_if_support_withstands_tension(

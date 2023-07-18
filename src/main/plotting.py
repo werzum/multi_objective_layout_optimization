@@ -509,7 +509,7 @@ def add_relief_to_go_figure(sample_cable_road: classes.Cable_Road, fig: go.Figur
     """
     # get the relief and plot it
     x_sample_cr, y_sample_cr, z_floor_height = get_x_y_z_points(sample_cable_road)
-    z_floor_height = z_floor_height - sample_cable_road.line_to_floor_distances
+    z_floor_height = sample_cable_road.floor_height_below_line_points
 
     fig = fig.add_trace(
         go.Scatter3d(

@@ -130,7 +130,6 @@ class Cable_Road:
         """ Modifiable collision parameters """
         self.no_collisions = True
         self.anchors_hold = True
-        self.s_current_tension = 0.0
 
         # Parameters to keep track of segments+
         self.number_sub_segments = number_sub_segments
@@ -138,6 +137,7 @@ class Cable_Road:
             SupportedSegment
         ] = []  # list of SupportedSegment objects, ie. sub cable roads
 
+        self._s_current_tension = 0.0
         print(
             "Cable road created from line: ",
             self.line.coords[0],
@@ -217,6 +217,22 @@ class Cable_Road:
                 self.absolute_loaded_line_height,
             )
         )
+
+    @property
+    def s_current_tension(self) -> float:
+        return self._s_current_tension
+
+    # ensure that the CR height is updated when we change the tension
+    @s_current_tension.setter
+    def s_current_tension(self, value):
+        self._s_current_tension = value
+        self.compute_loaded_unloaded_line_height()
+
+        # also for the sub-CRs
+        if self.supported_segments:
+            for segment in self.supported_segments:
+                segment.cable_road.s_current_tension = value
+                segment.cable_road.compute_loaded_unloaded_line_height()
 
     def count_segments(self, number_sub_segments: int = 0) -> int:
         """recursively counts the number of segments in the cable road"""

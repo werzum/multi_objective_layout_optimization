@@ -96,8 +96,46 @@ def test_raise_height_and_check_tension(cable_road: classes.Cable_Road):
     segment_2_min_height = min(segment_2.cable_road.sloped_line_to_floor_distances)
 
     cable_road_computation.raise_height_and_check_tension(segment_1, segment_2, 6)
-    segment_1_min_height_new = min(segment_1.cable_road.sloped_line_to_floor_distances)
-    segment_2_min_height_new = min(segment_2.cable_road.sloped_line_to_floor_distances)
+    segment_1_min_height_raised = min(
+        segment_1.cable_road.sloped_line_to_floor_distances
+    )
+    segment_2_min_height_raised = min(
+        segment_2.cable_road.sloped_line_to_floor_distances
+    )
 
-    assert segment_1_min_height_new > segment_1_min_height
-    assert segment_2_min_height_new > segment_2_min_height
+    assert segment_1_min_height_raised > segment_1_min_height
+    assert segment_2_min_height_raised > segment_2_min_height
+
+
+def test_raise_tension_and_check_height(cable_road: classes.Cable_Road):
+    assert cable_road.count_segments() == 2
+
+    segment_1 = cable_road.supported_segments[0]
+    segment_2 = cable_road.supported_segments[1]
+
+    segment_1_min_height = min(segment_1.cable_road.sloped_line_to_floor_distances)
+    segment_2_min_height = min(segment_2.cable_road.sloped_line_to_floor_distances)
+
+    # test lowering the tension to see if the height lowers
+    segment_1.cable_road.s_current_tension = 10000
+    segment_2.cable_road.s_current_tension = 10000
+    segment_1_min_height_low_tension = min(
+        segment_1.cable_road.sloped_line_to_floor_distances
+    )
+    segment_2_min_height_low_tension = min(
+        segment_2.cable_road.sloped_line_to_floor_distances
+    )
+    assert segment_1_min_height_low_tension < segment_1_min_height
+    assert segment_2_min_height_low_tension < segment_2_min_height
+
+    # and vice versa with high tension
+    segment_1.cable_road.s_current_tension = 100000
+    segment_2.cable_road.s_current_tension = 100000
+    segment_1_min_height_high_tension = min(
+        segment_1.cable_road.sloped_line_to_floor_distances
+    )
+    segment_2_min_height_high_tension = min(
+        segment_2.cable_road.sloped_line_to_floor_distances
+    )
+    assert segment_1_min_height_high_tension > segment_1_min_height
+    assert segment_2_min_height_high_tension > segment_2_min_height
