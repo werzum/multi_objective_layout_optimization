@@ -121,3 +121,8 @@ def test_3d_line_rotate():
     np.testing.assert_allclose(
         line.end_point.xyz, np.array([-1.1, -1.1, 0.7]), atol=1e-1
     )
+
+    # ensure that the rotated line has the same lenght
+    line = classes.LineString_3D(classes.Point_3D(0, 0, 0), classes.Point_3D(1, 1, 1))
+    line_rotated = geometry_utilities.rotate_3d_line_in_z_direction(line, 22)
+    assert line.length() == line_rotated.length()

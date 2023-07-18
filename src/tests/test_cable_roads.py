@@ -84,3 +84,20 @@ def test_supported_cable_road_parameters(
         cable_road_computation.check_support_tension_and_collision(
             current_segment, next_segment
         )
+
+
+def test_raise_height_and_check_tension(cable_road: classes.Cable_Road):
+    segment_1 = cable_road.supported_segments[0]
+    segment_2 = cable_road.supported_segments[1]
+
+    cable_road_computation.raise_height_and_check_tension(segment_1, segment_2, 5)
+    # assert that the height of the cable changes when we raise it
+    segment_1_min_height = min(segment_1.cable_road.sloped_line_to_floor_distances)
+    segment_2_min_height = min(segment_2.cable_road.sloped_line_to_floor_distances)
+
+    cable_road_computation.raise_height_and_check_tension(segment_1, segment_2, 6)
+    segment_1_min_height_new = min(segment_1.cable_road.sloped_line_to_floor_distances)
+    segment_2_min_height_new = min(segment_2.cable_road.sloped_line_to_floor_distances)
+
+    assert segment_1_min_height_new > segment_1_min_height
+    assert segment_2_min_height_new > segment_2_min_height

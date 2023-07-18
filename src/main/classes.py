@@ -51,6 +51,9 @@ class LineString_3D:
             self.start_point.z + vector[2],
         )
 
+    def length(self):
+        return self.start_point.distance(self.end_point)
+
 
 class Support:
     def __init__(

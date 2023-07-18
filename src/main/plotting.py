@@ -564,13 +564,13 @@ def plot_parallelogram(
     )
 
 
-def plot_tension_loaded_unloaded_cr(loaded_cr, unloaded_cr, center_point):
+def plot_tension_loaded_unloaded_cr(loaded_cr, unloaded_cr):
     fig = go.Figure()
     mechanical_computations.compute_tension_loaded_vs_unloaded_cableroad(
-        loaded_cr, unloaded_cr, center_point, 10000, fig=fig
+        loaded_cr, unloaded_cr, 10000, reverse_direction=False, fig=fig
     )
     mechanical_computations.compute_tension_loaded_vs_unloaded_cableroad(
-        unloaded_cr, loaded_cr, center_point, 10000, fig=fig
+        unloaded_cr, loaded_cr, 10000, reverse_direction=True, fig=fig
     )
 
 
@@ -584,7 +584,7 @@ def plot_Linestring_3D(
             z=[line.start_point.z, line.end_point.z],
             mode="lines",
             line=dict(color="green", width=1),
-            name="str",
+            name=label,
         )
     )
 

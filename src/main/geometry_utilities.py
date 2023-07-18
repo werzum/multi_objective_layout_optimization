@@ -133,6 +133,22 @@ def angle_between_3d(v1, v2):
     return math.degrees(np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0)))
 
 
+def angle_between_3d_lines(
+    line1: classes.LineString_3D, line2: classes.LineString_3D
+) -> float:
+    """Compute the angle between two 3d lines with the same start point
+    Args:
+        line1 (classes.LineString_3D): First line
+        line2 (classes.LineString_3D): Second line
+    Returns:
+        float: Angle between the two lines
+    """
+    assert np.array_equal(line1.start_point.xyz, line2.start_point.xyz)
+    v1 = line1.end_point.xyz - line1.start_point.xyz
+    v2 = line2.end_point.xyz - line2.start_point.xyz
+    return angle_between_3d(v1, v2)
+
+
 def distance_between_3d_points(point1, point2):
     """Compute distance between two 3d points
 
@@ -198,7 +214,8 @@ def rotate_3d_line_in_z_direction(
     end_point_relative = classes.Point_3D(*(line.end_point.xyz - line.start_point.xyz))
     # rotate it around the given angle
     end_point_rotated = rotate_3d_point_in_z_direction(end_point_relative, angle)
-    # create new line
+    # create new line by addin the rotated end point to the start point
     return classes.LineString_3D(
-        line.start_point, classes.Point_3D(*end_point_rotated.xyz)
+        line.start_point,
+        classes.Point_3D(*(line.start_point.xyz + end_point_rotated.xyz)),
     )

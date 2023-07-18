@@ -104,6 +104,7 @@ def generate_possible_lines(
             height_gdf,
             overall_trees,
             from_line=line["line_candidates"],
+            recursion_counter=0,
         )
         for index, line in line_df.iterrows()
     ]
@@ -171,6 +172,9 @@ def decrement_tension_until_towers_anchors_supports_hold(
         return tower_and_anchors_hold, supports_hold
 
 
+import gc
+
+
 def compute_required_supports(
     anchor_triplets: list,
     max_supported_forces: list[float],
@@ -180,6 +184,7 @@ def compute_required_supports(
     pre_tension: int = 0,
     from_line: LineString = None,
     from_segment: classes.SupportedSegment = None,
+    recursion_counter: int = 0,
 ) -> classes.Cable_Road:
     # sourcery skip: boolean-if-exp-identity, remove-unnecessary-cast
     """A function to check whether there are any points along the line candidate (spanned up by the starting/end points
@@ -194,11 +199,17 @@ def compute_required_supports(
         pre_tension (int, optional): The pre-tension to start with. Defaults to 0.
         from_line (LineString, optional): The line to start with. Defaults to None, in which case from_segment must be given.
         from_segment (classes.SupportedSegment, optional): The segment to start with. Defaults to None.
+        recursion_counter (int, optional): The recursion counter to ensure we dont endlessly try to find sub-CRs. Defaults to 0.
 
     Returns:
         classes.Cable_Road: The cable road object
 
     """
+
+    if recursion_counter > 3:
+        print("recursion counter exceeded, returning")
+        return return_failed()
+
     # TODO - set this up with check if  this is the first iteration, so we can properly set up the tower
     if from_line:
         min_height_anchor = min(
@@ -314,6 +325,7 @@ def compute_required_supports(
             pre_tension=this_cable_road.s_current_tension,
             from_line=None,
             from_segment=start_segment,
+            recursion_counter=recursion_counter + 1,
         )
 
         right_CR = compute_required_supports(
@@ -325,6 +337,7 @@ def compute_required_supports(
             pre_tension=this_cable_road.s_current_tension,
             from_line=None,
             from_segment=end_segment,
+            recursion_counter=recursion_counter + 1,
         )
 
         # update the current CR with the sub CRs and count the supports
@@ -367,8 +380,8 @@ def raise_height_and_check_tension(
     print("raising height to ", height_index)
     # increase the support height
     # TODO - does this propagate, ie. is the underlying cable road updated? probably not. need to check
-    start_segment.start_support.attachment_height = height_index
-    end_segment.end_support.attachment_height = height_index
+    start_segment.end_support.attachment_height = height_index
+    end_segment.start_support.attachment_height = height_index
 
     return check_support_tension_and_collision(start_segment, end_segment)
 

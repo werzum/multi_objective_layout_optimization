@@ -79,14 +79,14 @@ def check_if_support_withstands_tension(
     force_on_support_left = compute_tension_loaded_vs_unloaded_cableroad(
         current_segment.cable_road,
         next_segment.cable_road,
-        center_point_xz,
         scaling_factor,
+        reverse_direction=False,
     )
     force_on_support_right = compute_tension_loaded_vs_unloaded_cableroad(
         next_segment.cable_road,
         current_segment.cable_road,
-        center_point_xz,
         scaling_factor,
+        reverse_direction=True,
     )
 
     print("forces on lr support", force_on_support_left, force_on_support_right)
@@ -172,8 +172,8 @@ def compute_resulting_force_on_cable(
 def compute_tension_loaded_vs_unloaded_cableroad(
     loaded_cable_road: classes.Cable_Road,
     unloaded_cable_road: classes.Cable_Road,
-    center_point: classes.Point_3D,
     scaling_factor: int,
+    reverse_direction: bool = False,
     fig: go.Figure = None,
 ) -> float:
     """
@@ -207,22 +207,21 @@ def compute_tension_loaded_vs_unloaded_cableroad(
     # get the centroid, lines and angles of the two CRs, once tensioned, once empty
     loaded_line_sp_centroid = get_line_3d_from_cr_startpoint_to_centroid(
         loaded_cable_road,
-        move_towards_start_point=True,
+        move_towards_start_point=not reverse_direction,
         sloped=True,
         index=loaded_index,
     )
 
     unloaded_line_sp_centroid = get_line_3d_from_cr_startpoint_to_centroid(
         unloaded_cable_road,
-        move_towards_start_point=False,
+        move_towards_start_point=reverse_direction,
         sloped=False,
         index=unloaded_index,
     )
 
-    # TODO is this the right way? they both have the same start point, so maybe we can do that? should we remove the 180? need to write some tests here
     # get the angle between the loaded and the unloaded cable road
-    angle_loaded_unloaded_cr = geometry_utilities.angle_between_3d(
-        loaded_line_sp_centroid.end_point.xyz, unloaded_line_sp_centroid.end_point.xyz
+    angle_loaded_unloaded_cr = 180 - geometry_utilities.angle_between_3d_lines(
+        unloaded_line_sp_centroid, loaded_line_sp_centroid
     )
 
     # rotate the loaded cable by this angle to be able to compare the distance
@@ -231,6 +230,7 @@ def compute_tension_loaded_vs_unloaded_cableroad(
     )
 
     if fig:
+        fig.data = []  # reset the figure
         print("Angle between lines", angle_loaded_unloaded_cr)
         loaded_line_x, loaded_line_y, loaded_line_z = plotting.get_x_y_z_points(
             loaded_cable_road
@@ -259,13 +259,20 @@ def compute_tension_loaded_vs_unloaded_cableroad(
             )
         )
 
-        for linestring in [
-            loaded_line_sp_centroid,
-            unloaded_line_sp_centroid,
-            loaded_line_rotated,
-        ]:
-            fig = plotting.plot_Linestring_3D(linestring, fig, "test")
+        linestring_dict = {
+            "loaded": loaded_line_sp_centroid,
+            "unloaded": unloaded_line_sp_centroid,
+            "loaded rotated": loaded_line_rotated,
+        }
+        for line_name, linestring in linestring_dict.items():
+            fig = plotting.plot_Linestring_3D(linestring, fig, line_name)
 
+        fig.update_layout(
+            margin=dict(l=0, r=0, b=0, t=0),
+            width=1000,
+            height=800,
+            title="Relief Map with possible Cable Roads",
+        )
         fig.show("notebook_connected")
     # get the distance between the rotated line and the unloaded line as per the force-interpolated points
     return compute_resulting_force_on_cable(
