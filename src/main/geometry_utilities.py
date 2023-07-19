@@ -166,9 +166,29 @@ def distance_between_3d_points(point1, point2):
 
 from pyquaternion import Quaternion
 
+from scipy.spatial.transform import Rotation as Rot
+
+
+def create_xy_orthogonal_vector(point: classes.Point_3D):
+    # set the vector to just x and y
+    point = classes.Point_3D(point.x, point.y, 0)
+    # normalize it
+    point = classes.Point_3D(*(point.xyz / np.linalg.norm(point.xyz)))
+    # and return
+    return classes.Point_3D(x=-point.y, y=point.x, z=0)
+
+
+def construct_rotation_matrix(theta, u):
+    theta = np.deg2rad(theta)
+    # look at https://juliageometry.github.io/Quaternions.jl/v0.7/examples/rotations/
+    # rotation around a vector - to find our unit quaternion, we have to cos to get our scalar and sin to get our vector
+    w = np.cos(theta / 2)
+    vec = np.sin(theta / 2) * u
+    return Rot.from_quat([*vec, w])
+
 
 def rotate_3d_point_in_z_direction(
-    point: classes.Point_3D, angle: float
+    point: classes.Point_3D, theta: float
 ) -> classes.Point_3D:
     """Rotate a 3d point around the z-axis
 
@@ -179,23 +199,13 @@ def rotate_3d_point_in_z_direction(
     Returns:
         classes.Point_3D: Rotated point
     """
-    original_vector = point.xyz
-    original_norm = np.linalg.norm(original_vector)
+    orthogonal_vector = create_xy_orthogonal_vector(point)
+    print(orthogonal_vector.xyz)
+    R = construct_rotation_matrix(theta, orthogonal_vector.xyz)
+    point_rotated = R.apply(point.xyz)
 
-    # calculate the z angle transformation
-    a = math.cos(np.deg2rad(angle * 2))
-    # a *= 2  # for some reason we have to do this
-    new_vector = np.array(
-        [original_vector[0], original_vector[1], original_vector[2] * a]
-    )
-
-    # get the ratio of the original norm to the new norm and multiply the new vector with it
-    new_norm = np.linalg.norm(new_vector)
-    ratio = original_norm / new_norm
-    new_vector = new_vector * ratio
-
-    # create new point
-    return classes.Point_3D(*new_vector)
+    # return 3D point
+    return classes.Point_3D(*(point_rotated))
 
 
 def rotate_3d_line_in_z_direction(
