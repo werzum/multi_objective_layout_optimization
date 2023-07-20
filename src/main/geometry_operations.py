@@ -97,20 +97,21 @@ def compute_distances_facilities_clients(
         tree_gdf (_type_): A gdf containing the trees
         line_gdf (_type_): A gdf containing the facilities/lines
 
-    Returns:
-        _type_: A numpy matrix of the costs/distances
+    Returns
+        tuple[np.ndarray, np.ndarray]: A tuple of two matrices containing the distances and the distance from
     """
     # compute the distance to each tree for every row
     tree_line_distances = []
     carriage_support_distances = []
 
-    for line in line_gdf.iterrows():
-        line_tree_distance = tree_gdf.geometry.distance(line[1].geometry)
+    for index, line in line_gdf.iterrows():
+        # get the distance from all trees to this line
+        line_tree_distance = tree_gdf.geometry.distance(line.geometry)
+
         # get the nearest point between the tree and the cable road for all trees
-        # project(tree,line)) gets the distance of the closest point on the line
+        # project(tree,line)) gets the distance of the closest point on the line to the tower  - ie. how far along the line do I have to move the carriage to get closest to the tree
         carriage_support_distance = [
-            line[1].geometry.project(Point(tree_geometry.coords[0]))
-            for tree_geometry in tree_gdf.geometry
+            line.geometry.project(tree_geometry) for tree_geometry in tree_gdf.geometry
         ]
 
         tree_line_distances.append(line_tree_distance)
@@ -145,6 +146,9 @@ def fetch_point_elevation(
     ]["elev"].values[0]
 
 
+from src.main import geometry_utilities, classes
+
+
 def compute_average_terrain_steepness(
     line_gdf: gpd.GeoDataFrame, height_gdf: gpd.GeoDataFrame
 ) -> float:
@@ -156,32 +160,18 @@ def compute_average_terrain_steepness(
     height_gdf (GeoDataFrame): A GeoDataFrame containing the elevations.
 
     Returns:
-    float: The average terrain steepness of the given line.
+    float: The average terrain steepness of the given line in percent (0-100)
     """
 
-    averages = []
+    averages = np.empty(len(line_gdf))
 
     for index, row in line_gdf.iterrows():
-        line = row.geometry
-        xy_start_point = Point(line.coords[0])
-        xy_end_point = Point(line.coords[1])
-
-        xz_start_point = Point(
-            xy_start_point.coords[0][0],
-            fetch_point_elevation(xy_start_point, height_gdf, 1),
+        cable_road = row["Cable Road Object"]
+        absolute_height_difference = abs(
+            cable_road.end_support.total_height - cable_road.start_support.total_height
         )
+        cable_road_xy_length = cable_road.b_length_whole_section
+        steepness = absolute_height_difference / cable_road_xy_length
+        averages[index] = steepness * 100
 
-        # generate x distance by getting x coordinate and adding the distance between the start and end point to maximive the view
-        xz_end_point = Point(
-            xz_start_point.coords[0][0] + xy_start_point.distance(xy_end_point),
-            fetch_point_elevation(xy_end_point, height_gdf, 1),
-        )
-
-        xz_line = LineString([xz_start_point, xz_end_point])
-        horizontal_line = LineString([Point(0, 0), Point(100, 0)])
-        # print(geometry_utilities.angle_between(xz_line, horizontal_line))
-        averages.append(geometry_utilities.angle_between(xz_line, horizontal_line))
-
-    average_terrain_steepness = sum(averages) / len(averages)
-
-    return average_terrain_steepness
+    return sum(averages) / len(averages)

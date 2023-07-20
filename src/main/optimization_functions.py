@@ -4,22 +4,64 @@ import operator
 from random import randint, choices
 import math
 
+import geopandas as gpd
+import pandas as pd
+
+
+def compute_line_costs(
+    line_gdf: gpd.GeoDataFrame, uphill_yarding: bool, large_yarder: bool
+) -> pd.Series:
+    """Compute the cost of each line in the GeoDataFrame and reutrn the series
+    Args:
+        line_gdf (gpd.GeoDataFrame): GeoDataFrame of lines
+    Returns:
+        gpd.GeoSeries: Series of costs
+    """
+    line_cost_array = np.empty(len(line_gdf))
+    for index, line in line_gdf.iterrows():
+        line_length = line.geometry.length
+
+        sub_segments = list(line["Cable Road Object"].get_all_subsegments())
+        intermediate_support_height = [
+            sub_segment.end_support.attachment_height for sub_segment in sub_segments
+        ]
+        intermediate_support_height = intermediate_support_height[
+            :-1
+        ]  # skip the last one, since this is the tree anchor
+        number_intermediate_supports = len(intermediate_support_height)
+        avg_intermediate_support_height = float(np.mean(intermediate_support_height))
+
+        line_cost = line_cost_function(
+            line_length,
+            uphill_yarding,
+            large_yarder,
+            avg_intermediate_support_height,
+            number_intermediate_supports,
+        )
+
+        line_cost_array[index] = line_cost
+
+    return pd.Series(line_cost_array)
+
 
 def line_cost_function(
-    line_length,
-    uphill_yarding,
-    large_yarder,
-    intermediate_support_height,
-    number_intermediate_supports,
-):
+    line_length: float,
+    uphill_yarding: bool,
+    large_yarder: bool,
+    intermediate_support_height: float,
+    number_intermediate_supports: int,
+) -> float:
     """Compute the cost of each line based Kanzian
 
     Args:
-        line_length (_type_): _description_
-        slope_deviation (_type_): _description_""" """
+        line_length (float): Length of the line
+        uphill_yarding (bool): Wether the line is uphill or downhill
+        large_yarder (bool): Wether the yarder is large or small
+        intermediate_support_height (float): Height of the intermediate support
+        number_intermediate_supports (int): Number of intermediate supports
 
     Returns:
-        _type_: _description_
+        float: Cost of the line in Euros
     """
     cost_man_hour = 44
 

@@ -118,18 +118,27 @@ def plot_p_median_results(
     arr_points = []
     fac_sites = []
     line_triples = []
-    support_trees = []
+    tree_anchor = []
+    intermediate_supports = []
 
     # fill arr_points and fac_sites for non-empty entries in the facilities to clients array
     for i in range(len(facility_points_gdf)):
         if model.fac2cli[i]:
+            line = line_gdf.iloc[i]
             # get the corresponding demand points from the fac2cli entry
             geom = demand_points_gdf.iloc[model.fac2cli[i]]["geometry"]
             arr_points.append(geom)
             fac_sites.append(i)
+
             # get the corresponding anchor triple and support tree from the line_gdf
-            line_triples.append(line_gdf.iloc[i]["possible_anchor_triples"][0])
-            support_trees.append(line_gdf.iloc[i]["possible_support_trees"])
+            line_triples.append(line["possible_anchor_triples"][0])
+            tree_anchor.append(line["tree_anchor_support_trees"])
+
+            # get the intermediate supports
+            sub_segments = list(line["Cable Road Object"].get_all_subsegments())
+            intermediate_supports.append(
+                [subsegment.end_support.xy_location for subsegment in sub_segments][:-1]
+            )
 
     fig, ax = plt.subplots(figsize=(12, 12))
     legend_elements = []
@@ -143,7 +152,7 @@ def plot_p_median_results(
     for i in range(len(arr_points)):
         gdf = gpd.GeoDataFrame(arr_points[i])
         anchor_lines_gdf = gpd.GeoDataFrame(geometry=unwrapped_triples[i])
-        support_trees_gdf = support_trees[i]
+        support_trees_gdf = gpd.GeoDataFrame(geometry=intermediate_supports[i])
 
         label = f"coverage_points by y{fac_sites[i]}"
         legend_elements.append(Patch(label=label))

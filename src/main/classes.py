@@ -158,13 +158,21 @@ class Cable_Road:
                 [point.x for point in self.points_along_line],
                 [point.y for point in self.points_along_line],
                 self.floor_height_below_line_points,
-            )
+            )line = row.geometry
+        xy_start_point = Point(line.coords[0])
+        xy_end_point = Point(line.coords[1])
+
+        xz_start_point = Point(
+            xy_start_point.coords[0][0],
+            fetch_point_elevation(xy_start_point, height_gdf, 1),
         )
 
-        # set up further rope parameters
-        # length of the rope in xz view
-        self.c_rope_length = self.start_support.xyz_location.distance(
-            self.end_support.xyz_location
+        # generate x distance by getting x coordinate and adding the distance between the start and end point to maximive the view
+        xz_end_point = Point(
+            xz_start_point.coords[0][0] + xy_start_point.distance(xy_end_point),
+            fetch_point_elevation(xy_end_point, height_gdf, 1),
+        )
+
         )
 
         self.b_length_whole_section = self.start_support.xy_location.distance(
@@ -244,6 +252,20 @@ class Cable_Road:
                 )
 
         return number_sub_segments
+
+    def get_all_subsegments(self):
+        """get a generator of all subsegments of the cable road
+        Loosely based on https://stackoverflow.com/questions/10823877/what-is-the-fastest-way-to-flatten-arbitrarily-nested-lists-in-python
+
+        Returns:
+            generator: generator of all subsegments (apply list to get list of it)
+
+        """
+        for i in self.supported_segments:
+            if i.cable_road.supported_segments:
+                yield from i.cable_road.get_all_subsegments()
+            else:
+                yield i
 
     def compute_floor_height_below_line_points(self, height_gdf: gpd.GeoDataFrame):
         """compute the height of the line above the floor as well as the start and end point in 3d.
