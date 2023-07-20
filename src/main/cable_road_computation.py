@@ -206,7 +206,7 @@ def compute_required_supports(
 
     """
 
-    if recursion_counter > 3:
+    if recursion_counter > 2:
         print("recursion counter exceeded, returning")
         return return_failed()
 

@@ -1,8 +1,6 @@
-from operator import truediv
 import numpy as np
 import math
-import warnings
-
+from scipy.spatial.transform import Rotation as Rot
 from shapely.geometry import LineString, Point
 from src.main import classes
 
@@ -164,11 +162,6 @@ def distance_between_3d_points(point1, point2):
     return dist
 
 
-from pyquaternion import Quaternion
-
-from scipy.spatial.transform import Rotation as Rot
-
-
 def create_xy_orthogonal_vector(point: classes.Point_3D):
     # set the vector to just x and y
     point = classes.Point_3D(point.x, point.y, 0)
@@ -178,7 +171,7 @@ def create_xy_orthogonal_vector(point: classes.Point_3D):
     return classes.Point_3D(x=-point.y, y=point.x, z=0)
 
 
-def construct_rotation_matrix(theta, u):
+def construct_rotation_matrix(theta: float, u: np.ndarray) -> Rot:
     theta = np.deg2rad(theta)
     # look at https://juliageometry.github.io/Quaternions.jl/v0.7/examples/rotations/
     # rotation around a vector - to find our unit quaternion, we have to cos to get our scalar and sin to get our vector
@@ -200,7 +193,6 @@ def rotate_3d_point_in_z_direction(
         classes.Point_3D: Rotated point
     """
     orthogonal_vector = create_xy_orthogonal_vector(point)
-    print(orthogonal_vector.xyz)
     R = construct_rotation_matrix(theta, orthogonal_vector.xyz)
     point_rotated = R.apply(point.xyz)
 

@@ -123,13 +123,12 @@ def test_compute_resulting_force_on_cable():
 def test_compute_tension_loaded_vs_unloaded_cableroad(cable_road: classes.Cable_Road):
     loaded_cr = cable_road.supported_segments[0].cable_road
     unloaded_cr = cable_road.supported_segments[1].cable_road
-    center_point = loaded_cr.end_support
 
-    loaded_cr.s_current_tension = 50000
-    unloaded_cr.s_current_tension = 50000
+    loaded_cr.s_current_tension = 30000
+    unloaded_cr.s_current_tension = 30000
 
     force = mechanical_computations.compute_tension_loaded_vs_unloaded_cableroad(
-        loaded_cr, unloaded_cr, center_point, scaling_factor=10000
+        loaded_cr, unloaded_cr, scaling_factor=10000
     )
 
-    assert np.isclose(force, 20000, rtol=0.2)
+    assert np.isclose(force, 7000, rtol=0.1)
