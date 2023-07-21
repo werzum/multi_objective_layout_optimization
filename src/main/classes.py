@@ -158,7 +158,8 @@ class Cable_Road:
                 [point.x for point in self.points_along_line],
                 [point.y for point in self.points_along_line],
                 self.floor_height_below_line_points,
-            )line = row.geometry
+            )
+        )
         xy_start_point = Point(line.coords[0])
         xy_end_point = Point(line.coords[1])
 
@@ -171,8 +172,6 @@ class Cable_Road:
         xz_end_point = Point(
             xz_start_point.coords[0][0] + xy_start_point.distance(xy_end_point),
             fetch_point_elevation(xy_end_point, height_gdf, 1),
-        )
-
         )
 
         self.b_length_whole_section = self.start_support.xy_location.distance(

@@ -2,6 +2,8 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 
+from spopt.locate import PMedian
+
 from shapely.geometry import Point, LineString
 
 import matplotlib.pyplot as plt
@@ -120,11 +122,14 @@ def plot_p_median_results(
     line_triples = []
     tree_anchor = []
     intermediate_supports = []
+    line_geometries = []
 
     # fill arr_points and fac_sites for non-empty entries in the facilities to clients array
     for i in range(len(facility_points_gdf)):
         if model.fac2cli[i]:
             line = line_gdf.iloc[i]
+
+            line_geometries.append(line)
             # get the corresponding demand points from the fac2cli entry
             geom = demand_points_gdf.iloc[model.fac2cli[i]]["geometry"]
             arr_points.append(geom)
@@ -140,48 +145,102 @@ def plot_p_median_results(
                 [subsegment.end_support.xy_location for subsegment in sub_segments][:-1]
             )
 
-    fig, ax = plt.subplots(figsize=(12, 12))
-    legend_elements = []
-
-    # ugly decomprehension
-    unwrapped_triples = []
-    for item in line_triples:
-        unwrapped_triples.append(gpd.GeoSeries(item))
+    unwrapped_triples = [gpd.GeoSeries(item) for item in line_triples]
 
     # add the trees with respective color to which factory they belong to the map
+    fig = go.Figure()
+    colours = ["red", "blue", "green", "orange", "purple", "yellow"]
     for i in range(len(arr_points)):
-        gdf = gpd.GeoDataFrame(arr_points[i])
-        anchor_lines_gdf = gpd.GeoDataFrame(geometry=unwrapped_triples[i])
-        support_trees_gdf = gpd.GeoDataFrame(geometry=intermediate_supports[i])
+        # the main CR
+        current_line = line_geometries[i]
+        fig = add_geometries_to_fig(current_line.geometry, fig, marker_color="black")
 
-        label = f"coverage_points by y{fac_sites[i]}"
-        legend_elements.append(Patch(label=label))
+        # the trees
+        temp_points = arr_points[i]
+        xs = [point.x for point in temp_points]
+        ys = [point.y for point in temp_points]
 
-        gdf.plot(ax=ax, zorder=3, alpha=0.7, label=label)
-        facility_points_gdf.iloc[[fac_sites[i]]].plot(
-            ax=ax, marker="*", markersize=200 * 3.0, alpha=0.8, zorder=4, edgecolor="k"
-        )
-
-        anchor_lines_gdf.plot(ax=ax, cmap="tab20")
-        support_trees_gdf.plot(ax=ax, color="black")
-
-        legend_elements.append(
-            mlines.Line2D(
-                [],
-                [],
-                marker="*",
-                ms=20 / 2,
-                linewidth=0,
-                alpha=0.8,
-                label=f"y{fac_sites[i]} facility selected",
+        fig.add_trace(
+            go.Scatter(
+                x=xs,
+                y=ys,
+                mode="markers",
+                marker={"color": colours[i]},
+                name=f"Trees covered by line {i}",
             )
         )
 
-    anchor_trees.plot(ax=ax)
-    target_trees.plot(ax=ax)
+        # the anchors
+        xs, ys = unwrapped_triples[i][0].xy
+        for triple in unwrapped_triples[i]:
+            fig = add_geometries_to_fig(triple.coords, fig, marker_color="black")
 
-    plt.title("Optimized Layout", fontweight="bold")
-    plt.legend(handles=legend_elements, loc="upper left", bbox_to_anchor=(1.05, 1))
+        # the supports
+        xs = [point.x for point in intermediate_supports[i]]
+        ys = [point.y for point in intermediate_supports[i]]
+        fig.add_trace(
+            go.Scatter(
+                x=xs,
+                y=ys,
+                marker={"color": "black"},
+            )
+        )
+
+    fig.update_layout(title="P-Median", width=1200, height=800)
+    fig.show("notebook_connected")
+
+
+def add_geometries_to_fig(
+    object, fig: go.Figure, marker_color: str, name: str = ""
+) -> go.Figure:
+    xs, ys = object.xy
+    xs, ys = list(xs), list(ys)
+    fig.add_trace(
+        go.Scatter(
+            x=list(xs),
+            y=list(ys),
+            marker={"color": marker_color},
+        )
+    )
+    return fig
+
+
+def extract_moo_model_results(
+    optimized_model: PMedian, line_gdf: gpd.GeoDataFrame, fig: go.Figure = None
+) -> go.Figure:
+    # get the positive facility variables and select those from the line gdf
+    fac_vars = [bool(var.value()) for var in optimized_model.fac_vars]
+    selected_lines = line_gdf[fac_vars]
+
+    cable_road_objects = selected_lines.loc[:, "Cable Road Object"]
+    selected_lines["number_int_supports"] = [
+        len(__builtins__.list(cable_road.get_all_subsegments())) - 1
+        for cable_road in cable_road_objects
+    ]
+
+    columns_to_select = [
+        "slope_deviation",
+        "angle_between_supports",
+        "line_length",
+        "line_cost",
+        "number_int_supports",
+    ]
+
+    table = go.Table(
+        header=dict(values=columns_to_select, fill_color="paleturquoise", align="left"),
+        cells=dict(
+            values=[*[selected_lines[val].astype(int) for val in columns_to_select]],
+            fill_color="lavender",
+            align="left",
+        ),
+    )
+
+    if fig:
+        fig.add_table(table)
+
+    fig = go.Figure(data=table)
+
+    return fig
 
 
 def plot_pymoo_results(
@@ -598,3 +657,30 @@ def plot_Linestring_3D(
     )
 
     return fig
+
+
+def plot_moo_objective_function(model_list: list, steps: int):
+    """Plot the objective function of the pymoo optimization
+    Args:
+        model_list (list): a list of the models with different tradeoffs
+        steps (int): the number of steps to plot
+    """
+    # visualize optimization outcome, using matplotlib.pyplot
+    plt.figure(figsize=(15, 8))
+
+    obj_1_list = [i for i in range(steps)]
+
+    # Value of objective function
+    obj_2_list = [model_list[i].problem.objective.value() for i in range(steps)]
+
+    obj_difference = [obj_2_list[i + 1] - obj_2_list[i] for i in range(steps - 1)]
+    obj_difference.append(0)
+
+    plt.plot(obj_1_list, obj_2_list, color="red")
+
+    plt.xlabel("Objective Tradeoff", size=20)
+    plt.ylabel("Objective Function Value", size=20)
+    # -- add plot title
+    plt.title("Combined Objective Function Value", size=32)
+    # -- show plot
+    plt.show()
