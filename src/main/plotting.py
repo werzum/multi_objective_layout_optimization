@@ -205,16 +205,34 @@ def add_geometries_to_fig(
     return fig
 
 
-def extract_moo_model_results(
-    optimized_model: PMedian, line_gdf: gpd.GeoDataFrame, fig: go.Figure = None
-) -> go.Figure:
-    # get the positive facility variables and select those from the line gdf
-    fac_vars = [bool(var.value()) for var in optimized_model.fac_vars]
-    selected_lines = line_gdf[fac_vars]
+from plotly.subplots import make_subplots
 
-    cable_road_objects = selected_lines.loc[:, "Cable Road Object"]
+
+def extract_moo_model_results(
+    optimized_model: PMedian,
+    line_gdf: gpd.GeoDataFrame,
+    fig: go.Figure = None,
+    print_results: bool = False,
+) -> go.Figure:
+    """Extract the results of the P-Median optimization and return them as a plotly table
+
+    Args:
+        optimized_model (PMedian): The optimized model
+        line_gdf (gpd.GeoDataFrame): The line gdf
+        fig (go.Figure): The figure to add the table to
+        print_results (bool): Whether to print the results to the console
+    Returns:
+        go.Figure: The figure with the table
+    """
+
+    selected_lines, cable_road_objects = helper_functions.model_to_line_gdf(
+        optimized_model, line_gdf
+    )
+
     selected_lines["number_int_supports"] = [
-        len(__builtins__.list(cable_road.get_all_subsegments())) - 1
+        len(list(cable_road.get_all_subsegments())) - 1
+        if list(cable_road.get_all_subsegments())
+        else 0
         for cable_road in cable_road_objects
     ]
 
@@ -235,12 +253,84 @@ def extract_moo_model_results(
         ),
     )
 
-    if fig:
-        fig.add_table(table)
+    total_cost = [int(selected_lines["line_cost"].sum())]
+    summary_table = go.Table(
+        header=dict(values=["Total cost"], fill_color="lightblue", align="left"),
+        cells=dict(
+            values=[total_cost],
+            fill_color="lavender",
+            align="left",
+        ),
+    )
 
-    fig = go.Figure(data=table)
+    if fig:
+        fig.add_trace(table)
+        fig.add_trace(summary_table)
+    elif print_results:
+        print(selected_lines[columns_to_select])
+        print(total_cost)
+    else:
+        fig = make_subplots(
+            rows=2, cols=1, specs=[[{"type": "table"}], [{"type": "table"}]]
+        )
+        fig.add_trace(table, row=1, col=1)
+        fig.add_trace(summary_table, row=2, col=1)
 
     return fig
+
+
+def model_results_comparison(
+    model_list: list,
+    productivity_cost_matrix: np.ndarray,
+    aij: np.ndarray,
+    distance_carriage_support: np.ndarray,
+):
+    """Compare the results of the different models in one table
+    Args:
+        model_list (list): a list of the models with different tradeoffs
+        productivity_cost_matrix (np.ndarray): the productivity cost matrix
+        aij (np.ndarray): the distance matrix
+        distance_carriage_support (np.ndarray): the distance matrix
+    """
+    productivity_array = []
+    aij_array = []
+    distance_carriage_support_array = []
+
+    for model in model_list:
+        # get the lines which are active
+        fac_vars = np.array([bool(var.value()) for var in model.fac_vars])
+        # and the corresponding rows from the distance matrix
+        row_sums = []
+        for index, row in enumerate(model.fac2cli):
+            if row:
+                distance_per_this_row = aij[row, index]
+                row_sum_distance = distance_per_this_row.sum()
+                row_sums.append(row_sum_distance)
+        aij_array.append(sum(row_sums))
+
+        row_sums = []
+        for index, row in enumerate(model.fac2cli):
+            if row:
+                productivity_per_row = productivity_cost_matrix[row, index]
+                row_sum_distance = productivity_per_row.sum()
+                row_sums.append(row_sum_distance)
+        productivity_array.append(sum(row_sums))
+
+        row_sums = []
+        for index, row in enumerate(model.fac2cli):
+            if row:
+                distance_per_this_row = distance_carriage_support[row, index]
+                row_sum_distance = distance_per_this_row.sum()
+                row_sums.append(row_sum_distance)
+        distance_carriage_support_array.append(sum(row_sums))
+
+    return pd.DataFrame(
+        data={
+            "Total distance of trees to cable roads": aij_array,
+            "Productivity cost per m3 as per Stampfer": productivity_array,
+            "Total distance from carriage to support": distance_carriage_support_array,
+        }
+    )
 
 
 def plot_pymoo_results(
@@ -617,6 +707,42 @@ def add_straight_line_to_go_figure(
             name="Straight Line Distance",
         )
     )
+
+
+def plot_all_cable_roads(height_gdf_small, line_gdf) -> go.Figure:
+    fig = px.scatter_3d(
+        x=height_gdf_small["x"], y=height_gdf_small["y"], z=height_gdf_small["elev"]
+    )
+    fig.update_traces(marker={"size": 0.75})
+    fig.update_layout(
+        margin=dict(l=0, r=0, b=0, t=0),
+        width=1000,
+        height=800,
+        title="Relief Map with possible Cable Roads",
+    )
+
+    for index, row in line_gdf.iterrows():
+        this_cable_road = classes.load_cable_road(line_gdf, index)
+        plot_cr_relief(
+            this_cable_road,
+            line_gdf,
+            height_gdf_small,
+            index,
+            fig,
+            show_straight_line=False,
+        )
+
+    return fig
+
+
+import plotly.express as px
+
+
+def plot_3d_model_results(model: PMedian, line_gdf, height_gdf) -> go.Figure:
+    height_gdf_small = height_gdf.iloc[::100]
+    line_gdf, cable_road_objects = helper_functions.model_to_line_gdf(model, line_gdf)
+    fig = plot_all_cable_roads(height_gdf, line_gdf)
+    return fig
 
 
 def plot_parallelogram(

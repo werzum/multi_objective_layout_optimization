@@ -165,17 +165,21 @@ class Cable_Road:
 
         xz_start_point = Point(
             xy_start_point.coords[0][0],
-            fetch_point_elevation(xy_start_point, height_gdf, 1),
+            geometry_operations.fetch_point_elevation(xy_start_point, height_gdf, 1),
         )
 
         # generate x distance by getting x coordinate and adding the distance between the start and end point to maximive the view
         xz_end_point = Point(
             xz_start_point.coords[0][0] + xy_start_point.distance(xy_end_point),
-            fetch_point_elevation(xy_end_point, height_gdf, 1),
+            geometry_operations.fetch_point_elevation(xy_end_point, height_gdf, 1),
         )
 
         self.b_length_whole_section = self.start_support.xy_location.distance(
             self.end_support.xy_location
+        )
+
+        self.c_rope_length = self.start_support.xyz_location.distance(
+            self.end_support.xyz_location
         )
 
         self.initialize_line_tension(number_sub_segments, pre_tension)
