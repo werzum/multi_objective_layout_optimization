@@ -361,15 +361,12 @@ def plot_pymoo_results(
             arr_points.append(geom)
             fac_sites.append(i)
             # get the corresponding anchor triple from the line_gdf
-            line_triples.append(line_gdf.iloc[i]["possible_anchor_triples"])
+            line_triples.append(line_gdf.iloc[i]["possible_anchor_triples"][0])
 
     fig, ax = plt.subplots(figsize=(12, 12))
     legend_elements = []
 
-    # ugly decomprehension
-    unwrapped_triples = []
-    for item in line_triples:
-        unwrapped_triples.append(gpd.GeoSeries(sum(item, [])))
+    unwrapped_triples = [gpd.GeoSeries(item[0]) for item in line_triples]
 
     # add the trees with respective color to which factory they belong to the map
     for i in range(len(arr_points)):
