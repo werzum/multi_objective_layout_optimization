@@ -11,7 +11,6 @@ from matplotlib.patches import Patch
 import matplotlib.lines as mlines
 
 from itertools import chain
-from shapely.geometry import Point
 from vispy.scene import visuals
 import vispy
 
@@ -19,9 +18,7 @@ import plotly.graph_objects as go
 
 from src.main import (
     mechanical_computations,
-    cable_road_computation,
     classes,
-    geometry_operations,
 )
 
 from src.tests import helper_functions
@@ -611,7 +608,7 @@ def add_all_anchors_to_go_figure(
         fig (go.Figure): _description_
     """
 
-    for anchor in line_gdf.iloc[index].possible_anchor_triples[0]:
+    for anchor in line_gdf.loc[index].possible_anchor_triples[0]:
         anchor_point = Point(anchor.coords)
         anchor_line = LineString(
             [anchor_point, sample_cable_road.start_support.xy_location]
@@ -709,7 +706,8 @@ def add_straight_line_to_go_figure(
     )
 
 
-def plot_all_cable_roads(height_gdf_small, line_gdf) -> go.Figure:
+def plot_all_cable_roads(height_gdf, line_gdf) -> go.Figure:
+    height_gdf_small = height_gdf.iloc[::100]
     fig = px.scatter_3d(
         x=height_gdf_small["x"], y=height_gdf_small["y"], z=height_gdf_small["elev"]
     )
@@ -722,11 +720,10 @@ def plot_all_cable_roads(height_gdf_small, line_gdf) -> go.Figure:
     )
 
     for index, row in line_gdf.iterrows():
-        this_cable_road = classes.load_cable_road(line_gdf, index)
         plot_cr_relief(
-            this_cable_road,
+            row["Cable Road Object"],
             line_gdf,
-            height_gdf_small,
+            height_gdf,
             index,
             fig,
             show_straight_line=False,
@@ -739,7 +736,6 @@ import plotly.express as px
 
 
 def plot_3d_model_results(model: PMedian, line_gdf, height_gdf) -> go.Figure:
-    height_gdf_small = height_gdf.iloc[::100]
     line_gdf, cable_road_objects = helper_functions.model_to_line_gdf(model, line_gdf)
     fig = plot_all_cable_roads(height_gdf, line_gdf)
     return fig

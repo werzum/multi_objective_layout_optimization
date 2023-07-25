@@ -1,15 +1,13 @@
 from shapely.geometry import LineString, Point
 import numpy as np
 import itertools
-import pandas as pd
 import vispy.scene
 import geopandas as gpd
 from pandas import DataFrame
-from multiprocesspandas import applyparallel
+from itertools import pairwise
 
 from src.main import (
     geometry_utilities,
-    geometry_operations,
     mechanical_computations,
     classes,
     plotting,
@@ -131,9 +129,6 @@ def generate_possible_lines(
         plotting.plot_vispy_scene(height_gdf, view, pos)
 
     return line_df, start_point_dict
-
-
-from itertools import pairwise
 
 
 def decrement_tension_until_towers_anchors_supports_hold(

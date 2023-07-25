@@ -120,7 +120,7 @@ class Cable_Road:
         # self.end_point = Point(line.coords[1])
         self.points_along_line = []
         self.floor_points = []
-        self.max_deviation = 0.1
+        self.max_deviation = 1
         self.anchor_triplets = []
         """ Fixed cable road parameters """
         self.q_s_self_weight_center_span = 10
