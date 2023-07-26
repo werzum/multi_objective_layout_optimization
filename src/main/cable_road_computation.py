@@ -11,6 +11,7 @@ from src.main import (
     mechanical_computations,
     classes,
     plotting,
+    global_vars,
 )
 
 # Main functions to compute the cable road which calls the other functions
@@ -42,6 +43,8 @@ def generate_possible_lines(
     Returns:
         _type_: _description_
     """
+
+    global_vars.init(height_gdf)
     max_main_line_slope_deviation = 45
 
     if plot_possible_lines:

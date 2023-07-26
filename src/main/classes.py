@@ -7,6 +7,7 @@ from src.main import (
     geometry_operations,
     geometry_utilities,
     mechanical_computations,
+    global_vars,
 )
 
 
@@ -150,28 +151,19 @@ class Cable_Road:
             self.line, interval=1
         )
 
+        self.points_along_line_x, self.points_along_line_y = [
+            point.x for point in self.points_along_line
+        ], [point.y for point in self.points_along_line]
+
         # get the height of those points and set them as attributes to the CR object
         self.compute_floor_height_below_line_points(height_gdf)
         # generate floor points and their distances
         self.floor_points = list(
             zip(
-                [point.x for point in self.points_along_line],
-                [point.y for point in self.points_along_line],
+                self.points_along_line_x,
+                self.points_along_line_y,
                 self.floor_height_below_line_points,
             )
-        )
-        xy_start_point = Point(line.coords[0])
-        xy_end_point = Point(line.coords[1])
-
-        xz_start_point = Point(
-            xy_start_point.coords[0][0],
-            geometry_operations.fetch_point_elevation(xy_start_point, height_gdf, 1),
-        )
-
-        # generate x distance by getting x coordinate and adding the distance between the start and end point to maximive the view
-        xz_end_point = Point(
-            xz_start_point.coords[0][0] + xy_start_point.distance(xy_end_point),
-            geometry_operations.fetch_point_elevation(xy_end_point, height_gdf, 1),
         )
 
         self.b_length_whole_section = self.start_support.xy_location.distance(
@@ -186,15 +178,6 @@ class Cable_Road:
 
         # and finally the loaded and unlaoded line to floor distances
         self.compute_loaded_unloaded_line_height()
-
-    @property
-    def xz_start_point_start_point(self):
-        return Point(
-            [
-                self.start_support.xy_location.x,
-                self.start_support.total_height,
-            ]
-        )
 
     @property
     def line_to_floor_distances(self):
@@ -223,8 +206,8 @@ class Cable_Road:
     def rope_points_xyz(self):
         return list(
             zip(
-                [point.x for point in self.points_along_line],
-                [point.y for point in self.points_along_line],
+                self.points_along_line_x,
+                self.points_along_line_y,
                 self.absolute_loaded_line_height,
             )
         )
@@ -271,33 +254,16 @@ class Cable_Road:
                 yield i
 
     def compute_floor_height_below_line_points(self, height_gdf: gpd.GeoDataFrame):
-        """compute the height of the line above the floor as well as the start and end point in 3d.
+        """compute the height of the line above the floor as well as the start and end point in 3d. Query the global kdtree for that
         Sets the floor_height_below_line_points and the line_start_point_array and line_end_point_array
         Args:
             height_gdf (gpd.GeoDataFrame): the floor height data
         """
-        # generate four lists of x and y values with min and max values for each point
-        x_point_min, x_point_max, y_point_min, y_point_max = zip(
-            *[
-                (
-                    point.x - self.max_deviation,
-                    point.x + self.max_deviation,
-                    point.y - self.max_deviation,
-                    point.y + self.max_deviation,
-                )
-                for point in self.points_along_line
-            ]
+        d, i = global_vars.kdtree.query(
+            list(zip(self.points_along_line_x, self.points_along_line_y))
         )
-
-        # for each value in the list, find the elevation of the floor below the line in the height_gdf by selecting the
-        # first matching value in the height_gdf
-        self.floor_height_below_line_points = [
-            height_gdf[
-                height_gdf.x.between(x_point_min[i], x_point_max[i])
-                & (height_gdf.y.between(y_point_min[i], y_point_max[i]))
-            ]["elev"].values[0]
-            for i in range(len(x_point_min))
-        ]
+        # Use the final condition to filter the height_gdf and get the elev values
+        self.floor_height_below_line_points = height_gdf.iloc[i]["elev"].values
 
     def compute_loaded_unloaded_line_height(self):
         """compute the loaded and unloaded line to floor distances"""

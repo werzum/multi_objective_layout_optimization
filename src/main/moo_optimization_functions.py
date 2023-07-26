@@ -87,6 +87,14 @@ class MyRepair(Repair):
         return x
 
 
+from pymoo.core.sampling import Sampling
+
+
+class CustomSampling(Sampling):
+    def _do(self, problem, n_samples, **kwargs):
+        return np.zeros((n_samples, problem.n_var))
+
+
 class MyMutation(Mutation):
     def __init__(self):
         super().__init__()

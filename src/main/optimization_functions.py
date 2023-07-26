@@ -22,14 +22,21 @@ def compute_line_costs(
         line_length = line.geometry.length
 
         sub_segments = list(line["Cable Road Object"].get_all_subsegments())
-        intermediate_support_height = [
-            sub_segment.end_support.attachment_height for sub_segment in sub_segments
-        ]
-        intermediate_support_height = intermediate_support_height[
-            :-1
-        ]  # skip the last one, since this is the tree anchor
-        number_intermediate_supports = len(intermediate_support_height)
-        avg_intermediate_support_height = float(np.mean(intermediate_support_height))
+        if sub_segments:
+            intermediate_support_height = [
+                sub_segment.end_support.attachment_height
+                for sub_segment in sub_segments
+            ]
+            intermediate_support_height = intermediate_support_height[
+                :-1
+            ]  # skip the last one, since this is the tree anchor
+            number_intermediate_supports = len(intermediate_support_height)
+            avg_intermediate_support_height = float(
+                np.mean(intermediate_support_height)
+            )
+        else:
+            number_intermediate_supports = 0
+            avg_intermediate_support_height = 0
 
         line_cost = line_cost_function(
             line_length,
