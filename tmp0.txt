@@ -1,90 +1,87 @@
 Timer unit: 1e-09 s
 
-Total time: 4.92686 s
-File: /home/carlo/GitHub/MultiObjectOptimizationCableYarding/src/main/classes.py
-Function: __init__ at line 101
+Total time: 3.17611 s
+File: /home/carlo/GitHub/MultiObjectOptimizationCableYarding/src/main/cable_road_computation.py
+Function: create_left_end_segments_and_support_tree at line 721
 
 Line #      Hits         Time  Per Hit   % Time  Line Contents
 ==============================================================
-   101                                               def __init__(
-   102                                                   self,
-   103                                                   line,
-   104                                                   height_gdf,
-   105                                                   start_support: Support,
-   106                                                   end_support: Support,
-   107                                                   pre_tension: float = 0,
-   108                                                   number_sub_segments: int = 0,
-   109                                               ):
-   110       400     466366.0   1165.9      0.0          self.start_support: Support = start_support
-   111       400     110574.0    276.4      0.0          self.end_support: Support = end_support
-   112                                           
-   113       400      98005.0    245.0      0.0          """heights"""
-   114       400     123307.0    308.3      0.0          self.floor_height_below_line_points = (
-   115       400      50238.0    125.6      0.0              []
-   116                                                   )  # the elevation of the floor below the line
-   117       400     478099.0   1195.2      0.0          self.sloped_line_to_floor_distances = np.array([])
-   118       400     208613.0    521.5      0.0          self.unloaded_line_to_floor_distances = np.array([])
-   119       400      44723.0    111.8      0.0          """ geometry features """
-   120       400     133017.0    332.5      0.0          self.line = line
-   121                                                   # self.start_point = Point(line.coords[0])
-   122                                                   # self.end_point = Point(line.coords[1])
-   123       400     103201.0    258.0      0.0          self.points_along_line = []
-   124       400      78188.0    195.5      0.0          self.floor_points = []
-   125       400     188816.0    472.0      0.0          self.max_deviation = 1
-   126       400     121303.0    303.3      0.0          self.anchor_triplets = []
-   127       400      38086.0     95.2      0.0          """ Fixed cable road parameters """
-   128       400      94507.0    236.3      0.0          self.q_s_self_weight_center_span = 10
-   129       400     139140.0    347.9      0.0          self.q_load = 80000
-   130       400     119948.0    299.9      0.0          self.b_length_whole_section = 0.0
-   131       400      67221.0    168.1      0.0          self.s_max_maximalspannkraft = 0.0
-   132       400      35596.0     89.0      0.0          """ Modifiable collision parameters """
-   133       400     100440.0    251.1      0.0          self.no_collisions = True
-   134       400      54273.0    135.7      0.0          self.anchors_hold = True
-   135                                           
-   136                                                   # Parameters to keep track of segments+
-   137       400      96188.0    240.5      0.0          self.number_sub_segments = number_sub_segments
-   138       400      77163.0    192.9      0.0          self.supported_segments: list[
-   139                                                       SupportedSegment
-   140       400      67539.0    168.8      0.0          ] = []  # list of SupportedSegment objects, ie. sub cable roads
-   141                                           
-   142       400      53478.0    133.7      0.0          self._s_current_tension = 0.0
-   143       400   14676132.0  36690.3      0.3          print(
-   144       400      68778.0    171.9      0.0              "Cable road created from line: ",
-   145       400   11576211.0  28940.5      0.2              self.line.coords[0],
-   146       400     114034.0    285.1      0.0              "to ",
-   147       400    3918894.0   9797.2      0.1              self.line.coords[1],
-   148                                                   )
-   149                                           
-   150                                                   # fetch the floor points along the line - xy view
-   151       400  319653054.0 799132.6      6.5          self.points_along_line = geometry_operations.generate_road_points(
-   152       400      75922.0    189.8      0.0              self.line, interval=1
-   153                                                   )
-   154                                           
-   155       400  193782649.0 484456.6      3.9          self.points_along_line_x, self.points_along_line_y = [
-   156       400      64966.0    162.4      0.0              point.x for point in self.points_along_line
-   157       400  191062977.0 477657.4      3.9          ], [point.y for point in self.points_along_line]
-   158                                           
-   159       400   11619142.0  29047.9      0.2          self.points_along_line_xy = np.column_stack(
-   160       400      96996.0    242.5      0.0              (self.points_along_line_x, self.points_along_line_y)
-   161                                                   )
-   162                                           
-   163                                                   # get the height of those points and set them as attributes to the CR object
-   164       400  472353480.0 1180883.7      9.6          self.compute_floor_height_below_line_points(height_gdf)
-   165                                                   # generate floor points and their distances
-   166       400    4441495.0  11103.7      0.1          self.floor_points = list(
-   167       400     266252.0    665.6      0.0              zip(
-   168       400     130211.0    325.5      0.0                  self.points_along_line_x,
-   169       400     105209.0    263.0      0.0                  self.points_along_line_y,
-   170       400      62323.0    155.8      0.0                  self.floor_height_below_line_points,
-   171                                                       )
-   172                                                   )
-   173                                           
-   174       400    8198376.0  20495.9      0.2          self.b_length_whole_section = self.start_support.xy_location.distance(
-   175       400     201329.0    503.3      0.0              self.end_support.xy_location
-   176                                                   )
-   177                                           
-   178       400   15226738.0  38066.8      0.3          self.c_rope_length = self.start_support.xyz_location.distance(
-   179       400    7312208.0  18280.5      0.1              self.end_support.xyz_location
-   180                                                   )
-   181                                           
-   182       400 3668699627.0 9171749.1     74.5          self.initialize_line_tension(number_sub_segments, pre_tension)
+   721                                           def create_left_end_segments_and_support_tree(
+   722                                               overall_trees: gpd.GeoDataFrame,
+   723                                               this_cable_road: classes.Cable_Road,
+   724                                               candidate_index: int,
+   725                                               height_gdf: gpd.GeoDataFrame,
+   726                                           ) -> tuple[classes.SupportedSegment, classes.SupportedSegment, gpd.GeoSeries]:
+   727                                               """Create the sideways cable roads as well as the candidate tree and return them
+   728                                           
+   729                                               Args:
+   730                                                   overall_trees (_type_): _description_
+   731                                                   this_cable_road (_type_): _description_
+   732                                                   candidate (_type_): _description_
+   733                                                   height_gdf (_type_): _description_
+   734                                           
+   735                                               Returns:
+   736                                                   support_segment: The left support segment
+   737                                                   support_segment: The right support segment
+   738                                                   gpd.GeoSeries: The row of the candidate tree
+   739                                               """
+   740                                           
+   741                                               # need to add the height and force per tree here
+   742       122   29699583.0 243439.2      0.9      candidate_tree = overall_trees.iloc[candidate_index]
+   743                                           
+   744                                               # create lines and points left and right
+   745       122      21258.0    174.2      0.0      (
+   746       122      13624.0    111.7      0.0          new_support_point,
+   747       122      10997.0     90.1      0.0          road_to_support_line,
+   748       122      12589.0    103.2      0.0          support_to_anchor_line,
+   749       122   36986948.0 303171.7      1.2      ) = create_candidate_points_and_lines(
+   750       122      15681.0    128.5      0.0          candidate_index,
+   751       122     106850.0    875.8      0.0          this_cable_road.start_support.xy_location,
+   752       122      38912.0    319.0      0.0          this_cable_road.end_support.xy_location,
+   753       122    3060670.0  25087.5      0.1          candidate_tree.geometry,
+   754       122      14922.0    122.3      0.0          overall_trees,
+   755                                               )
+   756                                           
+   757                                               # Create the supports for the left CR segment
+   758       122      34197.0    280.3      0.0      road_to_support_cable_road_start_support = this_cable_road.start_support
+   759       122  133572114.0 1094853.4      4.2      road_to_support_cable_road_end_support = classes.Support(
+   760       122      38366.0    314.5      0.0          attachment_height=6,
+   761       122    3224338.0  26429.0      0.1          xy_location=Point(road_to_support_line.coords[1]),
+   762       122      27992.0    229.4      0.0          height_gdf=height_gdf,
+   763       122    1256612.0  10300.1      0.0          max_supported_force=candidate_tree.max_supported_force_series,
+   764                                               )
+   765                                           
+   766                                               # Create the supports for the right CR segment
+   767       122      27286.0    223.7      0.0      support_to_anchor_cable_road_start_support = road_to_support_cable_road_end_support
+   768       122      92051.0    754.5      0.0      support_to_anchor_cable_road_end_support = this_cable_road.end_support
+   769                                           
+   770                                               # create left and right sub_cableroad
+   771       122 1649761859.0 13522638.2     51.9      road_to_support_cable_road = classes.Cable_Road(
+   772       122      14717.0    120.6      0.0          road_to_support_line,
+   773       122      11840.0     97.0      0.0          height_gdf,
+   774       122      10839.0     88.8      0.0          road_to_support_cable_road_start_support,
+   775       122       8591.0     70.4      0.0          road_to_support_cable_road_end_support,
+   776       122     128499.0   1053.3      0.0          pre_tension=this_cable_road.s_current_tension,
+   777                                               )
+   778       122 1317270895.0 10797302.4     41.5      support_to_anchor_cable_road = classes.Cable_Road(
+   779       122      26444.0    216.8      0.0          support_to_anchor_line,
+   780       122      13611.0    111.6      0.0          height_gdf,
+   781       122      11897.0     97.5      0.0          support_to_anchor_cable_road_start_support,
+   782       122      28708.0    235.3      0.0          support_to_anchor_cable_road_end_support,
+   783       122      94995.0    778.6      0.0          pre_tension=this_cable_road.s_current_tension,
+   784                                               )
+   785                                           
+   786                                               # and both segments, which in turn contain the corresponding CRs and the supports
+   787       122     238038.0   1951.1      0.0      start_segment = classes.SupportedSegment(
+   788       122      21906.0    179.6      0.0          road_to_support_cable_road,
+   789       122      74511.0    610.7      0.0          this_cable_road.start_support,
+   790       122      11461.0     93.9      0.0          road_to_support_cable_road_end_support,
+   791                                               )
+   792                                           
+   793       122      66898.0    548.3      0.0      end_segment = classes.SupportedSegment(
+   794       122      11466.0     94.0      0.0          support_to_anchor_cable_road,
+   795       122       9422.0     77.2      0.0          support_to_anchor_cable_road_start_support,
+   796       122      14591.0    119.6      0.0          this_cable_road.end_support,
+   797                                               )
+   798                                           
+   799       122      28815.0    236.2      0.0      return start_segment, end_segment, candidate_tree

@@ -3,7 +3,7 @@ from shapely.geometry.base import BaseGeometry
 import numpy as np
 import geopandas as gpd
 
-from src.main import geometry_utilities
+from src.main import geometry_utilities, global_vars
 
 
 def generate_road_points(
@@ -139,12 +139,16 @@ def fetch_point_elevation(
     Returns:
     float: The elevation of the given point.
     """
-    if point.x is None or point.y is None:
-        print("Point has no coordinates")
-    return height_gdf[
-        (height_gdf["x"].between(point.x - max_deviation, point.x + max_deviation))
-        & (height_gdf["y"].between(point.y - max_deviation, point.y + max_deviation))
-    ]["elev"].values[0]
+    # if point.x is None or point.y is None:
+    #     print("Point has no coordinates")
+    # return height_gdf[
+    #     (height_gdf["x"].between(point.x - max_deviation, point.x + max_deviation))
+    #     & (height_gdf["y"].between(point.y - max_deviation, point.y + max_deviation))
+    # ]["elev"].values[0]
+
+    d, i = global_vars.kdtree.query(point.coords, k=1)
+    # Use the final condition to filter the height_gdf and get the elev values
+    return height_gdf.iloc[i]["elev"].values[0]
 
 
 from src.main import geometry_utilities, classes
