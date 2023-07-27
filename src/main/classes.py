@@ -69,6 +69,7 @@ class Support:
     ):
         self.attachment_height: int = attachment_height
         self.xy_location: Point = xy_location
+        self.xy_location_numpy = np.array(self.xy_location.xy).T
         self.max_deviation: float = max_deviation
         self.is_tower: bool = is_tower
         self.max_supported_force = max_supported_force
@@ -155,6 +156,10 @@ class Cable_Road:
             point.x for point in self.points_along_line
         ], [point.y for point in self.points_along_line]
 
+        self.points_along_line_xy = np.column_stack(
+            (self.points_along_line_x, self.points_along_line_y)
+        )
+
         # get the height of those points and set them as attributes to the CR object
         self.compute_floor_height_below_line_points(height_gdf)
         # generate floor points and their distances
@@ -175,9 +180,6 @@ class Cable_Road:
         )
 
         self.initialize_line_tension(number_sub_segments, pre_tension)
-
-        # and finally the loaded and unlaoded line to floor distances
-        self.compute_loaded_unloaded_line_height()
 
     @property
     def line_to_floor_distances(self):
@@ -276,13 +278,7 @@ class Cable_Road:
             loaded (bool, optional): whether the line is loaded or not. Defaults to True.
         """
 
-        y_x_deflections = np.asarray(
-            [
-                mechanical_computations.pestal_load_path(self, point, loaded)
-                for point in self.points_along_line
-            ],
-            dtype=np.float32,
-        )
+        y_x_deflections = mechanical_computations.pestal_load_path(self, loaded)
 
         if loaded:
             self.sloped_line_to_floor_distances = (

@@ -589,7 +589,7 @@ def construct_tower_force_parallelogram(
     return force_on_anchor, force_on_tower
 
 
-def pestal_load_path(cable_road: classes.Cable_Road, point: Point, loaded: bool = True):
+def pestal_load_path(cable_road: classes.Cable_Road, loaded: bool = True):
     """Calculates the load path of the cable road based on the pestal method
 
     Args:
@@ -614,10 +614,12 @@ def pestal_load_path(cable_road: classes.Cable_Road, point: Point, loaded: bool 
         cable_road.b_length_whole_section / cable_road.c_rope_length
     )  # improvised value - need to do the parallelverchiebung here
 
-    x = cable_road.start_support.xy_location.distance(point)
+    distances = geometry_utilities.distance_between_points_from_origin(
+        cable_road.points_along_line_xy, cable_road.start_support.xy_location_numpy
+    )
 
     return (
-        (x * (cable_road.b_length_whole_section - x))
+        (distances * (cable_road.b_length_whole_section - distances))
         / (H_t_horizontal_force_tragseil * cable_road.b_length_whole_section)
     ) * (q_vertical_force + ((cable_road.c_rope_length * q_s_rope_weight) / 2))
 

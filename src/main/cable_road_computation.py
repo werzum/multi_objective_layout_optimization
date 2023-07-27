@@ -170,9 +170,6 @@ def decrement_tension_until_towers_anchors_supports_hold(
         return tower_and_anchors_hold, supports_hold
 
 
-import gc
-
-
 def compute_required_supports(
     anchor_triplets: list,
     max_supported_forces: list[float],

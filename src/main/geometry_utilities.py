@@ -162,6 +162,20 @@ def distance_between_3d_points(point1, point2):
     return dist
 
 
+def distance_between_points_from_origin(
+    points: np.ndarray, origin: np.ndarray
+) -> np.ndarray:
+    """Compute the distance between a list of points and an origin.
+    Args:
+        points (np.ndarray): Numpy array of coordinates. Expected shape (n, 2)
+        The single origin point the distance is calculated from (np.ndarray):
+    Returns:
+        np.ndarray: Array of distances
+    """
+
+    return np.sqrt(np.sum((points - origin) ** 2, 1))
+
+
 def create_xy_orthogonal_vector(point: classes.Point_3D):
     # set the vector to just x and y
     point = classes.Point_3D(point.x, point.y, 0)
