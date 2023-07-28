@@ -281,6 +281,7 @@ def model_results_comparison(
     productivity_cost_matrix: np.ndarray,
     aij: np.ndarray,
     distance_carriage_support: np.ndarray,
+    demand_points_gdf: gpd.GeoDataFrame,
 ):
     """Compare the results of the different models in one table
     Args:
@@ -292,6 +293,7 @@ def model_results_comparison(
     productivity_array = []
     aij_array = []
     distance_carriage_support_array = []
+    overall_profit = []
 
     for model in model_list:
         # get the lines which are active
@@ -321,11 +323,21 @@ def model_results_comparison(
                 row_sums.append(row_sum_distance)
         distance_carriage_support_array.append(sum(row_sums))
 
+        row_sums = []
+        for index, row in enumerate(model.fac2cli):
+            if row:
+                m3_harvested = demand_points_gdf.iloc[index]["BHD"]
+                revenue = m3_harvested * 130
+                row_sums.append(revenue)
+
+        overall_profit.append(sum(row_sums))
+
     return pd.DataFrame(
         data={
             "Total distance of trees to cable roads": aij_array,
             "Productivity cost per m3 as per Stampfer": productivity_array,
             "Total distance from carriage to support": distance_carriage_support_array,
+            "Overall profit": overall_profit,
         }
     )
 

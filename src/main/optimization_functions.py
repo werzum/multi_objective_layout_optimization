@@ -7,6 +7,62 @@ import math
 import geopandas as gpd
 import pandas as pd
 
+import pulp
+from spopt.locate import PMedian
+
+
+# Importing my modules
+from src.main import optimization_functions, geometry_operations
+
+
+def optimize_cable_roads(
+    name,
+    aij,
+    facility_range,
+    client_range,
+    facility_cost,
+    start_point_dict,
+    productivity_cost,
+    step,
+    steps,
+    solver,
+):
+    # init the model with name and the problem - this only gives it a name and tells it to minimize the obj function
+    problem = pulp.LpProblem(name, pulp.LpMinimize)
+    model = PMedian(name, problem, aij)
+
+    # Add the facilities as fac_vars and facility_clients as cli_assgn_vars
+    optimization_functions.add_facility_variables(model, facility_range)
+    optimization_functions.add_facility_client_variables(
+        model, facility_range, client_range
+    )
+
+    # Add the objective functions
+    optimization_functions.add_moo_objective_function(
+        model,
+        facility_range,
+        client_range,
+        facility_cost,
+        start_point_dict,
+        productivity_cost,
+        step,
+        steps,
+    )
+
+    # Assignment/demand constraint - each client should
+    # only be assigned to one factory
+    optimization_functions.add_singular_assignment_constraint(
+        model, facility_range, client_range
+    )
+
+    # Add opening/shipping constraint - each factory that has a client assigned to it should also be opened
+    optimization_functions.add_facility_is_opened_constraint(
+        model, facility_range, client_range
+    )
+
+    model = model.solve(solver)
+    return model
+
 
 def compute_line_costs(
     line_gdf: gpd.GeoDataFrame, uphill_yarding: bool, large_yarder: bool
@@ -109,12 +165,11 @@ def line_cost_function(
     # return deviation_condition(line_length, slope_deviation)
 
 
-def tree_cost_function(BHD):
+def tree_cost_function(BHD: pd.Series):
     # per Denzin rule of thumb
     volume = (BHD.astype(int) ** 2) / 1000
     # per Bont 2019
-    cost = 65 * volume
-    return cost
+    return 65 * volume
 
 
 def add_facility_variables(model, facility_range):
