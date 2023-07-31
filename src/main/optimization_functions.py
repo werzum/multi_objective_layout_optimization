@@ -22,7 +22,7 @@ def optimize_cable_roads(
     client_range,
     facility_cost,
     start_point_dict,
-    productivity_cost,
+    tree_cost_list,
     step,
     steps,
     solver,
@@ -44,7 +44,7 @@ def optimize_cable_roads(
         client_range,
         facility_cost,
         start_point_dict,
-        productivity_cost,
+        tree_cost_list,
         step,
         steps,
     )
@@ -256,7 +256,7 @@ def add_moo_objective_function(
     client_range,
     facility_cost,
     start_point_dict,
-    productivity_cost,
+    tree_cost_list,
     obj_a_factor,
     steps,
 ):
@@ -271,28 +271,28 @@ def add_moo_objective_function(
         facility_cost (_type_): _description_
         obj_a_factor (float): The weight of each objective (as int), is converted here to float to represent the 0-1 range
     """
-    step_factor = (1 / steps) * 10
-    obj_a_factor = (obj_a_factor * 0.1) * step_factor
+    object_a_factor = obj_a_factor / steps
+    print(object_a_factor)
 
-    model.problem += (obj_a_factor) * pulp.lpSum(
+    model.problem += (object_a_factor) * pulp.lpSum(
         [
-            productivity_cost[cli][fac] * model.cli_assgn_vars[cli][fac]
+            tree_cost_list[cli][fac] * model.cli_assgn_vars[cli][fac]
             for cli in client_range
             for fac in facility_range
         ]
-    ) + (1 - obj_a_factor) * pulp.lpSum(
+    ) + (1 - object_a_factor) * pulp.lpSum(
         [model.fac_vars[fac] * facility_cost[fac] for fac in facility_range]
-    ) + pulp.lpSum(
-        # add a cost factor of 40 for each starting point that is selected
-        40
-        * np.unique(
-            [
-                start_point_dict[fac]
-                for cli in client_range
-                for fac in facility_range
-                if bool(model.cli_assgn_vars[cli][fac].value())
-            ]
-        )
+        # ) + pulp.lpSum(
+        #     # add a cost factor of 40 for each starting point that is selected
+        #     40
+        #     * np.unique(
+        #         [
+        #             start_point_dict[fac]
+        #             for cli in client_range
+        #             for fac in facility_range
+        #             if bool(model.cli_assgn_vars[cli][fac].value())
+        #         ]
+        #     )
     ), "objective function"
 
 

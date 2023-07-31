@@ -147,6 +147,7 @@ def plot_p_median_results(
     # add the trees with respective color to which factory they belong to the map
     fig = go.Figure()
     colours = ["red", "blue", "green", "orange", "purple", "yellow"]
+    colours_cycle = cycle(colours)
     for i in range(len(arr_points)):
         # the main CR
         current_line = line_geometries[i]
@@ -162,7 +163,7 @@ def plot_p_median_results(
                 x=xs,
                 y=ys,
                 mode="markers",
-                marker={"color": colours[i]},
+                marker={"color": colours_cycle.__next__()},
                 name=f"Trees covered by line {i}",
             )
         )
@@ -203,6 +204,7 @@ def add_geometries_to_fig(
 
 
 from plotly.subplots import make_subplots
+from itertools import cycle
 
 
 def extract_moo_model_results(
@@ -281,6 +283,9 @@ def model_results_comparison(
     productivity_cost_matrix: np.ndarray,
     aij: np.ndarray,
     distance_carriage_support: np.ndarray,
+    tree_cost_list: np.ndarray,
+    tree_cubic_volumes: pd.Series,
+    facility_cost: pd.Series,
     demand_points_gdf: gpd.GeoDataFrame,
 ):
     """Compare the results of the different models in one table
@@ -293,7 +298,9 @@ def model_results_comparison(
     productivity_array = []
     aij_array = []
     distance_carriage_support_array = []
+    tree_harvesting_costs = []
     overall_profit = []
+    cable_road_costs = []
 
     for model in model_list:
         # get the lines which are active
@@ -326,18 +333,40 @@ def model_results_comparison(
         row_sums = []
         for index, row in enumerate(model.fac2cli):
             if row:
-                m3_harvested = demand_points_gdf.iloc[index]["BHD"]
-                revenue = m3_harvested * 130
-                row_sums.append(revenue)
+                tree_harvesting_cost_per_row = tree_cost_list[row, index]
+                tree_harvesting_cost_this_cr = tree_harvesting_cost_per_row.sum()
+                row_sums.append(tree_harvesting_cost_this_cr)
+        tree_harvesting_costs.append(sum(row_sums))
 
-        overall_profit.append(sum(row_sums))
+        # get the total profit
+        total_profit_per_layout = 0
+        for index, row in enumerate(model.fac2cli):
+            if row:
+                profit_per_row = tree_cubic_volumes.iloc[row] * 80
+                profit_this_cr = profit_per_row.sum()
+                total_profit_per_layout += profit_this_cr
+        profit_scaling = 100
+        total_profit_per_layout = (
+            total_profit_per_layout - sum(row_sums)
+        ) / profit_scaling
+        overall_profit.append(total_profit_per_layout)
+
+        # get the total cable road costs
+        total_cable_road_costs = 0
+        for index, row in enumerate(model.fac2cli):
+            if row:
+                cable_road_cost = facility_cost[index]
+                total_cable_road_costs += cable_road_cost
+        cable_road_costs.append(total_cable_road_costs)
 
     return pd.DataFrame(
         data={
             "Total distance of trees to cable roads": aij_array,
             "Productivity cost per m3 as per Stampfer": productivity_array,
             "Total distance from carriage to support": distance_carriage_support_array,
-            "Overall profit": overall_profit,
+            "tree_harvesting_costs": tree_harvesting_costs,
+            "overall_profit": overall_profit,
+            "cable_road_costs": cable_road_costs,
         }
     )
 
