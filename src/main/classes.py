@@ -2,12 +2,15 @@ from shapely.geometry import LineString, Point
 import numpy as np
 import geopandas as gpd
 from itertools import pairwise
+import pulp
+from spopt.locate import PMedian
 
 from src.main import (
     geometry_operations,
     geometry_utilities,
     mechanical_computations,
     global_vars,
+    optimization_functions,
 )
 
 
@@ -342,3 +345,64 @@ def initialize_cable_road_with_supports(
 def load_cable_road(line_gdf: gpd.GeoDataFrame, index: int) -> Cable_Road:
     """Helper function to abstract setting up a sample cable road from the line_gdf"""
     return line_gdf.iloc[index]["Cable Road Object"]
+
+
+class optimization_objects:
+    def __init__(
+        self,
+        name: str,
+        line_gdf: gpd.GeoDataFrame,
+        harvesteable_trees_gdf: gpd.GeoDataFrame,
+        height_gdf: gpd.GeoDataFrame,
+    ):
+        # Create a matrix with the distance between every tree and line and the distance between the support (beginning of the CR) and the carriage
+        # (cloests point on the CR to the tree)
+        (
+            self.distance_tree_line,
+            self.distance_carriage_support,
+        ) = geometry_operations.compute_distances_facilities_clients(
+            harvesteable_trees_gdf, line_gdf
+        )
+
+        # sort the facility (=lines) and demand points (=trees)
+        self.facility_points_gdf = line_gdf.reset_index()
+        self.demand_points_gdf = harvesteable_trees_gdf.reset_index()
+
+        # set up the solver
+        self.solver = pulp.PULP_CBC_CMD(msg=False, warmStart=False)
+        self.name = "model"
+
+        # create the nr of possible facilities and clients
+        self.client_range = range(self.distance_tree_line.shape[0])
+        self.facility_range = range(self.distance_tree_line.shape[1])
+
+        # add facility cost with an optional scaling factor
+        facility_scaling_factor = 1
+
+        self.facility_cost = line_gdf.line_cost.values * facility_scaling_factor
+
+        # create the aij cost matrix, which is really just the distance from the tree to the line
+        self.aij = self.distance_tree_line
+
+        # collect the matrices needed for the optimization
+        self.tree_volumes_list = harvesteable_trees_gdf["cubic_volume"]
+        self.angle_between_supports_list = line_gdf["angle_between_supports"]
+
+        self.average_steepness = geometry_operations.compute_average_terrain_steepness(
+            line_gdf, height_gdf
+        )
+
+        # and the productivity cost combination of each line combination
+        self.productivity_cost = optimization_functions.calculate_productivity_cost(
+            self.client_range,
+            self.facility_range,
+            self.aij,
+            self.distance_carriage_support,
+            self.average_steepness,
+        )
+        self.tree_cost_list = (
+            np.array(self.tree_volumes_list) * np.array(self.productivity_cost).T
+        ).T
+
+        self.problem = pulp.LpProblem()
+        self.model = PMedian(name, self.problem, self.aij)

@@ -8,60 +8,45 @@ import geopandas as gpd
 import pandas as pd
 
 import pulp
-from spopt.locate import PMedian
 
-
-# Importing my modules
-from src.main import optimization_functions, geometry_operations
+from src.main import optimization_functions, geometry_operations, classes
 
 
 def optimize_cable_roads(
-    name,
-    aij,
-    facility_range,
-    client_range,
-    facility_cost,
-    start_point_dict,
-    tree_cost_list,
-    step,
-    steps,
-    solver,
+    lscp_optimization: classes.optimization_objects,
+    step: int,
+    steps: int,
+    start_point_dict: dict,
 ):
     # init the model with name and the problem - this only gives it a name and tells it to minimize the obj function
-    problem = pulp.LpProblem(name, pulp.LpMinimize)
-    model = PMedian(name, problem, aij)
 
     # Add the facilities as fac_vars and facility_clients as cli_assgn_vars
-    optimization_functions.add_facility_variables(model, facility_range)
-    optimization_functions.add_facility_client_variables(
-        model, facility_range, client_range
+    lscp_optimization = optimization_functions.add_facility_variables(lscp_optimization)
+    lscp_optimization = optimization_functions.add_facility_client_variables(
+        lscp_optimization
     )
 
     # Add the objective functions
-    optimization_functions.add_moo_objective_function(
-        model,
-        facility_range,
-        client_range,
-        facility_cost,
+    lscp_optimization = optimization_functions.add_moo_objective_function(
+        lscp_optimization,
         start_point_dict,
-        tree_cost_list,
         step,
         steps,
     )
 
     # Assignment/demand constraint - each client should
     # only be assigned to one factory
-    optimization_functions.add_singular_assignment_constraint(
-        model, facility_range, client_range
+    lscp_optimization = optimization_functions.add_singular_assignment_constraint(
+        lscp_optimization
     )
 
     # Add opening/shipping constraint - each factory that has a client assigned to it should also be opened
-    optimization_functions.add_facility_is_opened_constraint(
-        model, facility_range, client_range
+    lscp_optimization = optimization_functions.add_facility_is_opened_constraint(
+        lscp_optimization
     )
 
-    model = model.solve(solver)
-    return model
+    lscp_optimization.model = lscp_optimization.model.solve(lscp_optimization.solver)
+    return lscp_optimization
 
 
 def compute_line_costs(
@@ -165,14 +150,12 @@ def line_cost_function(
     # return deviation_condition(line_length, slope_deviation)
 
 
-def tree_cost_function(BHD: pd.Series):
-    # per Denzin rule of thumb
-    volume = (BHD.astype(int) ** 2) / 1000
-    # per Bont 2019
-    return 65 * volume
+def compute_tree_volume(BHD: pd.Series, height: pd.Series) -> pd.Series:
+    # per extenden Denzin rule of thumb - https://www.mathago.at/wp-content/uploads/PDF/B_310.pdf
+    return ((BHD.astype(int) ** 2) / 1000) * (((3 * height) + 25) / 100)
 
 
-def add_facility_variables(model, facility_range):
+def add_facility_variables(lscp_optimization: classes.optimization_objects):
     """Create a list of x_i variables representing wether a facility is active
 
     Args:
@@ -184,13 +167,15 @@ def add_facility_variables(model, facility_range):
         pulp.LpVariable(
             var_name.format(i=fac), lowBound=0, upBound=1, cat=pulp.LpInteger
         )
-        for fac in facility_range
+        for fac in lscp_optimization.facility_range
     ]
 
-    setattr(model, "fac_vars", fac_vars)
+    setattr(lscp_optimization.model, "fac_vars", fac_vars)
+
+    return lscp_optimization
 
 
-def add_facility_client_variables(model, facility_range, client_range):
+def add_facility_client_variables(lscp_optimization):
     """Create a list of variables that represent wether a given facility is assigned to a client
 
     Args:
@@ -204,11 +189,13 @@ def add_facility_client_variables(model, facility_range, client_range):
             pulp.LpVariable(
                 var_name.format(i=i, j=j), lowBound=0, upBound=1, cat=pulp.LpInteger
             )
-            for j in facility_range
+            for j in lscp_optimization.facility_range
         ]
-        for i in client_range
+        for i in lscp_optimization.client_range
     ]
-    setattr(model, "cli_assgn_vars", cli_assgn_vars)
+    setattr(lscp_optimization.model, "cli_assgn_vars", cli_assgn_vars)
+
+    return lscp_optimization
 
 
 def calculate_productivity_cost(
@@ -251,37 +238,38 @@ def calculate_productivity_cost(
 
 
 def add_moo_objective_function(
-    model,
-    facility_range,
-    client_range,
-    facility_cost,
+    lscp_optimization,
     start_point_dict,
-    tree_cost_list,
     obj_a_factor,
     steps,
 ):
-    """Add the objective function to the model, compromised of two terms to minimize:
+    """Add the objective function to the lscp_optimization.model, compromised of two terms to minimize:
     First term: minimize cost*cli assigned to facility
     Second term: minimize the cost of factories
 
     Args:
-        model (_type_): _description_
+        lscp_optimization.model (_type_): _description_
         facility_range (_type_): _description_
         client_range (_type_): _description_
         facility_cost (_type_): _description_
         obj_a_factor (float): The weight of each objective (as int), is converted here to float to represent the 0-1 range
     """
     object_a_factor = obj_a_factor / steps
-    print(object_a_factor)
+    print("object a factor", 0.5 + object_a_factor)
+    print("object b factor", 1.5 - object_a_factor)
 
-    model.problem += (object_a_factor) * pulp.lpSum(
+    lscp_optimization.model.problem += (0.5 + object_a_factor) * pulp.lpSum(
         [
-            tree_cost_list[cli][fac] * model.cli_assgn_vars[cli][fac]
-            for cli in client_range
-            for fac in facility_range
+            lscp_optimization.tree_cost_list[cli][fac]
+            * lscp_optimization.model.cli_assgn_vars[cli][fac]
+            for cli in lscp_optimization.client_range
+            for fac in lscp_optimization.facility_range
         ]
-    ) + (1 - object_a_factor) * pulp.lpSum(
-        [model.fac_vars[fac] * facility_cost[fac] for fac in facility_range]
+    ) + (1.5 - object_a_factor) * pulp.lpSum(
+        [
+            lscp_optimization.model.fac_vars[fac] * lscp_optimization.facility_cost[fac]
+            for fac in lscp_optimization.facility_range
+        ]
         # ) + pulp.lpSum(
         #     # add a cost factor of 40 for each starting point that is selected
         #     40
@@ -290,38 +278,54 @@ def add_moo_objective_function(
         #             start_point_dict[fac]
         #             for cli in client_range
         #             for fac in facility_range
-        #             if bool(model.cli_assgn_vars[cli][fac].value())
+        #             if bool(lscp_optimization.model.cli_assgn_vars[cli][fac].value())
         #         ]
         #     )
     ), "objective function"
 
+    return lscp_optimization
 
-def add_singular_assignment_constraint(model, facility_range, client_range):
+
+def add_singular_assignment_constraint(lscp_optimization):
     """Add the constraint that the sum of facilities assigned for each client == 1 -> only one facility should be assigned to each line
 
     Args:
-        model (_type_): _description_
+        lscp_optimization.model (_type_): _description_
         facility_range (_type_): _description_
         client_range (_type_): _description_
     """
-    for cli in client_range:
-        model.problem += (
-            pulp.lpSum([model.cli_assgn_vars[cli][fac] for fac in facility_range]) == 1
+    for cli in lscp_optimization.client_range:
+        lscp_optimization.model.problem += (
+            pulp.lpSum(
+                [
+                    lscp_optimization.model.cli_assgn_vars[cli][fac]
+                    for fac in lscp_optimization.facility_range
+                ]
+            )
+            == 1
         )
 
+    return lscp_optimization
 
-def add_facility_is_opened_constraint(model, facility_range, client_range):
+
+def add_facility_is_opened_constraint(lscp_optimization):
     """Add the constraint that for each positive entry in cli_assign_vars (ie., a client is assigned to a facility),
     there should be a corresponding facility (that is, fac_vars = 1)
 
     Args:
-        model (_type_): _description_
+        lscp_optimization.model (_type_): _description_
         facility_range (_type_): _description_
         client_range (_type_): _description_
     """
-    for cli in client_range:
-        for fac in facility_range:
-            model.problem += model.fac_vars[fac] - model.cli_assgn_vars[cli][fac] >= 0
+    for cli in lscp_optimization.client_range:
+        for fac in lscp_optimization.facility_range:
+            lscp_optimization.model.problem += (
+                lscp_optimization.model.fac_vars[fac]
+                - lscp_optimization.model.cli_assgn_vars[cli][fac]
+                >= 0
+            )
+
+    return lscp_optimization
 
 
 def test_and_reassign_clis(

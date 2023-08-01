@@ -105,7 +105,10 @@ def onclick(event, coords):
 
 
 def plot_p_median_results(
-    model, facility_points_gdf, demand_points_gdf, anchor_trees, target_trees, line_gdf
+    lscp_optimization: classes.optimization_objects,
+    anchor_trees,
+    target_trees,
+    line_gdf,
 ):
     """Plot the results of the P-Median optimization. Based on this https://pysal.org/spopt/notebooks/p-median.html, but heavily shortened.
 
@@ -122,13 +125,15 @@ def plot_p_median_results(
     line_geometries = []
 
     # fill arr_points and fac_sites for non-empty entries in the facilities to clients array
-    for i in range(len(facility_points_gdf)):
-        if model.fac2cli[i]:
+    for i in range(len(lscp_optimization.facility_points_gdf)):
+        if lscp_optimization.model.fac2cli[i]:
             line = line_gdf.iloc[i]
 
             line_geometries.append(line)
             # get the corresponding demand points from the fac2cli entry
-            geom = demand_points_gdf.iloc[model.fac2cli[i]]["geometry"]
+            geom = lscp_optimization.demand_points_gdf.iloc[
+                lscp_optimization.model.fac2cli[i]
+            ]["geometry"]
             arr_points.append(geom)
             fac_sites.append(i)
 
@@ -205,6 +210,7 @@ def add_geometries_to_fig(
 
 from plotly.subplots import make_subplots
 from itertools import cycle
+from IPython import display
 
 
 def extract_moo_model_results(
@@ -266,8 +272,8 @@ def extract_moo_model_results(
         fig.add_trace(table)
         fig.add_trace(summary_table)
     elif print_results:
-        print(selected_lines[columns_to_select])
-        print(total_cost)
+        display.display(selected_lines[columns_to_select])
+        display.display(total_cost)
     else:
         fig = make_subplots(
             rows=2, cols=1, specs=[[{"type": "table"}], [{"type": "table"}]]
@@ -278,16 +284,7 @@ def extract_moo_model_results(
     return fig
 
 
-def model_results_comparison(
-    model_list: list,
-    productivity_cost_matrix: np.ndarray,
-    aij: np.ndarray,
-    distance_carriage_support: np.ndarray,
-    tree_cost_list: np.ndarray,
-    tree_cubic_volumes: pd.Series,
-    facility_cost: pd.Series,
-    demand_points_gdf: gpd.GeoDataFrame,
-):
+def model_results_comparison(model_list: list):
     """Compare the results of the different models in one table
     Args:
         model_list (list): a list of the models with different tradeoffs
@@ -302,14 +299,15 @@ def model_results_comparison(
     overall_profit = []
     cable_road_costs = []
 
-    for model in model_list:
+    for lscp_model in model_list:
+        model = lscp_model.model
         # get the lines which are active
         fac_vars = np.array([bool(var.value()) for var in model.fac_vars])
         # and the corresponding rows from the distance matrix
         row_sums = []
         for index, row in enumerate(model.fac2cli):
             if row:
-                distance_per_this_row = aij[row, index]
+                distance_per_this_row = lscp_model.aij[row, index]
                 row_sum_distance = distance_per_this_row.sum()
                 row_sums.append(row_sum_distance)
         aij_array.append(sum(row_sums))
@@ -317,7 +315,7 @@ def model_results_comparison(
         row_sums = []
         for index, row in enumerate(model.fac2cli):
             if row:
-                productivity_per_row = productivity_cost_matrix[row, index]
+                productivity_per_row = lscp_model.productivity_cost[row, index]
                 row_sum_distance = productivity_per_row.sum()
                 row_sums.append(row_sum_distance)
         productivity_array.append(sum(row_sums))
@@ -325,7 +323,7 @@ def model_results_comparison(
         row_sums = []
         for index, row in enumerate(model.fac2cli):
             if row:
-                distance_per_this_row = distance_carriage_support[row, index]
+                distance_per_this_row = lscp_model.distance_carriage_support[row, index]
                 row_sum_distance = distance_per_this_row.sum()
                 row_sums.append(row_sum_distance)
         distance_carriage_support_array.append(sum(row_sums))
@@ -333,7 +331,7 @@ def model_results_comparison(
         row_sums = []
         for index, row in enumerate(model.fac2cli):
             if row:
-                tree_harvesting_cost_per_row = tree_cost_list[row, index]
+                tree_harvesting_cost_per_row = lscp_model.tree_cost_list[row, index]
                 tree_harvesting_cost_this_cr = tree_harvesting_cost_per_row.sum()
                 row_sums.append(tree_harvesting_cost_this_cr)
         tree_harvesting_costs.append(sum(row_sums))
@@ -342,7 +340,7 @@ def model_results_comparison(
         total_profit_per_layout = 0
         for index, row in enumerate(model.fac2cli):
             if row:
-                profit_per_row = tree_cubic_volumes.iloc[row] * 80
+                profit_per_row = lscp_model.tree_volumes_list.iloc[row] * 80
                 profit_this_cr = profit_per_row.sum()
                 total_profit_per_layout += profit_this_cr
         profit_scaling = 100
@@ -355,9 +353,14 @@ def model_results_comparison(
         total_cable_road_costs = 0
         for index, row in enumerate(model.fac2cli):
             if row:
-                cable_road_cost = facility_cost[index]
+                cable_road_cost = lscp_model.facility_cost[index]
                 total_cable_road_costs += cable_road_cost
         cable_road_costs.append(total_cable_road_costs)
+
+    overall_profit_unscaled = np.array(overall_profit) * profit_scaling
+    profit_baseline = min(overall_profit_unscaled)
+    print(f"Profit baseline is {profit_baseline}")
+    profit_comparison = overall_profit_unscaled - profit_baseline
 
     return pd.DataFrame(
         data={
@@ -367,12 +370,17 @@ def model_results_comparison(
             "tree_harvesting_costs": tree_harvesting_costs,
             "overall_profit": overall_profit,
             "cable_road_costs": cable_road_costs,
+            "profit_comparison": profit_comparison,
         }
     )
 
 
 def plot_pymoo_results(
-    model, facility_points_gdf, demand_points_gdf, anchor_trees, target_trees, line_gdf
+    model,
+    lscp_model: classes.optimization_objects,
+    anchor_trees: gpd.GeoDataFrame,
+    target_trees: gpd.GeoDataFrame,
+    line_gdf: gpd.GeoDataFrame,
 ):
     """Plot the results of the P-Median optimization. Based on this https://pysal.org/spopt/notebooks/p-median.html, but heavily shortened.
 
@@ -386,19 +394,20 @@ def plot_pymoo_results(
     line_triples = []
 
     # extract the cli_assgn_vars and fac_vars from the model/x results of the pymoo optimization
-    variable_matrix = model.reshape((len(demand_points_gdf) + 1, len(line_gdf)))
+    variable_matrix = model.reshape(
+        (len(lscp_model.demand_points_gdf) + 1, len(line_gdf))
+    )
 
     cli_assgn_vars = variable_matrix[:-1]
     fac_vars = variable_matrix[-1:][0]
 
     # fill arr_points and fac_sites for non-empty entries in the facilities to clients array
-    for i in range(len(facility_points_gdf)):
+    for i in range(len(lscp_model.facility_points_gdf)):
         if fac_vars[i]:
             # get the corresponding demand points from the fac2cli entry
             # get all entries for this column in cli_assgn_vars
             indices = np.where(cli_assgn_vars[:, i])
-            # geom = demand_points_gdf.iloc[model.fac2cli[i]]['geometry']
-            geom = demand_points_gdf.iloc[indices]["geometry"]
+            geom = lscp_model.demand_points_gdf.iloc[indices]["geometry"]
             arr_points.append(geom)
             fac_sites.append(i)
             # get the corresponding anchor triple from the line_gdf
@@ -412,14 +421,16 @@ def plot_pymoo_results(
     # add the trees with respective color to which factory they belong to the map
     for i in range(len(arr_points)):
         # each factory belongs to each arr points - ie., we have 516 arr points which takes forever
-        gdf = gpd.GeoDataFrame(arr_points[i])
+        gdf = gpd.GeoDataFrame(
+            arr_points[i]
+        )  # sometimes, the arr points seem to be just points, and then again emty geoseries
         anchor_lines_gdf = gpd.GeoDataFrame(geometry=unwrapped_triples[i])
 
         label = f"coverage_points by y{fac_sites[i]}"
         legend_elements.append(Patch(label=label))
 
         gdf.plot(ax=ax, zorder=3, alpha=0.7, label=label)
-        facility_points_gdf.iloc[[fac_sites[i]]].plot(
+        lscp_model.facility_points_gdf.iloc[[fac_sites[i]]].plot(
             ax=ax, marker="*", markersize=200 * 3.0, alpha=0.8, zorder=4, edgecolor="k"
         )
 
@@ -777,6 +788,24 @@ def plot_3d_model_results(model: PMedian, line_gdf, height_gdf) -> go.Figure:
     line_gdf, cable_road_objects = helper_functions.model_to_line_gdf(model, line_gdf)
     fig = plot_all_cable_roads(height_gdf, line_gdf)
     return fig
+
+
+import matplotlib.pyplot as plt
+
+
+def plot_NSGA_results(X, F, problem):
+    xl, xu = problem.bounds()
+    plt.figure(figsize=(7, 5))
+    plt.scatter(X[:, 0], X[:, 1], s=30, facecolors="none", edgecolors="r")
+    plt.xlim(xl[0], xu[0])
+    plt.ylim(xl[1], xu[1])
+    plt.title("Design Space")
+    plt.show()
+
+    plt.figure(figsize=(7, 5))
+    plt.scatter(F[:, 0], F[:, 1], s=30, facecolors="none", edgecolors="blue")
+    plt.title("Objective Space")
+    plt.show()
 
 
 def plot_parallelogram(
