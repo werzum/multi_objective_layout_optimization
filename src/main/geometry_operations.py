@@ -170,8 +170,8 @@ def compute_average_terrain_steepness(
 
     averages = np.empty(len(line_gdf))
 
-    for index, row in line_gdf.iterrows():
-        cable_road = row["Cable Road Object"]
+    for index in range(len(line_gdf) - 1):
+        cable_road = line_gdf.iloc[index]["Cable Road Object"]
         absolute_height_difference = abs(
             cable_road.end_support.total_height - cable_road.start_support.total_height
         )

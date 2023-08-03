@@ -328,14 +328,6 @@ def model_results_comparison(model_list: list):
                 row_sums.append(row_sum_distance)
         distance_carriage_support_array.append(sum(row_sums))
 
-        row_sums = []
-        for index, row in enumerate(model.fac2cli):
-            if row:
-                tree_harvesting_cost_per_row = lscp_model.tree_cost_list[row, index]
-                tree_harvesting_cost_this_cr = tree_harvesting_cost_per_row.sum()
-                row_sums.append(tree_harvesting_cost_this_cr)
-        tree_harvesting_costs.append(sum(row_sums))
-
         # get the total profit
         total_profit_per_layout = 0
         for index, row in enumerate(model.fac2cli):
@@ -367,7 +359,6 @@ def model_results_comparison(model_list: list):
             "Total distance of trees to cable roads": aij_array,
             "Productivity cost per m3 as per Stampfer": productivity_array,
             "Total distance from carriage to support": distance_carriage_support_array,
-            "tree_harvesting_costs": tree_harvesting_costs,
             "overall_profit": overall_profit,
             "cable_road_costs": cable_road_costs,
             "profit_comparison": profit_comparison,

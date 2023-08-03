@@ -116,11 +116,13 @@ def line_cost_function(
     # rename the variables according to Kanzian publication
     extraction_direction = uphill_yarding
     yarder_size = large_yarder
+    corridor_type = True  # treat all corridors as first setup, else its hard to compute
 
     setup_time = math.e ** (
         1.42
         + 0.00229 * line_length
         + 0.03 * intermediate_support_height  # not available now?
+        + 0.256 * corridor_type
         - 0.65 * extraction_direction  # 1 for uphill, 0 for downhill
         + 0.11 * yarder_size  # 1 for larger yarder, 0 for smaller 35kn
         + 0.491 * extraction_direction * yarder_size
@@ -198,14 +200,18 @@ def add_facility_client_variables(lscp_optimization):
     return lscp_optimization
 
 
-def calculate_productivity_cost(
+def calculate_felling_cost(
     client_range: range,
     facility_range: range,
-    aij: np.array,
-    distance_carriage_support: np.array,
+    aij: np.ndarray,
+    distance_carriage_support: np.ndarray,
+    tree_volume: pd.Series,
     average_steepness: float,
-) -> np.array:
-    """Calculate the cost of each client-facility combination based on the productivity model by Gaffariyan, Stampfer, Sessions 2013
+) -> np.ndarray:
+    """Calculate the cost of each client-facility combination based on the productivity
+    model by Gaffariyan, Stampfer, Sessions 2013 (Production Equations for Tower Yarders in Austria)
+    It yields min/cycle, ie how long it takes in minutes to process a tree.
+    We divide the results by 60 to yield hrs/cycle and multiply by 44 to get the cost per cycle
 
     Args:
         client_range (Range): range of clients
@@ -218,7 +224,7 @@ def calculate_productivity_cost(
         np.array: matrix of costs for each client-facility combination
     """
 
-    productivity_cost_matrix = np.empty([len(client_range), len(facility_range)])
+    productivity_cost_matrix = np.zeros([len(client_range), len(facility_range)])
     # iterate ove the matrix and calculate the cost for each entry
     it = np.nditer(
         productivity_cost_matrix, flags=["multi_index"], op_flags=["readwrite"]
@@ -227,12 +233,21 @@ def calculate_productivity_cost(
         cli, fac = it.multi_index
         # the cost per m3 based on the productivity model by Gaffariyan, Stampfer, Sessions 2013
         x[...] = (
-            0.043 * aij[cli][fac]
-        )  # the distance from tree to cable road, aka lateral yarding distance
-        # the yarding distance between carriage and support
-        +0.007 * distance_carriage_support[cli][fac]
-        +0.029 * 100  # the harvest intensity set to 100%
-        +0.038 * average_steepness
+            (
+                0.007
+                * distance_carriage_support[cli][
+                    fac
+                ]  # the yarding distance between carriage and support
+                + 0.043
+                * aij[cli][
+                    fac
+                ]  # the distance from tree to cable road, aka lateral yarding distance
+                + 1.307 * tree_volume.values[fac] ** (-0.3)
+                + 0.029 * 100  # the harvest intensity set to 100%
+                + 0.038 * average_steepness
+            )
+            / 60
+        ) * 44  # divide by 60 to get hrs/cycle and multiply by 44 to get cost/cycle
 
     return productivity_cost_matrix
 
@@ -259,12 +274,8 @@ def add_moo_objective_function(
     print("object b factor", 1.5 - object_a_factor)
 
     lscp_optimization.model.problem += (0.5 + object_a_factor) * pulp.lpSum(
-        [
-            lscp_optimization.tree_cost_list[cli][fac]
-            * lscp_optimization.model.cli_assgn_vars[cli][fac]
-            for cli in lscp_optimization.client_range
-            for fac in lscp_optimization.facility_range
-        ]
+        np.array(lscp_optimization.model.cli_assgn_vars)
+        * np.array(lscp_optimization.productivity_cost)
     ) + (1.5 - object_a_factor) * pulp.lpSum(
         [
             lscp_optimization.model.fac_vars[fac] * lscp_optimization.facility_cost[fac]
