@@ -105,7 +105,7 @@ def onclick(event, coords):
 
 
 def plot_p_median_results(
-    lscp_optimization: classes.optimization_objects,
+    lscp_optimization: classes.single_objective_optimization_model,
     anchor_trees,
     target_trees,
     line_gdf,
@@ -368,7 +368,7 @@ def model_results_comparison(model_list: list):
 
 def plot_pymoo_results(
     model,
-    lscp_model: classes.optimization_objects,
+    lscp_model: classes.single_objective_optimization_model,
     anchor_trees: gpd.GeoDataFrame,
     target_trees: gpd.GeoDataFrame,
     line_gdf: gpd.GeoDataFrame,

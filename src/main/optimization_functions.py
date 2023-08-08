@@ -12,8 +12,8 @@ import pulp
 from src.main import optimization_functions, geometry_operations, classes
 
 
-def optimize_cable_roads(
-    lscp_optimization: classes.optimization_objects,
+def optimize_cable_roads_single_objective(
+    lscp_optimization: classes.single_objective_optimization_model,
     step: int,
     steps: int,
     start_point_dict: dict,
@@ -27,7 +27,7 @@ def optimize_cable_roads(
     )
 
     # Add the objective functions
-    lscp_optimization = optimization_functions.add_moo_objective_function(
+    lscp_optimization = optimization_functions.add_weighted_objective_function(
         lscp_optimization,
         start_point_dict,
         step,
@@ -47,6 +47,60 @@ def optimize_cable_roads(
 
     lscp_optimization.model = lscp_optimization.model.solve(lscp_optimization.solver)
     return lscp_optimization
+
+
+from shapely.geometry import LineString
+from src.main import geometry_utilities, classes
+
+
+def compute_length_of_steep_downhill_segments(line_gdf: gpd.GeoDataFrame) -> pd.Series:
+    line_cost_array = np.empty(len(line_gdf))
+    for index, line in line_gdf.iterrows():
+        line_length = line.geometry.length
+        sub_segments = list(line["Cable Road Object"].get_all_subsegments())
+        if sub_segments:
+            line_cost_array[index] = sum(
+                subsegement.cable_road.line.length
+                for subsegement in sub_segments
+                if geometry_operations.get_slope(subsegement.cable_road) >= 10
+            )
+        else:
+            line_cost_array[index] = (
+                geometry_operations.get_slope(line["Cable Road Object"])
+                if geometry_operations.get_slope(line["Cable Road Object"]) >= 10
+                else 0
+            )
+
+    return pd.Series(line_cost_array)
+
+
+def compute_cable_road_deviations_from_slope(
+    line_gdf: gpd.GeoDataFrame, slope_line: LineString
+) -> pd.Series:
+    """Compute the deviation of each line from the slope line. Return a panda series with an array of deviations for each line segment.
+
+    Args:
+        line_gdf (gpd.GeoDataFrame): GeoDataFrame of lines
+        slope_line (LineString): LineString of the slope
+
+        Returns:
+            pd.Series: Series of arrays of deviations
+    """
+    line_deviations_array = [None] * len(line_gdf)
+    for index, line in line_gdf.iterrows():
+        sub_segments = list(line["Cable Road Object"].get_all_subsegments())
+        # count either the deviations of the subsegments or the line itself
+        if sub_segments:
+            temp_arr = [
+                geometry_utilities.angle_between(subsegment.cable_road.line, slope_line)
+                for subsegment in sub_segments
+            ]
+        else:
+            temp_arr = [geometry_utilities.angle_between(line.geometry, slope_line)]
+
+        line_deviations_array[index] = temp_arr
+
+    return pd.Series(line_deviations_array)
 
 
 def compute_line_costs(
@@ -157,7 +211,9 @@ def compute_tree_volume(BHD: pd.Series, height: pd.Series) -> pd.Series:
     return ((BHD.astype(int) ** 2) / 1000) * (((3 * height) + 25) / 100)
 
 
-def add_facility_variables(lscp_optimization: classes.optimization_objects):
+def add_facility_variables(
+    lscp_optimization: classes.single_objective_optimization_model,
+):
     """Create a list of x_i variables representing wether a facility is active
 
     Args:
@@ -254,7 +310,7 @@ def calculate_felling_cost(
     return productivity_cost_matrix
 
 
-def add_moo_objective_function(
+def add_weighted_objective_function(
     lscp_optimization,
     start_point_dict,
     obj_a_factor,
@@ -294,18 +350,6 @@ def add_moo_objective_function(
     )
 
     return lscp_optimization
-
-    # ) + pulp.lpSum(
-    #     # add a cost factor of 40 for each starting point that is selected
-    #     40
-    #     * np.unique(
-    #         [
-    #             start_point_dict[fac]
-    #             for cli in client_range
-    #             for fac in facility_range
-    #             if bool(lscp_optimization.model.cli_assgn_vars[cli][fac].value())
-    #         ]
-    #     )
 
 
 def add_singular_assignment_constraint(lscp_optimization):

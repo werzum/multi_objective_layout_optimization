@@ -173,11 +173,23 @@ def compute_average_terrain_steepness(
 
     for index in range(len(line_gdf) - 1):
         cable_road = line_gdf.iloc[index]["Cable Road Object"]
-        absolute_height_difference = abs(
-            cable_road.end_support.total_height - cable_road.start_support.total_height
-        )
-        cable_road_xy_length = cable_road.b_length_whole_section
-        steepness = absolute_height_difference / cable_road_xy_length
-        averages[index] = steepness * 100
+        averages[index] = get_slope(cable_road)
 
     return sum(averages) / len(averages)
+
+
+def get_slope(cable_road: classes.Cable_Road) -> float:
+    """Get the slope of a given cable road
+    Args:
+        cable_road (classes.Cable_Road): Cable road object
+    Returns:
+        float: Slope of the cable road in %degrees
+
+    """
+
+    absolute_height_difference = abs(
+        cable_road.end_support.total_height - cable_road.start_support.total_height
+    )
+    cable_road_xy_length = cable_road.b_length_whole_section
+    steepness = absolute_height_difference / cable_road_xy_length
+    return steepness * 100

@@ -51,13 +51,15 @@ class LineString_3D:
         return self.start_point.distance(self.end_point)
 
 
-class optimization_objects:
+class single_objective_optimization_model:
     def __init__(
         self,
         name: str,
         line_gdf: gpd.GeoDataFrame,
         harvesteable_trees_gdf: gpd.GeoDataFrame,
         height_gdf: gpd.GeoDataFrame,
+        slope_line: LineString,
+        uphill_yarding: bool = False,
     ):
         # Create a matrix with the distance between every tree and line and the distance between the support (beginning of the CR) and the carriage
         # (cloests point on the CR to the tree)
@@ -102,6 +104,21 @@ class optimization_objects:
         self.average_steepness = geometry_operations.compute_average_terrain_steepness(
             line_gdf, height_gdf
         )
+
+        # calculate the deviations of the subsegments of the cable road from the slope line
+        self.sideways_slope_deviations_per_cable_road = (
+            optimization_functions.compute_cable_road_deviations_from_slope(
+                line_gdf, slope_line
+            )
+        )
+
+        # calculate the segments which have a vertical slope greater than 10 and are treated in downhill logging
+        if not uphill_yarding:
+            self.steep_downhill_segments = (
+                optimization_functions.compute_length_of_steep_downhill_segments(
+                    line_gdf
+                )
+            )
 
         # and the productivity cost combination of each line combination
         self.productivity_cost = optimization_functions.calculate_felling_cost(
