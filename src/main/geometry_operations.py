@@ -110,7 +110,8 @@ def compute_distances_facilities_clients(
         line_tree_distance = tree_gdf.geometry.distance(line.geometry)
 
         # get the nearest point between the tree and the cable road for all trees
-        # project(tree,line)) gets the distance of the closest point on the line to the tower  - ie. how far along the line do I have to move the carriage to get closest to the tree
+        # project(tree,line)) gets the distance of the closest point on the line to the tower  -
+        # ie. how far along the line do I have to move the carriage to get closest to the tree
         carriage_support_distance = [
             line.geometry.project(tree_geometry) for tree_geometry in tree_gdf.geometry
         ]

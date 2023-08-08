@@ -232,23 +232,25 @@ def calculate_felling_cost(
     for x in it:
         cli, fac = it.multi_index
         # the cost per m3 based on the productivity model by Gaffariyan, Stampfer, Sessions 2013
-        x[...] = (
-            (
-                0.007
-                * distance_carriage_support[cli][
-                    fac
-                ]  # the yarding distance between carriage and support
-                + 0.043
-                * aij[cli][
-                    fac
-                ]  # the distance from tree to cable road, aka lateral yarding distance
-                + 1.307 * tree_volume.values[fac] ** (-0.3)
-                + 0.029 * 100  # the harvest intensity set to 100%
-                + 0.038 * average_steepness
-            )
-            / 60
-        ) * 44  # divide by 60 to get hrs/cycle and multiply by 44 to get cost/cycle
+        min_per_cycle = (
+            0.007
+            * distance_carriage_support[cli][
+                fac
+            ]  # the yarding distance between carriage and support
+            + 0.043
+            * (
+                aij[cli][fac] ** 2
+            )  # the distance from tree to cable road, aka lateral yarding distance - squared
+            + 1.307 * tree_volume.values[fac] ** (-0.3)
+            + 0.029 * 100  # the harvest intensity set to 100%
+            + 0.038 * average_steepness
+        )
+        hrs_per_cycle = min_per_cycle / 60
+        cost_per_cycle = (
+            hrs_per_cycle * 44
+        )  # divide by 60 to get hrs/cycle and multiply by 44 to get cost
 
+        x[...] = cost_per_cycle
     return productivity_cost_matrix
 
 
@@ -273,28 +275,37 @@ def add_moo_objective_function(
     print("object a factor", 0.5 + object_a_factor)
     print("object b factor", 1.5 - object_a_factor)
 
-    lscp_optimization.model.problem += (0.5 + object_a_factor) * pulp.lpSum(
-        np.array(lscp_optimization.model.cli_assgn_vars)
-        * np.array(lscp_optimization.productivity_cost)
-    ) + (1.5 - object_a_factor) * pulp.lpSum(
-        [
-            lscp_optimization.model.fac_vars[fac] * lscp_optimization.facility_cost[fac]
-            for fac in lscp_optimization.facility_range
-        ]
-        # ) + pulp.lpSum(
-        #     # add a cost factor of 40 for each starting point that is selected
-        #     40
-        #     * np.unique(
-        #         [
-        #             start_point_dict[fac]
-        #             for cli in client_range
-        #             for fac in facility_range
-        #             if bool(lscp_optimization.model.cli_assgn_vars[cli][fac].value())
-        #         ]
-        #     )
-    ), "objective function"
+    lscp_optimization.model.problem += (
+        pulp.lpSum(
+            (0.5 + object_a_factor)
+            * (
+                np.array(lscp_optimization.model.cli_assgn_vars)
+                * np.array(lscp_optimization.productivity_cost)
+            )
+        )
+        + pulp.lpSum(
+            (1.5 - object_a_factor)
+            * (
+                np.array(lscp_optimization.model.fac_vars)
+                * np.array(lscp_optimization.facility_cost)
+            )
+        ),
+        "objective function",
+    )
 
     return lscp_optimization
+
+    # ) + pulp.lpSum(
+    #     # add a cost factor of 40 for each starting point that is selected
+    #     40
+    #     * np.unique(
+    #         [
+    #             start_point_dict[fac]
+    #             for cli in client_range
+    #             for fac in facility_range
+    #             if bool(lscp_optimization.model.cli_assgn_vars[cli][fac].value())
+    #         ]
+    #     )
 
 
 def add_singular_assignment_constraint(lscp_optimization):
