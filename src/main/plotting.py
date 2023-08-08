@@ -214,7 +214,7 @@ from IPython import display
 
 
 def extract_moo_model_results(
-    optimized_model: PMedian,
+    model: classes.single_objective_optimization_model,
     line_gdf: gpd.GeoDataFrame,
     fig: go.Figure = None,
     print_results: bool = False,
@@ -229,7 +229,8 @@ def extract_moo_model_results(
     Returns:
         go.Figure: The figure with the table
     """
-
+    # get the selected lines from the optimized model
+    optimized_model = model.model
     selected_lines, cable_road_objects = helper_functions.model_to_line_gdf(
         optimized_model, line_gdf
     )
@@ -268,12 +269,24 @@ def extract_moo_model_results(
         ),
     )
 
+    horizontal_slope_deviations = sum(
+        model.sideways_slope_deviations_per_cable_road[selected_lines.index]
+    )
+    steep_downhill_segments = sum(model.steep_downhill_segments[selected_lines.index])
+
     if fig:
         fig.add_trace(table)
         fig.add_trace(summary_table)
     elif print_results:
         display.display(selected_lines[columns_to_select])
-        display.display(total_cost)
+        display.display(
+            "Total cost:",
+            total_cost,
+            " Sideways Slope:",
+            horizontal_slope_deviations,
+            " Steep downhill:",
+            steep_downhill_segments,
+        )
     else:
         fig = make_subplots(
             rows=2, cols=1, specs=[[{"type": "table"}], [{"type": "table"}]]

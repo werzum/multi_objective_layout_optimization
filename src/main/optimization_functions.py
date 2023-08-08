@@ -49,6 +49,38 @@ def optimize_cable_roads_single_objective(
     return lscp_optimization
 
 
+def optimize_cable_roads_epsilon_constraint(
+    lscp_optimization: classes.single_objective_optimization_model,
+    objective_to_prioritize: int = -1,
+):
+    # init the model with name and the problem - this only gives it a name and tells it to minimize the obj function
+
+    # Add the facilities as fac_vars and facility_clients as cli_assgn_vars
+    lscp_optimization = optimization_functions.add_facility_variables(lscp_optimization)
+    lscp_optimization = optimization_functions.add_facility_client_variables(
+        lscp_optimization
+    )
+
+    # Add the objective functions
+    lscp_optimization = optimization_functions.add_single_objective_function(
+        lscp_optimization, objective_to_prioritize
+    )
+
+    # Assignment/demand constraint - each client should
+    # only be assigned to one factory
+    lscp_optimization = optimization_functions.add_singular_assignment_constraint(
+        lscp_optimization
+    )
+
+    # Add opening/shipping constraint - each factory that has a client assigned to it should also be opened
+    lscp_optimization = optimization_functions.add_facility_is_opened_constraint(
+        lscp_optimization
+    )
+
+    lscp_optimization.model = lscp_optimization.model.solve(lscp_optimization.solver)
+    return lscp_optimization
+
+
 from shapely.geometry import LineString
 from src.main import geometry_utilities, classes
 
@@ -77,7 +109,9 @@ def compute_length_of_steep_downhill_segments(line_gdf: gpd.GeoDataFrame) -> pd.
 def compute_cable_road_deviations_from_slope(
     line_gdf: gpd.GeoDataFrame, slope_line: LineString
 ) -> pd.Series:
-    """Compute the deviation of each line from the slope line. Return a panda series with an array of deviations for each line segment.
+    """Compute the deviation of each line from the slope line.
+    Return a panda series with an array of the lengths of cable road segments
+    for segments with more than 22° horizontal deviation and 25° vertical slope.
 
     Args:
         line_gdf (gpd.GeoDataFrame): GeoDataFrame of lines
@@ -86,19 +120,28 @@ def compute_cable_road_deviations_from_slope(
         Returns:
             pd.Series: Series of arrays of deviations
     """
-    line_deviations_array = [None] * len(line_gdf)
+    line_deviations_array = np.empty(len(line_gdf))
     for index, line in line_gdf.iterrows():
-        sub_segments = list(line["Cable Road Object"].get_all_subsegments())
+        cable_road_object = line["Cable Road Object"]
+        temp_arr = []
+        sub_segments = list(cable_road_object.get_all_subsegments())
         # count either the deviations of the subsegments or the line itself
         if sub_segments:
             temp_arr = [
-                geometry_utilities.angle_between(subsegment.cable_road.line, slope_line)
+                subsegment.cable_road.line.length
                 for subsegment in sub_segments
+                if geometry_utilities.angle_between(
+                    subsegment.cable_road.line, slope_line
+                )
+                >= 22
+                and geometry_operations.get_slope(subsegment.cable_road) >= 25
             ]
-        else:
-            temp_arr = [geometry_utilities.angle_between(line.geometry, slope_line)]
-
-        line_deviations_array[index] = temp_arr
+        elif (
+            geometry_utilities.angle_between(cable_road_object.line, slope_line) >= 22
+            and geometry_operations.get_slope(cable_road_object) >= 25
+        ):
+            temp_arr = [line.geometry.length]
+        line_deviations_array[index] = sum(temp_arr)
 
     return pd.Series(line_deviations_array)
 
@@ -350,6 +393,40 @@ def add_weighted_objective_function(
     )
 
     return lscp_optimization
+
+
+def add_single_objective_function(
+    optimization_model: classes.single_objective_optimization_model,
+    objective_to_select: int,
+):
+    if objective_to_select == 0:
+        optimization_model.model.problem += (
+            pulp.lpSum(
+                np.array(optimization_model.model.cli_assgn_vars)
+                * np.array(optimization_model.productivity_cost)
+            )
+            + pulp.lpSum(
+                (
+                    np.array(optimization_model.model.fac_vars)
+                    * np.array(optimization_model.facility_cost)
+                )
+            ),
+            "objective function",
+        )
+        # else only select the sideways slope deviations
+    elif objective_to_select == 1:
+        optimization_model.model.problem += pulp.lpSum(
+            np.array(optimization_model.model.fac_vars)
+            * np.array(optimization_model.sideways_slope_deviations_per_cable_road)
+        )
+        # else only select the downhill segments penalized segments
+    elif objective_to_select == 2 and optimization_model.steep_downhill_segments:
+        optimization_model.model.problem += pulp.lpSum(
+            np.array(optimization_model.model.fac_vars)
+            * np.array(optimization_model.steep_downhill_segments)
+        )
+
+    return optimization_model
 
 
 def add_singular_assignment_constraint(lscp_optimization):
