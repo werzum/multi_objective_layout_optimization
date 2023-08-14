@@ -338,7 +338,7 @@ def calculate_felling_cost(
             ]  # the yarding distance between carriage and support
             + 0.043
             * (
-                aij[cli][fac] ** 2
+                aij[cli][fac]
             )  # the distance from tree to cable road, aka lateral yarding distance - squared
             + 1.307 * tree_volume.values[fac] ** (-0.3)
             + 0.029 * 100  # the harvest intensity set to 100%
