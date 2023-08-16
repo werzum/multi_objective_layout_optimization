@@ -167,8 +167,9 @@ class optimization_result:
                     optimization_model.problem.facility_range,
                 )
             )
-            cli_assgn_vars = variable_matrix[:-1]
-            self.fac2cli = cli_assgn_vars.T
+            # transpose the variable matrix to the fac2cli format and then get the indices of the selected lines
+            fac2cli = variable_matrix[:-1].T
+            self.fac2cli = [np.where(row)[0].tolist() for row in fac2cli]
 
             # also extract lines and CR objects
             (

@@ -297,10 +297,17 @@ def extract_moo_model_results(
     return fig
 
 
-def model_results_comparison(model_list: list):
+def model_results_comparison(
+    result_list: list[classes.optimization_result],
+    line_gdf: gpd.GeoDataFrame,
+    aij: np.ndarray,
+    distance_carriage_support: np.ndarray,
+    productivity_cost_matrix: np.ndarray,
+    tree_volumes_list: pd.Series,
+):
     """Compare the results of the different models in one table
     Args:
-        model_list (list): a list of the models with different tradeoffs
+        result_list (list): a list of the models with different tradeoffs
         productivity_cost_matrix (np.ndarray): the productivity cost matrix
         aij (np.ndarray): the distance matrix
         distance_carriage_support (np.ndarray): the distance matrix
@@ -311,58 +318,56 @@ def model_results_comparison(model_list: list):
     tree_harvesting_costs = []
     overall_profit = []
     cable_road_costs = []
+    facility_cost = line_gdf["line_cost"].values
 
-    for lscp_model in model_list:
-        model = lscp_model.model
-        # get the lines which are active
-        fac_vars = np.array([bool(var.value()) for var in model.fac_vars])
+    for result in result_list:
         # and the corresponding rows from the distance matrix
         row_sums = []
-        for index, row in enumerate(model.fac2cli):
+        for index, row in enumerate(result.fac2cli):
             if row:
-                distance_per_this_row = lscp_model.aij[row, index]
+                distance_per_this_row = aij[row, index]
                 row_sum_distance = distance_per_this_row.sum()
                 row_sums.append(row_sum_distance)
         aij_array.append(sum(row_sums))
 
         row_sums = []
-        for index, row in enumerate(model.fac2cli):
+        for index, row in enumerate(result.fac2cli):
             if row:
-                productivity_per_row = lscp_model.productivity_cost[row, index]
+                productivity_per_row = productivity_cost_matrix[row, index]
                 row_sum_distance = productivity_per_row.sum()
                 row_sums.append(row_sum_distance)
         productivity_array.append(sum(row_sums))
 
         row_sums = []
-        for index, row in enumerate(model.fac2cli):
+        for index, row in enumerate(result.fac2cli):
             if row:
-                distance_per_this_row = lscp_model.distance_carriage_support[row, index]
+                distance_per_this_row = distance_carriage_support[row, index]
                 row_sum_distance = distance_per_this_row.sum()
                 row_sums.append(row_sum_distance)
         distance_carriage_support_array.append(sum(row_sums))
 
         # get the total profit
         total_profit_per_layout = 0
-        for index, row in enumerate(model.fac2cli):
+        for index, row in enumerate(result.fac2cli):
             if row:
-                profit_per_row = lscp_model.tree_volumes_list.iloc[row] * 80
+                profit_per_row = tree_volumes_list.iloc[row] * 80
                 profit_this_cr = profit_per_row.sum()
                 total_profit_per_layout += profit_this_cr
-        profit_scaling = 100
-        total_profit_per_layout = (
-            total_profit_per_layout - sum(row_sums)
-        ) / profit_scaling
+        # profit_scaling = 100
+        # total_profit_per_layout = (
+        #     total_profit_per_layout - sum(row_sums)
+        # ) / profit_scaling
         overall_profit.append(total_profit_per_layout)
 
         # get the total cable road costs
         total_cable_road_costs = 0
-        for index, row in enumerate(model.fac2cli):
+        for index, row in enumerate(result.fac2cli):
             if row:
-                cable_road_cost = lscp_model.facility_cost[index]
+                cable_road_cost = facility_cost[index]
                 total_cable_road_costs += cable_road_cost
         cable_road_costs.append(total_cable_road_costs)
 
-    overall_profit_unscaled = np.array(overall_profit) * profit_scaling
+    overall_profit_unscaled = np.array(overall_profit)  # * profit_scaling
     profit_baseline = min(overall_profit_unscaled)
     print(f"Profit baseline is {profit_baseline}")
     profit_comparison = overall_profit_unscaled - profit_baseline
