@@ -4,6 +4,7 @@ import geopandas as gpd
 from itertools import pairwise
 import pulp
 from spopt.locate import PMedian
+from src.tests import helper_functions
 
 
 class Point_3D:
@@ -132,6 +133,55 @@ class single_objective_optimization_model:
 
         self.problem = pulp.LpProblem()
         self.model = PMedian(name, self.problem, self.aij)
+
+
+class optimization_result:
+    def __init__(
+        self,
+        optimization_model,
+        line_gdf: gpd.GeoDataFrame,
+        selection_index: int,
+        print_results: bool = False,
+    ):
+        # extract the model object itself as well as the fac2cli assignment
+        if hasattr(optimization_model, "model"):
+            self.optimized_model = optimization_model.model
+            # extract lines and CR objects
+            (
+                self.selected_lines,
+                self.cable_road_objects,
+            ) = helper_functions.model_to_line_gdf(self.optimized_model, line_gdf)
+            self.fac2cli = optimization_model.model.fac2cli
+
+        elif hasattr(optimization_model, "X"):
+            self.optimized_model = optimization_model
+            # the cli2fac
+            X = optimization_model.X
+            # the objectives
+            F = optimization_model.F
+
+            # reshape and transpose the var matrices to get the fac2cli format
+            variable_matrix = X[selection_index].reshape(
+                (
+                    optimization_model.problem.client_range + 1,
+                    optimization_model.problem.facility_range,
+                )
+            )
+            cli_assgn_vars = variable_matrix[:-1]
+            self.fac2cli = cli_assgn_vars.T
+
+            # also extract lines and CR objects
+            (
+                self.selected_lines,
+                self.cable_road_objects,
+            ) = helper_functions.model_to_line_gdf(variable_matrix, line_gdf)
+
+        self.selected_lines["number_int_supports"] = [
+            len(list(cable_road.get_all_subsegments())) - 1
+            if list(cable_road.get_all_subsegments())
+            else 0
+            for cable_road in self.cable_road_objects
+        ]
 
 
 class Support:
