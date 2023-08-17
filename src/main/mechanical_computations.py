@@ -7,12 +7,12 @@ import vispy.scene
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
+from main import plotting_2d
 
 from src.main import (
     geometry_utilities,
     geometry_operations,
     classes,
-    plotting,
     cable_road_computation,
 )
 
@@ -231,12 +231,14 @@ def compute_tension_loaded_vs_unloaded_cableroad(
     if fig:
         fig.data = []  # reset the figure
         print("Angle between lines", angle_loaded_unloaded_cr)
-        loaded_line_x, loaded_line_y, loaded_line_z = plotting.get_x_y_z_points(
+        loaded_line_x, loaded_line_y, loaded_line_z = plotting_2d.get_x_y_z_points(
             loaded_cable_road
         )
-        unloaded_line_x, unloaded_line_y, unloaded_line_z = plotting.get_x_y_z_points(
-            unloaded_cable_road
-        )
+        (
+            unloaded_line_x,
+            unloaded_line_y,
+            unloaded_line_z,
+        ) = plotting_2d.get_x_y_z_points(unloaded_cable_road)
         fig.add_trace(
             go.Scatter3d(
                 x=loaded_line_x,
@@ -264,7 +266,7 @@ def compute_tension_loaded_vs_unloaded_cableroad(
             "loaded rotated": loaded_line_rotated,
         }
         for line_name, linestring in linestring_dict.items():
-            fig = plotting.plot_Linestring_3D(linestring, fig, line_name)
+            fig = plotting_2d.plot_Linestring_3D(linestring, fig, line_name)
 
         fig.update_layout(
             margin=dict(l=0, r=0, b=0, t=0),

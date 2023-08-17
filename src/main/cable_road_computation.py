@@ -128,9 +128,6 @@ def generate_possible_lines(
         [(key, value.coords[0]) for key, value in enumerate(line_df["line_candidates"])]
     )
 
-    if plot_possible_lines:
-        plotting.plot_vispy_scene(height_gdf, view, pos)
-
     return line_df, start_point_dict
 
 

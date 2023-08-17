@@ -142,6 +142,7 @@ class optimization_result:
         line_gdf: gpd.GeoDataFrame,
         selection_index: int,
         print_results: bool = False,
+        name: str = "model",
     ):
         # extract the model object itself as well as the fac2cli assignment
         if hasattr(optimization_model, "model"):
@@ -183,6 +184,8 @@ class optimization_result:
             else 0
             for cable_road in self.cable_road_objects
         ]
+
+        self.name = name
 
 
 class Support:
