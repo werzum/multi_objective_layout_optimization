@@ -3,89 +3,23 @@ import pulp
 import operator
 from random import randint, choices
 import math
-
 import geopandas as gpd
 import pandas as pd
-
-import pulp
-
-from src.main import optimization_functions, geometry_operations, classes
-
-
-def optimize_cable_roads_single_objective(
-    lscp_optimization: classes.single_objective_optimization_model,
-    step: int,
-    steps: int,
-    start_point_dict: dict,
-):
-    # init the model with name and the problem - this only gives it a name and tells it to minimize the obj function
-
-    # Add the facilities as fac_vars and facility_clients as cli_assgn_vars
-    lscp_optimization = optimization_functions.add_facility_variables(lscp_optimization)
-    lscp_optimization = optimization_functions.add_facility_client_variables(
-        lscp_optimization
-    )
-
-    # Add the objective functions
-    lscp_optimization = optimization_functions.add_weighted_objective_function(
-        lscp_optimization,
-        start_point_dict,
-        step,
-        steps,
-    )
-
-    # Assignment/demand constraint - each client should
-    # only be assigned to one factory
-    lscp_optimization = optimization_functions.add_singular_assignment_constraint(
-        lscp_optimization
-    )
-
-    # Add opening/shipping constraint - each factory that has a client assigned to it should also be opened
-    lscp_optimization = optimization_functions.add_facility_is_opened_constraint(
-        lscp_optimization
-    )
-
-    lscp_optimization.model = lscp_optimization.model.solve(lscp_optimization.solver)
-    return lscp_optimization
-
-
-def optimize_cable_roads_epsilon_constraint(
-    lscp_optimization: classes.single_objective_optimization_model,
-    objective_to_prioritize: int = -1,
-):
-    # init the model with name and the problem - this only gives it a name and tells it to minimize the obj function
-
-    # Add the facilities as fac_vars and facility_clients as cli_assgn_vars
-    lscp_optimization = optimization_functions.add_facility_variables(lscp_optimization)
-    lscp_optimization = optimization_functions.add_facility_client_variables(
-        lscp_optimization
-    )
-
-    # Add the objective functions
-    lscp_optimization = optimization_functions.add_single_objective_function(
-        lscp_optimization, objective_to_prioritize
-    )
-
-    # Assignment/demand constraint - each client should
-    # only be assigned to one factory
-    lscp_optimization = optimization_functions.add_singular_assignment_constraint(
-        lscp_optimization
-    )
-
-    # Add opening/shipping constraint - each factory that has a client assigned to it should also be opened
-    lscp_optimization = optimization_functions.add_facility_is_opened_constraint(
-        lscp_optimization
-    )
-
-    lscp_optimization.model = lscp_optimization.model.solve(lscp_optimization.solver)
-    return lscp_optimization
-
-
 from shapely.geometry import LineString
-from src.main import geometry_utilities, classes
+
+from src.main import geometry_utilities, geometry_operations, classes
+
+# functions for computing underlying factors
 
 
 def compute_length_of_steep_downhill_segments(line_gdf: gpd.GeoDataFrame) -> pd.Series:
+    """Compute the length of steep downhill segments of each line in the GeoDataFrame as per Bont 2019 to quantify environmental impact
+    Args:
+        line_gdf (gpd.GeoDataFrame): GeoDataFrame of lines
+    Returns:
+        pd.Series: Series of arrays of lengths of steep downhill segments
+    """
+
     line_cost_array = np.empty(len(line_gdf))
     for index, line in line_gdf.iterrows():
         line_length = line.geometry.length
@@ -254,51 +188,6 @@ def compute_tree_volume(BHD: pd.Series, height: pd.Series) -> pd.Series:
     return ((BHD.astype(int) ** 2) / 1000) * (((3 * height) + 25) / 100)
 
 
-def add_facility_variables(
-    lscp_optimization: classes.single_objective_optimization_model,
-):
-    """Create a list of x_i variables representing wether a facility is active
-
-    Args:
-        facility_range (_type_): _description_
-        model (_type_): _description_
-    """
-    var_name = "x[{i}]"
-    fac_vars = [
-        pulp.LpVariable(
-            var_name.format(i=fac), lowBound=0, upBound=1, cat=pulp.LpInteger
-        )
-        for fac in lscp_optimization.facility_range
-    ]
-
-    setattr(lscp_optimization.model, "fac_vars", fac_vars)
-
-    return lscp_optimization
-
-
-def add_facility_client_variables(lscp_optimization):
-    """Create a list of variables that represent wether a given facility is assigned to a client
-
-    Args:
-        model (_type_): _description_
-        facility_range (_type_): _description_
-        client_range (_type_): _description_
-    """
-    var_name = "z[{i}_{j}]"
-    cli_assgn_vars = [
-        [
-            pulp.LpVariable(
-                var_name.format(i=i, j=j), lowBound=0, upBound=1, cat=pulp.LpInteger
-            )
-            for j in lscp_optimization.facility_range
-        ]
-        for i in lscp_optimization.client_range
-    ]
-    setattr(lscp_optimization.model, "cli_assgn_vars", cli_assgn_vars)
-
-    return lscp_optimization
-
-
 def calculate_felling_cost(
     client_range: range,
     facility_range: range,
@@ -353,6 +242,54 @@ def calculate_felling_cost(
     return productivity_cost_matrix
 
 
+# Optimization functions itself
+
+
+def add_facility_variables(
+    lscp_optimization: classes.optimization_model,
+):
+    """Create a list of x_i variables representing wether a facility is active
+
+    Args:
+        facility_range (_type_): _description_
+        model (_type_): _description_
+    """
+    var_name = "x[{i}]"
+    fac_vars = [
+        pulp.LpVariable(
+            var_name.format(i=fac), lowBound=0, upBound=1, cat=pulp.LpInteger
+        )
+        for fac in lscp_optimization.facility_range
+    ]
+
+    setattr(lscp_optimization.model, "fac_vars", fac_vars)
+
+    return lscp_optimization
+
+
+def add_facility_client_variables(lscp_optimization):
+    """Create a list of variables that represent wether a given facility is assigned to a client
+
+    Args:
+        model (_type_): _description_
+        facility_range (_type_): _description_
+        client_range (_type_): _description_
+    """
+    var_name = "z[{i}_{j}]"
+    cli_assgn_vars = [
+        [
+            pulp.LpVariable(
+                var_name.format(i=i, j=j), lowBound=0, upBound=1, cat=pulp.LpInteger
+            )
+            for j in lscp_optimization.facility_range
+        ]
+        for i in lscp_optimization.client_range
+    ]
+    setattr(lscp_optimization.model, "cli_assgn_vars", cli_assgn_vars)
+
+    return lscp_optimization
+
+
 def add_weighted_objective_function(
     lscp_optimization,
     start_point_dict,
@@ -395,11 +332,8 @@ def add_weighted_objective_function(
     return lscp_optimization
 
 
-def add_single_objective_function(
-    optimization_model: classes.single_objective_optimization_model,
-    objective_to_select: int,
-):
-    if objective_to_select == 0:
+def add_single_objective_function(optimization_model: classes.optimization_model):
+    if optimization_model.objective_to_select == 0:
         optimization_model.model.problem += (
             pulp.lpSum(
                 np.array(optimization_model.model.cli_assgn_vars)
@@ -414,19 +348,22 @@ def add_single_objective_function(
             "objective function",
         )
         # else only select the sideways slope deviations
-    elif objective_to_select == 1:
+    elif optimization_model.objective_to_select == 1:
         optimization_model.model.problem += pulp.lpSum(
             np.array(optimization_model.model.fac_vars)
             * np.array(optimization_model.sideways_slope_deviations_per_cable_road)
         )
         # else only select the downhill segments penalized segments
-    elif objective_to_select == 2 and optimization_model.steep_downhill_segments:
+    elif (
+        optimization_model.objective_to_select == 2
+        and optimization_model.steep_downhill_segments
+    ):
         optimization_model.model.problem += pulp.lpSum(
             np.array(optimization_model.model.fac_vars)
             * np.array(optimization_model.steep_downhill_segments)
         )
 
-    return optimization_model
+    return optimization_model.model
 
 
 def add_singular_assignment_constraint(lscp_optimization):

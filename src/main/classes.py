@@ -52,7 +52,7 @@ class LineString_3D:
         return self.start_point.distance(self.end_point)
 
 
-class single_objective_optimization_model:
+class optimization_model:
     def __init__(
         self,
         name: str,
@@ -61,6 +61,7 @@ class single_objective_optimization_model:
         height_gdf: gpd.GeoDataFrame,
         slope_line: LineString,
         uphill_yarding: bool = False,
+        objective_to_select: int = -1,
     ):
         # Create a matrix with the distance between every tree and line and the distance between the support (beginning of the CR) and the carriage
         # (cloests point on the CR to the tree)
@@ -70,6 +71,8 @@ class single_objective_optimization_model:
         ) = geometry_operations.compute_distances_facilities_clients(
             harvesteable_trees_gdf, line_gdf
         )
+
+        self.objective_to_select = objective_to_select
 
         # sort the facility (=lines) and demand points (=trees)
         self.facility_points_gdf = line_gdf.reset_index()
@@ -133,6 +136,31 @@ class single_objective_optimization_model:
 
         self.problem = pulp.LpProblem()
         self.model = PMedian(name, self.problem, self.aij)
+
+    def add_generic_vars_and_constraints(self):
+        # Add the facilities as fac_vars and facility_clients as cli_assgn_vars
+        self.model = optimization_functions.add_facility_variables(self.model)
+        self.model = optimization_functions.add_facility_client_variables(self.model)
+
+        # Assignment/demand constraint - each client should
+        # only be assigned to one factory
+        self.model = optimization_functions.add_singular_assignment_constraint(
+            self.model
+        )
+
+        # Add opening/shipping constraint - each factory that has a client assigned to it should also be opened
+        self.model = optimization_functions.add_facility_is_opened_constraint(
+            self.model
+        )
+
+    def add_single_objective(self):
+        self.model = optimization_functions.add_single_objective_function(self)
+
+    def add_weighted_objective(self):
+        self.model = optimization_functions.add_weighted_objective_function(self)
+
+    def solve(self):
+        self.model.solve(self.solver)
 
 
 class optimization_result:
