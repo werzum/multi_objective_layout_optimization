@@ -264,7 +264,7 @@ def add_facility_variables(
 
     setattr(lscp_optimization.model, "fac_vars", fac_vars)
 
-    return lscp_optimization
+    return lscp_optimization.model
 
 
 def add_facility_client_variables(lscp_optimization):
@@ -287,7 +287,7 @@ def add_facility_client_variables(lscp_optimization):
     ]
     setattr(lscp_optimization.model, "cli_assgn_vars", cli_assgn_vars)
 
-    return lscp_optimization
+    return lscp_optimization.model
 
 
 def add_weighted_objective_function(
@@ -329,10 +329,17 @@ def add_weighted_objective_function(
         "objective function",
     )
 
-    return lscp_optimization
+    return lscp_optimization.model
 
 
 def add_single_objective_function(optimization_model: classes.optimization_model):
+    """Add the objective function, based on the model.objective_to_select. 0 is the default, 1 is sideways slope deviations, 2 is downhill segments.
+    The other objectives are ignored.
+    Args:
+        optimization_model (classes.optimization_model): The optimization model
+    Returns:
+        optimization_model (classes.optimization_model): The optimization model with the objective function added
+    """
     if optimization_model.objective_to_select == 0:
         optimization_model.model.problem += (
             pulp.lpSum(
@@ -366,7 +373,7 @@ def add_single_objective_function(optimization_model: classes.optimization_model
     return optimization_model.model
 
 
-def add_singular_assignment_constraint(lscp_optimization):
+def add_singular_assignment_constraint(lscp_optimization: classes.optimization_model):
     """Add the constraint that the sum of facilities assigned for each client == 1 -> only one facility should be assigned to each line
 
     Args:
@@ -385,10 +392,10 @@ def add_singular_assignment_constraint(lscp_optimization):
             == 1
         )
 
-    return lscp_optimization
+    return lscp_optimization.model
 
 
-def add_facility_is_opened_constraint(lscp_optimization):
+def add_facility_is_opened_constraint(lscp_optimization: classes.optimization_model):
     """Add the constraint that for each positive entry in cli_assign_vars (ie., a client is assigned to a facility),
     there should be a corresponding facility (that is, fac_vars = 1)
 
@@ -405,7 +412,7 @@ def add_facility_is_opened_constraint(lscp_optimization):
                 >= 0
             )
 
-    return lscp_optimization
+    return lscp_optimization.model
 
 
 def test_and_reassign_clis(

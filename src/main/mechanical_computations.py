@@ -7,14 +7,8 @@ import vispy.scene
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
-from main import plotting_2d
 
-from src.main import (
-    geometry_utilities,
-    geometry_operations,
-    classes,
-    cable_road_computation,
-)
+from src.main import geometry_utilities, geometry_operations, classes, plotting_2d
 
 
 # high level functions

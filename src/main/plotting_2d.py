@@ -101,7 +101,7 @@ def add_geometries_to_fig(
 
 
 def extract_moo_model_results(
-    model: classes.single_objective_optimization_model,
+    model: classes.optimization_model,
     line_gdf: gpd.GeoDataFrame,
     fig: go.Figure = None,
     print_results: bool = False,
@@ -206,6 +206,9 @@ def model_results_comparison(
     cable_road_costs = []
     facility_cost = line_gdf["line_cost"].values
 
+    sideways_slope_deviations = []
+    steep_downhill_segments = []
+
     for result in result_list:
         # and the corresponding rows from the distance matrix
         row_sums = []
@@ -252,6 +255,8 @@ def model_results_comparison(
                 cable_road_cost = facility_cost[index]
                 total_cable_road_costs += cable_road_cost
         cable_road_costs.append(total_cable_road_costs)
+
+        # sideways_slope_deviations_here =
 
     overall_profit_unscaled = np.array(overall_profit)  # * profit_scaling
     profit_baseline = min(overall_profit_unscaled)

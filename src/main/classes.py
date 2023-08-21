@@ -139,19 +139,15 @@ class optimization_model:
 
     def add_generic_vars_and_constraints(self):
         # Add the facilities as fac_vars and facility_clients as cli_assgn_vars
-        self.model = optimization_functions.add_facility_variables(self.model)
-        self.model = optimization_functions.add_facility_client_variables(self.model)
+        self.model = optimization_functions.add_facility_variables(self)
+        self.model = optimization_functions.add_facility_client_variables(self)
 
         # Assignment/demand constraint - each client should
         # only be assigned to one factory
-        self.model = optimization_functions.add_singular_assignment_constraint(
-            self.model
-        )
+        self.model = optimization_functions.add_singular_assignment_constraint(self)
 
         # Add opening/shipping constraint - each factory that has a client assigned to it should also be opened
-        self.model = optimization_functions.add_facility_is_opened_constraint(
-            self.model
-        )
+        self.model = optimization_functions.add_facility_is_opened_constraint(self)
 
     def add_single_objective(self):
         self.model = optimization_functions.add_single_objective_function(self)
@@ -166,34 +162,34 @@ class optimization_model:
 class optimization_result:
     def __init__(
         self,
-        optimization_model,
+        optimization_object,
         line_gdf: gpd.GeoDataFrame,
         selection_index: int,
         print_results: bool = False,
         name: str = "model",
     ):
         # extract the model object itself as well as the fac2cli assignment
-        if hasattr(optimization_model, "model"):
-            self.optimized_model = optimization_model.model
+        if hasattr(optimization_object, "model"):
+            self.optimized_model = optimization_object.model
             # extract lines and CR objects
             (
                 self.selected_lines,
                 self.cable_road_objects,
             ) = helper_functions.model_to_line_gdf(self.optimized_model, line_gdf)
-            self.fac2cli = optimization_model.model.fac2cli
+            self.fac2cli = optimization_object.model.fac2cli
 
-        elif hasattr(optimization_model, "X"):
-            self.optimized_model = optimization_model
+        elif hasattr(optimization_object, "X"):
+            self.optimized_model = optimization_object
             # the cli2fac
-            X = optimization_model.X
+            X = optimization_object.X
             # the objectives
-            F = optimization_model.F
+            F = optimization_object.F
 
             # reshape and transpose the var matrices to get the fac2cli format
             variable_matrix = X[selection_index].reshape(
                 (
-                    optimization_model.problem.client_range + 1,
-                    optimization_model.problem.facility_range,
+                    optimization_object.problem.client_range + 1,
+                    optimization_object.problem.facility_range,
                 )
             )
             # transpose the variable matrix to the fac2cli format and then get the indices of the selected lines
