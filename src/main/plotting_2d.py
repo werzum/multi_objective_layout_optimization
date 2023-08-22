@@ -191,6 +191,8 @@ def model_results_comparison(
     distance_carriage_support: np.ndarray,
     productivity_cost_matrix: np.ndarray,
     tree_volumes_list: pd.Series,
+    sideways_slope_deviations_per_cable_road: pd.Series,
+    steep_downhill_segments: pd.Series,
 ):
     """Compare the results of the different models in one table
     Args:
@@ -207,7 +209,7 @@ def model_results_comparison(
     facility_cost = line_gdf["line_cost"].values
 
     sideways_slope_deviations = []
-    steep_downhill_segments = []
+    overall_steep_downhill_segments = []
 
     for result in result_list:
         # and the corresponding rows from the distance matrix
@@ -242,10 +244,9 @@ def model_results_comparison(
                 profit_per_row = tree_volumes_list.iloc[row] * 80
                 profit_this_cr = profit_per_row.sum()
                 total_profit_per_layout += profit_this_cr
-        # profit_scaling = 100
-        # total_profit_per_layout = (
-        #     total_profit_per_layout - sum(row_sums)
-        # ) / profit_scaling
+
+        # subtract the productivity cost from the total profit
+        total_profit_per_layout = total_profit_per_layout - productivity_array[-1]
         overall_profit.append(total_profit_per_layout)
 
         # get the total cable road costs
@@ -256,7 +257,18 @@ def model_results_comparison(
                 total_cable_road_costs += cable_road_cost
         cable_road_costs.append(total_cable_road_costs)
 
-        # sideways_slope_deviations_here =
+        fac_vars = [bool(var.value()) for var in result.optimized_model.fac_vars]
+
+        sideways_slope_deviations_here = np.sum(
+            fac_vars * np.array(sideways_slope_deviations_per_cable_road)
+        )
+        sideways_slope_deviations.append(sideways_slope_deviations_here)
+
+        steep_downhill_segments_here = np.sum(
+            fac_vars * np.array(steep_downhill_segments)
+        )
+
+        overall_steep_downhill_segments.append(steep_downhill_segments_here)
 
     overall_profit_unscaled = np.array(overall_profit)  # * profit_scaling
     profit_baseline = min(overall_profit_unscaled)
@@ -274,6 +286,8 @@ def model_results_comparison(
             "cable_road_costs": cable_road_costs,
             "profit_comparison": profit_comparison,
             "name": name_list,
+            "sideways_slope_deviations": sideways_slope_deviations,
+            "steep_downhill_segments": overall_steep_downhill_segments,
         }
     )
 

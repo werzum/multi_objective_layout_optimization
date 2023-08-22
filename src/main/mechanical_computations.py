@@ -611,7 +611,10 @@ def pestal_load_path(cable_road: classes.Cable_Road, loaded: bool = True):
     )  # improvised value - need to do the parallelverchiebung here
 
     distances = geometry_utilities.distance_between_points_from_origin(
-        cable_road.points_along_line_xy, cable_road.start_support.xy_location_numpy
+        cable_road.points_along_line_xy,
+        np.array(
+            cable_road.start_support.xy_location
+        ).T,  # TODO remove this workaround, doesnt seem to be the updated support version where we have a direct numpy array
     )
 
     return (

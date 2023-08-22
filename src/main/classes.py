@@ -91,14 +91,14 @@ class optimization_model:
 
         self.facility_cost = line_gdf.line_cost.values * facility_scaling_factor
 
-        # create the aij cost matrix, which is really just the distance from the tree to the line
-        distance_greater_15_mask = self.distance_tree_line > 15
-        self.distance_tree_line[
-            distance_greater_15_mask
-        ] = (  # square all distances greater than 15
-            self.distance_tree_line[distance_greater_15_mask]
-            + (self.distance_tree_line[distance_greater_15_mask] - 15) * 2
-        )
+        # # create the aij cost matrix, which is really just the distance from the tree to the line
+        # distance_greater_15_mask = self.distance_tree_line > 15
+        # self.distance_tree_line[
+        #     distance_greater_15_mask
+        # ] = (  # square all distances greater than 15
+        #     self.distance_tree_line[distance_greater_15_mask]
+        #     + (self.distance_tree_line[distance_greater_15_mask] - 15) * 2
+        # )
         self.aij = self.distance_tree_line
 
         # collect the matrices needed for the optimization
@@ -148,6 +148,14 @@ class optimization_model:
 
         # Add opening/shipping constraint - each factory that has a client assigned to it should also be opened
         self.model = optimization_functions.add_facility_is_opened_constraint(self)
+
+    def add_epsilon_constraint(self, target_value: float, objective_to_constraint: int):
+        self.model = optimization_functions.add_epsilon_constraint(
+            self, target_value, objective_to_constraint
+        )
+
+    def get_objective_values(self):
+        return optimization_functions.get_objective_values(self)
 
     def add_single_objective(self):
         self.model = optimization_functions.add_single_objective_function(self)

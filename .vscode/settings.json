@@ -5,5 +5,7 @@
   "[python]": {
     "editor.defaultFormatter": "ms-python.black-formatter"
   },
-  "python.formatting.provider": "none"
+  "python.formatting.provider": "none",
+  "notebook.formatOnSave.enabled": true,
+  "notebook.output.scrolling": true
 }

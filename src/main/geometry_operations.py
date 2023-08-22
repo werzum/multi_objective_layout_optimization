@@ -3,7 +3,7 @@ from shapely.geometry.base import BaseGeometry
 import numpy as np
 import geopandas as gpd
 
-from src.main import geometry_utilities, global_vars
+from src.main import global_vars
 
 
 def generate_road_points(

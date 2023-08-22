@@ -5,7 +5,6 @@ import vispy.scene
 import geopandas as gpd
 from pandas import DataFrame
 from itertools import pairwise
-from main import plotting_2d
 
 from src.main import (
     geometry_utilities,

@@ -64,15 +64,16 @@ def compute_cable_road_deviations_from_slope(
             temp_arr = [
                 subsegment.cable_road.line.length
                 for subsegment in sub_segments
-                if geometry_utilities.angle_between(
+                if 35
+                > geometry_utilities.angle_between(
                     subsegment.cable_road.line, slope_line
                 )
-                >= 22
-                and geometry_operations.get_slope(subsegment.cable_road) >= 25
+                <= 25
             ]
         elif (
-            geometry_utilities.angle_between(cable_road_object.line, slope_line) >= 22
-            and geometry_operations.get_slope(cable_road_object) >= 25
+            35
+            > geometry_utilities.angle_between(cable_road_object.line, slope_line)
+            <= 25
         ):
             temp_arr = [line.geometry.length]
         line_deviations_array[index] = sum(temp_arr)
@@ -233,6 +234,10 @@ def calculate_felling_cost(
             + 0.029 * 100  # the harvest intensity set to 100%
             + 0.038 * average_steepness
         )
+        # add the remainder of the distance to the produced output
+        if aij[cli][fac] > 15:
+            min_per_cycle = min_per_cycle + (aij[cli][fac] - 15)
+
         hrs_per_cycle = min_per_cycle / 60
         cost_per_cycle = (
             hrs_per_cycle * 44
@@ -240,6 +245,11 @@ def calculate_felling_cost(
 
         x[...] = cost_per_cycle
     return productivity_cost_matrix
+
+
+def logistic_growth_productivity_cost(productivity_cost: float):
+    """Return the logistic growth function for the productivity cost. We grow this up to a value of 100, with a midpoint of 40 and a growth rate of 0.1"""
+    return 100 / (1 + math.e ** (-0.1 * (productivity_cost - 40)))
 
 
 # Optimization functions itself
@@ -361,10 +371,7 @@ def add_single_objective_function(optimization_model: classes.optimization_model
             * np.array(optimization_model.sideways_slope_deviations_per_cable_road)
         )
         # else only select the downhill segments penalized segments
-    elif (
-        optimization_model.objective_to_select == 2
-        and optimization_model.steep_downhill_segments
-    ):
+    elif optimization_model.objective_to_select == 2:
         optimization_model.model.problem += pulp.lpSum(
             np.array(optimization_model.model.fac_vars)
             * np.array(optimization_model.steep_downhill_segments)
@@ -373,46 +380,134 @@ def add_single_objective_function(optimization_model: classes.optimization_model
     return optimization_model.model
 
 
-def add_singular_assignment_constraint(lscp_optimization: classes.optimization_model):
+def add_epsilon_objective_function(optimization_model: classes.optimization_model):
+    """ 
+    Args:
+        optimization_model (classes.optimization_model): The optimization model
+    Returns:
+        optimization_model (classes.optimization_model): The optimization model with the objective function added
+    """
+    optimization_model.model.problem += (
+            pulp.lpSum(
+                np.array(optimization_model.model.cli_assgn_vars)
+                * np.array(optimization_model.productivity_cost)
+            )
+            + pulp.lpSum(
+                (
+                    np.array(optimization_model.model.fac_vars)
+                    * np.array(optimization_model.facility_cost)
+                )
+            )
+            # + optimization_model.epsilon* time the slack variables divided by the range (ie slope max - slope min)
+            "objective function",
+        )
+
+    
+
+def add_singular_assignment_constraint(optimization_object: classes.optimization_model):
     """Add the constraint that the sum of facilities assigned for each client == 1 -> only one facility should be assigned to each line
 
     Args:
-        lscp_optimization.model (_type_): _description_
+        optimization_object.model (_type_): _description_
         facility_range (_type_): _description_
         client_range (_type_): _description_
     """
-    for cli in lscp_optimization.client_range:
-        lscp_optimization.model.problem += (
+    for cli in optimization_object.client_range:
+        optimization_object.model.problem += (
             pulp.lpSum(
                 [
-                    lscp_optimization.model.cli_assgn_vars[cli][fac]
-                    for fac in lscp_optimization.facility_range
+                    optimization_object.model.cli_assgn_vars[cli][fac]
+                    for fac in optimization_object.facility_range
                 ]
             )
             == 1
         )
 
-    return lscp_optimization.model
+    return optimization_object.model
 
 
-def add_facility_is_opened_constraint(lscp_optimization: classes.optimization_model):
+def add_facility_is_opened_constraint(optimization_object: classes.optimization_model):
     """Add the constraint that for each positive entry in cli_assign_vars (ie., a client is assigned to a facility),
     there should be a corresponding facility (that is, fac_vars = 1)
 
     Args:
-        lscp_optimization.model (_type_): _description_
+        optimization_object.model (_type_): _description_
         facility_range (_type_): _description_
         client_range (_type_): _description_
     """
-    for cli in lscp_optimization.client_range:
-        for fac in lscp_optimization.facility_range:
-            lscp_optimization.model.problem += (
-                lscp_optimization.model.fac_vars[fac]
-                - lscp_optimization.model.cli_assgn_vars[cli][fac]
+    for cli in optimization_object.client_range:
+        for fac in optimization_object.facility_range:
+            optimization_object.model.problem += (
+                optimization_object.model.fac_vars[fac]
+                - optimization_object.model.cli_assgn_vars[cli][fac]
                 >= 0
             )
 
-    return lscp_optimization.model
+    return optimization_object.model
+
+
+def add_epsilon_constraint(
+    optimization_object: classes.optimization_model,
+    target_value: float,
+    objective_to_constraint: int,
+):
+    """Add the constraint that the objective function should be less than or equal to the target value
+    Args:
+        optimization_object (_type_): The optimization model
+        target_value (float): The target value for the objective function to constrain to
+        objective_to_constraint (int): The objective to constrain. 0 is the default, 1 is sideways slope deviations, 2 is downhill segments.
+
+    Returns:
+        optimization_object.model (_type_): The optimization model with the constraint added
+    """
+    if objective_to_constraint == 1:
+        optimization_object.model.problem += (
+            pulp.lpSum(
+                np.array(optimization_object.model.fac_vars)
+                * np.array(optimization_object.sideways_slope_deviations_per_cable_road)
+            )
+            >= target_value
+        )
+    elif objective_to_constraint == 2:
+        optimization_object.model.problem += (
+            pulp.lpSum(
+                np.array(optimization_object.model.fac_vars)
+                * np.array(optimization_object.steep_downhill_segments)
+            )
+            >= target_value
+        )
+
+    return optimization_object.model
+
+
+def get_objective_values(optimization_object: classes.optimization_model):
+    """Get the objective values for the optimization model. The objective values are the cost, sideways slope deviations, and steep downhill segments.
+    Args:
+        optimization_object (classes.optimization_model): The optimization model
+    Returns:
+        cost_objective (float): The cost objective value
+        sideways_slope_deviations (float): The sideways slope deviations objective value
+        steep_downhill_segments_here (float): The steep downhill segments objective value
+    """
+
+    fac_vars = [bool(var.value()) for var in optimization_object.model.fac_vars]
+
+    f = lambda x: bool(x.value())
+    c2f_vars = np.vectorize(f)(np.array(optimization_object.model.cli_assgn_vars))
+
+    cost_objective = np.sum(
+        c2f_vars * np.array(optimization_object.productivity_cost)
+        + fac_vars * np.array(optimization_object.facility_cost)
+    )
+
+    sideways_slope_deviations = np.sum(
+        fac_vars
+        * np.array(optimization_object.sideways_slope_deviations_per_cable_road)
+    )
+
+    steep_downhill_segments_here = np.sum(fac_vars * np.array(optimization_object.steep_downhill_segments))
+
+    return cost_objective, sideways_slope_deviations, steep_downhill_segments_here
 
 
 def test_and_reassign_clis(
