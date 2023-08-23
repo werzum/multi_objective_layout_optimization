@@ -149,13 +149,40 @@ class optimization_model:
         # Add opening/shipping constraint - each factory that has a client assigned to it should also be opened
         self.model = optimization_functions.add_facility_is_opened_constraint(self)
 
-    def add_epsilon_constraint(self, target_value: float, objective_to_constraint: int):
+    def add_epsilon_objective(
+        self,
+        i_slack: float,
+        j_slack: float,
+        i_range: range,
+        j_range: range,
+    ):
+        self.epsilon = 1
+        self.slack_1 = i_slack
+        self.slack_2 = j_slack
+        # get the range (as in from .. to ..) of each objective
+        self.range_1 = i_range.max() - i_range.min()
+        self.range_2 = j_range.max() - j_range.min()
+
+        self.model = optimization_functions.add_epsilon_objective(self)
+
+    def add_epsilon_constraint(
+        self, target_value: float, objective_to_select: int = -1
+    ):
+        """Adds an epsilon constraint to the model - constrain the objective to be within a certain range of
+        Args:
+            target_value (float): the minimum value of the objective -
+            objective_to_select (int, optional): the objective to select. Defaults to -1.
+        """
         self.model = optimization_functions.add_epsilon_constraint(
-            self, target_value, objective_to_constraint
+            self, target_value, objective_to_select
         )
 
-    def get_objective_values(self):
-        return optimization_functions.get_objective_values(self)
+    def get_objective_values(
+        self, sideways_slope_deviations_max: float, steep_downhill_segments_max: float
+    ):
+        return optimization_functions.get_objective_values(
+            self, sideways_slope_deviations_max, steep_downhill_segments_max
+        )
 
     def add_single_objective(self):
         self.model = optimization_functions.add_single_objective_function(self)
@@ -164,7 +191,7 @@ class optimization_model:
         self.model = optimization_functions.add_weighted_objective_function(self)
 
     def solve(self):
-        self.model.solve(self.solver)
+        self.model = self.model.solve(self.solver)
 
 
 class optimization_result:

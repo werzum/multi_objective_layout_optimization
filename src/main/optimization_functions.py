@@ -380,29 +380,34 @@ def add_single_objective_function(optimization_model: classes.optimization_model
     return optimization_model.model
 
 
-def add_epsilon_objective_function(optimization_model: classes.optimization_model):
-    """ 
+def add_epsilon_objective(optimization_model: classes.optimization_model):
+    """
     Args:
         optimization_model (classes.optimization_model): The optimization model
     Returns:
         optimization_model (classes.optimization_model): The optimization model with the objective function added
     """
     optimization_model.model.problem += (
-            pulp.lpSum(
-                np.array(optimization_model.model.cli_assgn_vars)
-                * np.array(optimization_model.productivity_cost)
-            )
-            + pulp.lpSum(
-                (
-                    np.array(optimization_model.model.fac_vars)
-                    * np.array(optimization_model.facility_cost)
-                )
-            )
-            # + optimization_model.epsilon* time the slack variables divided by the range (ie slope max - slope min)
-            "objective function",
+        pulp.lpSum(
+            np.array(optimization_model.model.cli_assgn_vars)
+            * np.array(optimization_model.productivity_cost)
         )
+        + pulp.lpSum(
+            (
+                np.array(optimization_model.model.fac_vars)
+                * np.array(optimization_model.facility_cost)
+            )
+        )
+        + optimization_model.epsilon
+        * pulp.lpSum(
+            (optimization_model.slack_1 / optimization_model.range_1)
+            + (optimization_model.slack_2 / optimization_model.range_2)
+        ),
+        "objective function",
+    )
 
-    
+    return optimization_model.model
+
 
 def add_singular_assignment_constraint(optimization_object: classes.optimization_model):
     """Add the constraint that the sum of facilities assigned for each client == 1 -> only one facility should be assigned to each line
@@ -480,14 +485,20 @@ def add_epsilon_constraint(
     return optimization_object.model
 
 
-def get_objective_values(optimization_object: classes.optimization_model):
-    """Get the objective values for the optimization model. The objective values are the cost, sideways slope deviations, and steep downhill segments.
+def get_objective_values(
+    optimization_object: classes.optimization_model,
+    sideways_slope_deviations_max: float,
+    steep_downhill_segments_max: float,
+):
+    """Get the objective values for the optimization model.
+    The objective values are the cost, sideways slope deviations, and steep downhill segments.
+    Give the true max of the objective value and return the RNI value
     Args:
         optimization_object (classes.optimization_model): The optimization model
     Returns:
         cost_objective (float): The cost objective value
-        sideways_slope_deviations (float): The sideways slope deviations objective value
-        steep_downhill_segments_here (float): The steep downhill segments objective value
+        sideways_slope_deviations (float): The sideways slope deviations objective value in RNI
+        steep_downhill_segments (float): The steep downhill segments objective value in RNI
     """
 
     fac_vars = [bool(var.value()) for var in optimization_object.model.fac_vars]
@@ -505,9 +516,18 @@ def get_objective_values(optimization_object: classes.optimization_model):
         * np.array(optimization_object.sideways_slope_deviations_per_cable_road)
     )
 
-    steep_downhill_segments_here = np.sum(fac_vars * np.array(optimization_object.steep_downhill_segments))
+    steep_downhill_segments = np.sum(
+        fac_vars * np.array(optimization_object.steep_downhill_segments)
+    )
 
-    return cost_objective, sideways_slope_deviations, steep_downhill_segments_here
+    sideways_slope_deviation_RNI = (
+        sideways_slope_deviations / sideways_slope_deviations_max
+    ) * 100
+    steep_downhill_segments_RNI = (
+        steep_downhill_segments / steep_downhill_segments_max
+    ) * 100
+
+    return cost_objective, sideways_slope_deviation_RNI, steep_downhill_segments_RNI
 
 
 def test_and_reassign_clis(
