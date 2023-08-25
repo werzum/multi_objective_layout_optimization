@@ -471,15 +471,15 @@ def add_epsilon_constraint(
                 np.array(optimization_object.model.fac_vars)
                 * np.array(optimization_object.sideways_slope_deviations_per_cable_road)
             )
-            >= target_value
-        )
+            <= target_value
+        )  # TODO - this only adds one constraint, instead of one constraint per client - need to fix this by adding a bunch of constraints, or
     elif objective_to_constraint == 2:
         optimization_object.model.problem += (
             pulp.lpSum(
                 np.array(optimization_object.model.fac_vars)
                 * np.array(optimization_object.steep_downhill_segments)
             )
-            >= target_value
+            <= target_value
         )
 
     return optimization_object.model
@@ -520,14 +520,7 @@ def get_objective_values(
         fac_vars * np.array(optimization_object.steep_downhill_segments)
     )
 
-    sideways_slope_deviation_RNI = (
-        sideways_slope_deviations / sideways_slope_deviations_max
-    ) * 100
-    steep_downhill_segments_RNI = (
-        steep_downhill_segments / steep_downhill_segments_max
-    ) * 100
-
-    return cost_objective, sideways_slope_deviation_RNI, steep_downhill_segments_RNI
+    return cost_objective, sideways_slope_deviations, steep_downhill_segments
 
 
 def test_and_reassign_clis(
