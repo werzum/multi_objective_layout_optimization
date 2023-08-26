@@ -1,5 +1,6 @@
 import numpy as np
 import pulp
+from pulp import LpConstraint, LpConstraintLE
 import operator
 from random import randint, choices
 import math
@@ -466,21 +467,53 @@ def add_epsilon_constraint(
         optimization_object.model (_type_): The optimization model with the constraint added
     """
     if objective_to_constraint == 1:
-        optimization_object.model.problem += (
-            pulp.lpSum(
-                np.array(optimization_object.model.fac_vars)
-                * np.array(optimization_object.sideways_slope_deviations_per_cable_road)
-            )
-            <= target_value
-        )  # TODO - this only adds one constraint, instead of one constraint per client - need to fix this by adding a bunch of constraints, or
-    elif objective_to_constraint == 2:
-        optimization_object.model.problem += (
-            pulp.lpSum(
-                np.array(optimization_object.model.fac_vars)
-                * np.array(optimization_object.steep_downhill_segments)
-            )
-            <= target_value
+        # add a named constraint to facilitate overwriting it later
+        sum_deviations = pulp.lpSum(
+            np.array(optimization_object.model.fac_vars)
+            * np.array(optimization_object.sideways_slope_deviations_per_cable_road)
         )
+
+        # if constraint does not exist, add it to the problem
+        if "sw_constraint" not in optimization_object.model.problem.constraints:
+            optimization_object.model.problem += LpConstraint(
+                sum_deviations,
+                sense=LpConstraintLE,
+                rhs=target_value,
+                name="sw_constraint",
+            )
+        else:  # update it
+            optimization_object.model.problem.constraints[
+                "sw_constraint"
+            ] = LpConstraint(
+                sum_deviations,
+                sense=LpConstraintLE,
+                rhs=target_value,
+                name="sw_constraint",
+            )
+
+    elif objective_to_constraint == 2:
+        sum_steep_segments = pulp.lpSum(
+            np.array(optimization_object.model.fac_vars)
+            * np.array(optimization_object.steep_downhill_segments)
+        )
+
+        # if constraint does not exist, add it to the problem
+        if "dh_constraint" not in optimization_object.model.problem.constraints:
+            optimization_object.model.problem += LpConstraint(
+                sum_steep_segments,
+                sense=LpConstraintLE,
+                rhs=target_value,
+                name="dh_constraint",
+            )
+        else:  # update it
+            optimization_object.model.problem.constraints[
+                "dh_constraint"
+            ] = LpConstraint(
+                sum_steep_segments,
+                sense=LpConstraintLE,
+                rhs=target_value,
+                name="dh_constraint",
+            )
 
     return optimization_object.model
 

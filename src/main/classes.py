@@ -156,7 +156,8 @@ class optimization_model:
         i_range: range,
         j_range: range,
     ):
-        self.epsilon = 1
+        """Adds an epsilon objective to the model to minimize the first objective and further minimize the epsilon-scaled other objectives"""
+        self.epsilon = 0.1
         self.slack_1 = i_slack
         self.slack_2 = j_slack
         # get the range (as in from .. to ..) of each objective
