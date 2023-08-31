@@ -157,7 +157,7 @@ class optimization_model:
         j_range: range,
     ):
         """Adds an epsilon objective to the model to minimize the first objective and further minimize the epsilon-scaled other objectives"""
-        self.epsilon = 0.1
+        self.epsilon = 1
         self.slack_1 = i_slack
         self.slack_2 = j_slack
         # get the range (as in from .. to ..) of each objective
@@ -178,12 +178,8 @@ class optimization_model:
             self, target_value, objective_to_select
         )
 
-    def get_objective_values(
-        self, sideways_slope_deviations_max: float, steep_downhill_segments_max: float
-    ):
-        return optimization_functions.get_objective_values(
-            self, sideways_slope_deviations_max, steep_downhill_segments_max
-        )
+    def get_objective_values(self):
+        return optimization_functions.get_objective_values(self)
 
     def add_single_objective(self):
         self.model = optimization_functions.add_single_objective_function(self)

@@ -520,8 +520,6 @@ def add_epsilon_constraint(
 
 def get_objective_values(
     optimization_object: classes.optimization_model,
-    sideways_slope_deviations_max: float,
-    steep_downhill_segments_max: float,
 ):
     """Get the objective values for the optimization model.
     The objective values are the cost, sideways slope deviations, and steep downhill segments.
@@ -541,8 +539,7 @@ def get_objective_values(
 
     cost_objective = np.sum(
         c2f_vars * np.array(optimization_object.productivity_cost)
-        + fac_vars * np.array(optimization_object.facility_cost)
-    )
+    ) + np.sum(fac_vars * np.array(optimization_object.facility_cost))
 
     sideways_slope_deviations = np.sum(
         fac_vars
