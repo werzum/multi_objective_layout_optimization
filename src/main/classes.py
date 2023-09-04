@@ -181,6 +181,16 @@ class optimization_model:
     def get_objective_values(self):
         return optimization_functions.get_objective_values(self)
 
+    def get_total_epsilon_objective_value(
+        self, i_range_min_max: float, j_range_min_max: float
+    ):
+        """Returns the total objective value of the model, ie. the first objective plus the epsilon-scaled other objectives"""
+        cost, sideways, downhill = optimization_functions.get_objective_values(self)
+        self.epsilon = 1
+        return cost + self.epsilon * (
+            (sideways / i_range_min_max) + (downhill / j_range_min_max)
+        )
+
     def add_single_objective(self):
         self.model = optimization_functions.add_single_objective_function(self)
 
