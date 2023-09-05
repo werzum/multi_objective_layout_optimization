@@ -368,8 +368,9 @@ def plot_optimization_layout(
             )
         )
 
-    fig.update_layout(title="P-Median", width=1200, height=800)
-    fig.show("notebook_connected")
+    return fig
+    # fig.update_layout(title="P-Median", width=1200, height=800)
+    # fig.show("notebook_connected")
 
 
 def plot_NSGA_results(X, F, problem):
