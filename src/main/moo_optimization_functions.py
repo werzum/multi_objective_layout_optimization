@@ -4,11 +4,20 @@ from pymoo.core.repair import Repair
 import numpy as np
 from pymoo.core.mutation import Mutation
 
+import pandas as pd
+
 from src.main import optimization_functions
 
 
 class SupportLinesProblem(ElementwiseProblem):
-    def __init__(self, cost_matrix, line_cost, **kwargs):
+    def __init__(
+        self,
+        cost_matrix,
+        line_cost,
+        sideways_lines: pd.Series,
+        downhill_lines: pd.Series,
+        **kwargs
+    ):
         self.cost_matrix = cost_matrix
 
         # create the nr of possible facilities and clients
@@ -17,6 +26,10 @@ class SupportLinesProblem(ElementwiseProblem):
 
         # add facility cost
         self.facility_cost = np.array(line_cost)
+
+        self.sideways_lines = sideways_lines
+        self.downhill_lines = downhill_lines
+        self.epsilon = 1
 
         # = (n_trees*n_facs+n_facs)+n_facs
         self.n_var = self.client_range * self.facility_range + self.facility_range
@@ -132,14 +145,15 @@ class MyMutation(Mutation):
             # Use the mask for boolean indexing and set the corresponding elements to 0
             cli_assgn_vars[mask, fac_to_delete] = 0
 
+            objective_value_before = self.get_objective_value(
+                problem, fac_vars, cli_assgn_vars
+            )
+
             # Reassign clients to the closest open facilities
             reassign_clients(problem, fac_vars, cli_assgn_vars, fac_indices)
 
-            objective_value_after = self.objective_value_after(
+            objective_value_after = self.get_objective_value(
                 problem, fac_vars, cli_assgn_vars
-            )
-            objective_value_before = self.objective_value_before(
-                problem, fac_vars, cli_assgn_vars, fac_to_delete
             )
 
             # Check if this mutation decreased the objective function
@@ -155,26 +169,17 @@ class MyMutation(Mutation):
 
         return cli_assgn_vars, fac_vars
 
-    def objective_value_after(
-        self,
-        problem: SupportLinesProblem,
-        fac_vars: np.ndarray,
-        cli_assgn_vars: np.ndarray,
-    ) -> float:
-        # Calculate objective values after the mutation
-        overall_distance_obj_after = np.sum(cli_assgn_vars * problem.cost_matrix)
-        overall_cost_obj_after = np.sum(fac_vars * problem.facility_cost)
+    def get_objective_value(self, problem, fac_vars, cli_assgn_vars) -> float:
+        overall_distance_obj = np.sum(cli_assgn_vars * problem.cost_matrix)
+        overall_cost_obj = np.sum(fac_vars * problem.facility_cost)
 
-        return overall_cost_obj_after + overall_distance_obj_after
+        sideways_obj = np.sum(fac_vars * problem.sideways_lines)
+        downhill_obj = np.sum(fac_vars * problem.downhill_lines)
+        epsilon_obj = problem.epsilon * np.sum(sideways_obj + downhill_obj)
 
-    def objective_value_before(
-        self, problem, fac_vars, cli_assgn_vars, fac_to_delete
-    ) -> float:
-        overall_distance_obj_before = np.sum(cli_assgn_vars * problem.cost_matrix)
-        overall_cost_obj_before = np.sum(fac_vars * problem.facility_cost)
-        objective_value_before = overall_cost_obj_before + overall_distance_obj_before
+        objective_value = overall_cost_obj + overall_distance_obj + epsilon_obj
 
-        return objective_value_before
+        return objective_value
 
     def add_facility(
         self,
@@ -195,10 +200,8 @@ class MyMutation(Mutation):
         """
         for _ in range(10):
             # Get the objective value before the mutation
-            overall_distance_obj_before = np.sum(cli_assgn_vars * problem.cost_matrix)
-            overall_cost_obj_before = np.sum(fac_vars * problem.facility_cost)
-            objective_value_before = (
-                overall_cost_obj_before + overall_distance_obj_before
+            objective_value_before = self.get_objective_value(
+                problem, fac_vars, cli_assgn_vars
             )
 
             # Randomly open a facility (set its variable to 1)
@@ -215,12 +218,8 @@ class MyMutation(Mutation):
                 )
 
                 # Get the objective value after the mutation
-                overall_distance_obj_after = np.sum(
-                    cli_assgn_vars * problem.cost_matrix
-                )
-                overall_cost_obj_after = np.sum(fac_vars * problem.facility_cost)
-                objective_value_after = (
-                    overall_cost_obj_after + overall_distance_obj_after
+                objective_value_after = self.get_objective_value(
+                    problem, fac_vars, cli_assgn_vars
                 )
 
                 # Check if this mutation decreased the objective function
