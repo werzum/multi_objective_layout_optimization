@@ -257,7 +257,7 @@ def model_results_comparison(
                 total_cable_road_costs += cable_road_cost
         cable_road_costs.append(total_cable_road_costs)
 
-        fac_vars = [bool(var.value()) for var in result.optimized_model.fac_vars]
+        fac_vars = [True if entry else False for entry in result.fac2cli]
 
         sideways_slope_deviations_here = np.sum(
             fac_vars * np.array(sideways_slope_deviations_per_cable_road)
@@ -368,8 +368,8 @@ def plot_optimization_layout(
             )
         )
 
+    fig.update_layout(title=result.name, width=1200, height=800)
     return fig
-    # fig.update_layout(title="P-Median", width=1200, height=800)
     # fig.show("notebook_connected")
 
 

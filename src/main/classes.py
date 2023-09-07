@@ -238,6 +238,11 @@ class optimization_result:
             fac2cli = variable_matrix[:-1].T
             self.fac2cli = [np.where(row)[0].tolist() for row in fac2cli]
 
+            # add the fac vars to the optimized model
+            self.optimized_model.fac_vars = [
+                True if entry else False for entry in self.fac2cli
+            ]
+
             # also extract lines and CR objects
             (
                 self.selected_lines,
