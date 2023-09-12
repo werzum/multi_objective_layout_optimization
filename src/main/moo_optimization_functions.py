@@ -15,7 +15,7 @@ class SupportLinesProblem(ElementwiseProblem):
         cost_matrix,
         line_cost,
         sideways_lines: pd.Series,
-        downhill_lines: pd.Series,
+        ergonomic_penalty_lateral_distances: np.ndarray,
         **kwargs
     ):
         self.cost_matrix = cost_matrix
@@ -28,7 +28,7 @@ class SupportLinesProblem(ElementwiseProblem):
         self.facility_cost = np.array(line_cost)
 
         self.sideways_lines = sideways_lines
-        self.downhill_lines = downhill_lines
+        self.ergonomic_penalty_lateral_distances = ergonomic_penalty_lateral_distances
         self.epsilon = 1
 
         # = (n_trees*n_facs+n_facs)+n_facs
@@ -174,8 +174,11 @@ class MyMutation(Mutation):
         overall_cost_obj = np.sum(fac_vars * problem.facility_cost)
 
         sideways_obj = np.sum(fac_vars * problem.sideways_lines)
-        downhill_obj = np.sum(fac_vars * problem.downhill_lines)
-        epsilon_obj = problem.epsilon * np.sum(sideways_obj + downhill_obj)
+        # check if this is the right way to compute it
+        ergonomics_obj = np.sum(
+            fac_vars * problem.ergonomic_penalty_lateral_distances, axis=1
+        )
+        epsilon_obj = problem.epsilon * np.sum(sideways_obj + ergonomics_obj)
 
         objective_value = overall_cost_obj + overall_distance_obj + epsilon_obj
 

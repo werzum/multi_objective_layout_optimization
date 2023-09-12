@@ -116,13 +116,19 @@ class optimization_model:
             )
         )
 
-        # calculate the segments which have a vertical slope greater than 10 and are treated in downhill logging
-        if not uphill_yarding:
-            self.steep_downhill_segments = (
-                optimization_functions.compute_length_of_steep_downhill_segments(
-                    line_gdf
-                )
+        ergonomics_penalty_treshold = 15
+        distance_greater_penalty_treshold_mask = (
+            self.distance_tree_line > ergonomics_penalty_treshold
+        )
+        # double all distances greater than penalty_treshold
+        self.ergonomic_penalty_lateral_distances = (
+            self.distance_tree_line[distance_greater_penalty_treshold_mask]
+            + (
+                self.distance_tree_line[distance_greater_penalty_treshold_mask]
+                - ergonomics_penalty_treshold
             )
+            * 2
+        )
 
         # and the productivity cost combination of each line combination
         self.productivity_cost = optimization_functions.calculate_felling_cost(

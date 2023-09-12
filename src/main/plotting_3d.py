@@ -285,8 +285,8 @@ def plot_all_cable_roads(height_gdf, line_gdf) -> go.Figure:
     fig.update_traces(marker={"size": 0.75})
     fig.update_layout(
         margin=dict(l=0, r=0, b=0, t=0),
-        width=1000,
-        height=800,
+        width=2000,
+        height=1800,
         title="Relief Map with possible Cable Roads",
     )
 

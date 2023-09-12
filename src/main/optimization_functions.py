@@ -13,34 +13,6 @@ from src.main import geometry_utilities, geometry_operations, classes
 # functions for computing underlying factors
 
 
-def compute_length_of_steep_downhill_segments(line_gdf: gpd.GeoDataFrame) -> pd.Series:
-    """Compute the length of steep downhill segments of each line in the GeoDataFrame as per Bont 2019 to quantify environmental impact
-    Args:
-        line_gdf (gpd.GeoDataFrame): GeoDataFrame of lines
-    Returns:
-        pd.Series: Series of arrays of lengths of steep downhill segments
-    """
-
-    line_cost_array = np.empty(len(line_gdf))
-    for index, line in line_gdf.iterrows():
-        line_length = line.geometry.length
-        sub_segments = list(line["Cable Road Object"].get_all_subsegments())
-        if sub_segments:
-            line_cost_array[index] = sum(
-                subsegement.cable_road.line.length
-                for subsegement in sub_segments
-                if geometry_operations.get_slope(subsegement.cable_road) >= 10
-            )
-        else:
-            line_cost_array[index] = (
-                geometry_operations.get_slope(line["Cable Road Object"])
-                if geometry_operations.get_slope(line["Cable Road Object"]) >= 10
-                else 0
-            )
-
-    return pd.Series(line_cost_array)
-
-
 def compute_cable_road_deviations_from_slope(
     line_gdf: gpd.GeoDataFrame, slope_line: LineString
 ) -> pd.Series:
@@ -344,7 +316,7 @@ def add_weighted_objective_function(
 
 
 def add_single_objective_function(optimization_model: classes.optimization_model):
-    """Add the objective function, based on the model.objective_to_select. 0 is the default, 1 is sideways slope deviations, 2 is downhill segments.
+    """Add the objective function, based on the model.objective_to_select. 0 is the default, 1 is sideways slope deviations, 2 is ergonomic segments.
     The other objectives are ignored.
     Args:
         optimization_model (classes.optimization_model): The optimization model
@@ -352,33 +324,44 @@ def add_single_objective_function(optimization_model: classes.optimization_model
         optimization_model (classes.optimization_model): The optimization model with the objective function added
     """
     if optimization_model.objective_to_select == 0:
-        optimization_model.model.problem += (
-            pulp.lpSum(
-                np.array(optimization_model.model.cli_assgn_vars)
-                * np.array(optimization_model.productivity_cost)
-            )
-            + pulp.lpSum(
-                (
-                    np.array(optimization_model.model.fac_vars)
-                    * np.array(optimization_model.facility_cost)
-                )
-            ),
-            "objective function",
-        )
+        optimization_model.model.problem += add_cost_objective(optimization_model)
         # else only select the sideways slope deviations
     elif optimization_model.objective_to_select == 1:
-        optimization_model.model.problem += pulp.lpSum(
-            np.array(optimization_model.model.fac_vars)
-            * np.array(optimization_model.sideways_slope_deviations_per_cable_road)
-        )
-        # else only select the downhill segments penalized segments
-    elif optimization_model.objective_to_select == 2:
-        optimization_model.model.problem += pulp.lpSum(
-            np.array(optimization_model.model.fac_vars)
-            * np.array(optimization_model.steep_downhill_segments)
+        optimization_model.model.problem += add_sideways_slope_objective(
+            optimization_model
         )
 
+        # else penalize the ergonomic segments
+    elif optimization_model.objective_to_select == 2:
+        optimization_model.model.problem += add_ergonomic_objective(optimization_model)
+
     return optimization_model.model
+
+
+def add_cost_objective(optimization_model: classes.optimization_model):
+    return pulp.lpSum(
+        np.array(optimization_model.model.cli_assgn_vars)
+        * np.array(optimization_model.productivity_cost)
+    ) + pulp.lpSum(
+        (
+            np.array(optimization_model.model.fac_vars)
+            * np.array(optimization_model.facility_cost)
+        )
+    )
+
+
+def add_sideways_slope_objective(optimization_model: classes.optimization_model):
+    return pulp.lpSum(
+        np.array(optimization_model.model.fac_vars)
+        * np.array(optimization_model.sideways_slope_deviations_per_cable_road)
+    )
+
+
+def add_ergonomic_objective(optimization_model: classes.optimization_model):
+    return pulp.lpSum(
+        np.array(optimization_model.model.fac_vars)
+        * np.array(optimization_model.ergonomic_penalty_lateral_distances)
+    )
 
 
 def add_epsilon_objective(optimization_model: classes.optimization_model):
@@ -389,16 +372,7 @@ def add_epsilon_objective(optimization_model: classes.optimization_model):
         optimization_model (classes.optimization_model): The optimization model with the objective function added
     """
     optimization_model.model.problem += (
-        pulp.lpSum(
-            np.array(optimization_model.model.cli_assgn_vars)
-            * np.array(optimization_model.productivity_cost)
-        )
-        + pulp.lpSum(
-            (
-                np.array(optimization_model.model.fac_vars)
-                * np.array(optimization_model.facility_cost)
-            )
-        )
+        add_cost_objective(optimization_model)
         + optimization_model.epsilon
         * pulp.lpSum(
             (optimization_model.slack_1 / optimization_model.range_1)
@@ -461,14 +435,14 @@ def add_epsilon_constraint(
     Args:
         optimization_object (_type_): The optimization model
         target_value (float): The target value for the objective function to constrain to
-        objective_to_constraint (int): The objective to constrain. 0 is the default, 1 is sideways slope deviations, 2 is downhill segments.
+        objective_to_constraint (int): The objective to constrain. 0 is the default, 1 is sideways slope deviations, 2 is bad ergonomic segments.
 
     Returns:
         optimization_object.model (_type_): The optimization model with the constraint added
     """
     if objective_to_constraint == 1:
         # add a named constraint to facilitate overwriting it later
-        sum_deviations = pulp.lpSum(
+        sum_deviations_variables = pulp.lpSum(
             np.array(optimization_object.model.fac_vars)
             * np.array(optimization_object.sideways_slope_deviations_per_cable_road)
         )
@@ -476,7 +450,7 @@ def add_epsilon_constraint(
         # if constraint does not exist, add it to the problem
         if "sw_constraint" not in optimization_object.model.problem.constraints:
             optimization_object.model.problem += LpConstraint(
-                sum_deviations,
+                sum_deviations_variables,
                 sense=LpConstraintLE,
                 rhs=target_value,
                 name="sw_constraint",
@@ -485,14 +459,14 @@ def add_epsilon_constraint(
             optimization_object.model.problem.constraints[
                 "sw_constraint"
             ] = LpConstraint(
-                sum_deviations,
+                sum_deviations_variables,
                 sense=LpConstraintLE,
                 rhs=target_value,
                 name="sw_constraint",
             )
 
     elif objective_to_constraint == 2:
-        sum_steep_segments = pulp.lpSum(
+        sum_bad_ergonomic_distances_variables = pulp.lpSum(
             np.array(optimization_object.model.fac_vars)
             * np.array(optimization_object.steep_downhill_segments)
         )
@@ -500,7 +474,7 @@ def add_epsilon_constraint(
         # if constraint does not exist, add it to the problem
         if "dh_constraint" not in optimization_object.model.problem.constraints:
             optimization_object.model.problem += LpConstraint(
-                sum_steep_segments,
+                sum_bad_ergonomic_distances_variables,
                 sense=LpConstraintLE,
                 rhs=target_value,
                 name="dh_constraint",
@@ -509,7 +483,7 @@ def add_epsilon_constraint(
             optimization_object.model.problem.constraints[
                 "dh_constraint"
             ] = LpConstraint(
-                sum_steep_segments,
+                sum_bad_ergonomic_distances_variables,
                 sense=LpConstraintLE,
                 rhs=target_value,
                 name="dh_constraint",
@@ -522,14 +496,14 @@ def get_objective_values(
     optimization_object: classes.optimization_model,
 ):
     """Get the objective values for the optimization model.
-    The objective values are the cost, sideways slope deviations, and steep downhill segments.
+    The objective values are the cost, sideways slope deviations, and ergonomically bad segments.
     Give the true max of the objective value and return the RNI value
     Args:
         optimization_object (classes.optimization_model): The optimization model
     Returns:
         cost_objective (float): The cost objective value
         sideways_slope_deviations (float): The sideways slope deviations objective value in RNI
-        steep_downhill_segments (float): The steep downhill segments objective value in RNI
+        bad_ergonomic_distance (float): The ergonomically bad segments objective value in RNI
     """
 
     fac_vars = [bool(var.value()) for var in optimization_object.model.fac_vars]
@@ -537,20 +511,41 @@ def get_objective_values(
     f = lambda x: bool(x.value())
     c2f_vars = np.vectorize(f)(np.array(optimization_object.model.cli_assgn_vars))
 
-    cost_objective = np.sum(
-        c2f_vars * np.array(optimization_object.productivity_cost)
-    ) + np.sum(fac_vars * np.array(optimization_object.facility_cost))
+    cost_objective = compute_cost_objective(c2f_vars, fac_vars, optimization_object)
+    sideways_slope_deviations = compute_sideways_slope_objective(
+        fac_vars, optimization_object
+    )
 
-    sideways_slope_deviations = np.sum(
+    bad_ergonomic_distance = compute_ergonomics_objective(fac_vars, optimization_object)
+
+    return cost_objective, sideways_slope_deviations, bad_ergonomic_distance
+
+
+def compute_cost_objective(
+    c2f_vars: np.ndarray,
+    fac_vars: list[bool],
+    optimization_object: classes.optimization_model,
+) -> float:
+    return np.sum(c2f_vars * np.array(optimization_object.productivity_cost)) + np.sum(
+        fac_vars * np.array(optimization_object.facility_cost)
+    )
+
+
+def compute_sideways_slope_objective(
+    fac_vars: list[bool], optimization_object: classes.optimization_model
+) -> float:
+    return np.sum(
         fac_vars
         * np.array(optimization_object.sideways_slope_deviations_per_cable_road)
     )
 
-    steep_downhill_segments = np.sum(
-        fac_vars * np.array(optimization_object.steep_downhill_segments)
-    )
 
-    return cost_objective, sideways_slope_deviations, steep_downhill_segments
+def compute_ergonomics_objective(
+    fac_vars: list[bool], optimization_object: classes.optimization_model
+) -> float:
+    return np.sum(
+        fac_vars * np.array(optimization_object.bad_ergonomic_distance), axis=1
+    )
 
 
 def test_and_reassign_clis(

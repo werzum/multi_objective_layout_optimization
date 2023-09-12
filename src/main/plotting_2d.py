@@ -12,9 +12,7 @@ from IPython import display
 
 import plotly.graph_objects as go
 
-from src.main import (
-    classes,
-)
+from src.main import classes, optimization_functions
 
 from src.tests import helper_functions
 
@@ -192,7 +190,7 @@ def model_results_comparison(
     productivity_cost_matrix: np.ndarray,
     tree_volumes_list: pd.Series,
     sideways_slope_deviations_per_cable_road: pd.Series,
-    steep_downhill_segments: pd.Series,
+    ergonomic_penalty_lateral_distances: np.ndarray,
 ):
     """Compare the results of the different models in one table
     Args:
@@ -209,7 +207,14 @@ def model_results_comparison(
     facility_cost = line_gdf["line_cost"].values
 
     sideways_slope_deviations = []
-    overall_steep_downhill_segments = []
+    overall_ergonomic_penalty_lateral_distances = []
+
+    total_profit_per_layout_baseline = 0
+    for index, row in enumerate(result_list[0].fac2cli):
+        if row:
+            profit_per_row = tree_volumes_list.iloc[row] * 80
+            profit_this_cr = profit_per_row.sum()
+            total_profit_per_layout_baseline += profit_this_cr
 
     for result in result_list:
         # and the corresponding rows from the distance matrix
@@ -237,17 +242,8 @@ def model_results_comparison(
                 row_sums.append(row_sum_distance)
         distance_carriage_support_array.append(sum(row_sums))
 
-        # get the total profit
-        total_profit_per_layout = 0
-        for index, row in enumerate(result.fac2cli):
-            if row:
-                profit_per_row = tree_volumes_list.iloc[row] * 80
-                profit_this_cr = profit_per_row.sum()
-                total_profit_per_layout += profit_this_cr
-
         # subtract the productivity cost from the total profit
-        total_profit_per_layout = total_profit_per_layout - productivity_array[-1]
-        overall_profit.append(total_profit_per_layout)
+        overall_profit.append(total_profit_per_layout_baseline - productivity_array[-1])
 
         # get the total cable road costs
         total_cable_road_costs = 0
@@ -257,18 +253,14 @@ def model_results_comparison(
                 total_cable_road_costs += cable_road_cost
         cable_road_costs.append(total_cable_road_costs)
 
-        fac_vars = [True if entry else False for entry in result.fac2cli]
+        (
+            cost_objective_here,
+            sideways_slope_deviations_here,
+            bad_ergonomic_distance_here,
+        ) = optimization_functions.get_objective_values(result.optimized_model)
 
-        sideways_slope_deviations_here = np.sum(
-            fac_vars * np.array(sideways_slope_deviations_per_cable_road)
-        )
         sideways_slope_deviations.append(sideways_slope_deviations_here)
-
-        steep_downhill_segments_here = np.sum(
-            fac_vars * np.array(steep_downhill_segments)
-        )
-
-        overall_steep_downhill_segments.append(steep_downhill_segments_here)
+        overall_ergonomic_penalty_lateral_distances.append(bad_ergonomic_distance_here)
 
     overall_profit_unscaled = np.array(overall_profit)  # * profit_scaling
     profit_baseline = min(overall_profit_unscaled)
@@ -287,7 +279,7 @@ def model_results_comparison(
             "profit_comparison": profit_comparison,
             "name": name_list,
             "sideways_slope_deviations": sideways_slope_deviations,
-            "steep_downhill_segments": overall_steep_downhill_segments,
+            "bad_ergonomics_distance": overall_ergonomic_penalty_lateral_distances,
         }
     )
 
