@@ -29,7 +29,7 @@ class SupportLinesProblem(ElementwiseProblem):
 
         self.sideways_lines = sideways_lines
         self.ergonomic_penalty_lateral_distances = ergonomic_penalty_lateral_distances
-        self.epsilon = 1
+        self.epsilon = 0.1
 
         # = (n_trees*n_facs+n_facs)+n_facs
         self.n_var = self.client_range * self.facility_range + self.facility_range
@@ -104,8 +104,25 @@ from pymoo.core.sampling import Sampling
 
 
 class CustomSampling(Sampling):
+    """Custom sampling with one open fac for the start configuration"""
+
     def _do(self, problem, n_samples, **kwargs):
-        return np.zeros((n_samples, problem.n_var))
+        # initially zero array
+        vars = np.zeros((problem.client_range + 1, problem.facility_range))
+
+        # Randomly open a facility (set its variable to 1)
+        factory_to_open = randint(0, problem.facility_range - 1)
+        # set all clients to this fac (ie all rows)
+        vars[:, factory_to_open] = 1
+        # and open this fac
+        vars[-1, factory_to_open] = 1
+
+        vars = vars.flatten()
+
+        # repeat this for all samples
+        return np.vstack([vars] * n_samples)
+
+        # return np.zeros((n_samples, problem.n_var))
 
 
 class MyMutation(Mutation):
@@ -176,7 +193,7 @@ class MyMutation(Mutation):
         sideways_obj = np.sum(fac_vars * problem.sideways_lines)
         # check if this is the right way to compute it
         ergonomics_obj = np.sum(
-            fac_vars * problem.ergonomic_penalty_lateral_distances, axis=1
+            fac_vars * problem.ergonomic_penalty_lateral_distances, axis=0
         )
         epsilon_obj = problem.epsilon * np.sum(sideways_obj + ergonomics_obj)
 
@@ -238,6 +255,20 @@ class MyMutation(Mutation):
 
         return cli_assgn_vars, fac_vars
 
+    def get_fac_cli_assgn_vars(self, problem, x, j):
+        # Reshape the solution 'x[j]' into a matrix with 'problem.client_range + 1' rows and 'problem.facility_range' columns
+
+        variable_matrix = x[j].reshape(
+            (problem.client_range + 1, problem.facility_range)
+        )
+        cli_assgn_vars = variable_matrix[
+            :-1
+        ]  # Extract the rows except the last one (client assignment variables)
+
+        fac_vars = variable_matrix[-1]  # Extract the last row (facility variables)
+
+        return fac_vars, cli_assgn_vars
+
     def _do(self, problem: SupportLinesProblem, x: np.ndarray, **kwargs) -> np.ndarray:
         """
         Applies the mutation operator to the solutions in 'x'.
@@ -253,14 +284,7 @@ class MyMutation(Mutation):
         x_shape = x.shape[0]  # Get the number of solutions in 'x'
 
         for j in range(x_shape):
-            # Reshape the solution 'x[j]' into a matrix with 'problem.client_range + 1' rows and 'problem.facility_range' columns
-            variable_matrix = x[j].reshape(
-                (problem.client_range + 1, problem.facility_range)
-            )
-            cli_assgn_vars = variable_matrix[
-                :-1
-            ]  # Extract the rows except the last one (client assignment variables)
-            fac_vars = variable_matrix[-1]  # Extract the last row (facility variables)
+            fac_vars, cli_assgn_vars = self.get_fac_cli_assgn_vars(problem, x, j)
 
             for _ in range(10):
                 fac_indices = np.where(fac_vars == 1)[0]

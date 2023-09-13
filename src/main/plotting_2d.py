@@ -98,90 +98,6 @@ def add_geometries_to_fig(
     return fig
 
 
-def extract_moo_model_results(
-    model: classes.optimization_model,
-    line_gdf: gpd.GeoDataFrame,
-    fig: go.Figure = None,
-    print_results: bool = False,
-) -> go.Figure:
-    """Extract the results of the P-Median optimization and return them as a plotly table
-
-    Args:
-        optimized_model (PMedian): The optimized model
-        line_gdf (gpd.GeoDataFrame): The line gdf
-        fig (go.Figure): The figure to add the table to
-        print_results (bool): Whether to print the results to the console
-    Returns:
-        go.Figure: The figure with the table
-    """
-    # get the selected lines from the optimized model
-    optimized_model = model.model
-    selected_lines, cable_road_objects = helper_functions.model_to_line_gdf(
-        optimized_model, line_gdf
-    )
-
-    selected_lines["number_int_supports"] = [
-        len(list(cable_road.get_all_subsegments())) - 1
-        if list(cable_road.get_all_subsegments())
-        else 0
-        for cable_road in cable_road_objects
-    ]
-
-    columns_to_select = [
-        "slope_deviation",
-        "angle_between_supports",
-        "line_length",
-        "line_cost",
-        "number_int_supports",
-    ]
-
-    table = go.Table(
-        header=dict(values=columns_to_select, fill_color="paleturquoise", align="left"),
-        cells=dict(
-            values=[*[selected_lines[val].astype(int) for val in columns_to_select]],
-            fill_color="lavender",
-            align="left",
-        ),
-    )
-
-    total_cost = [int(selected_lines["line_cost"].sum())]
-    summary_table = go.Table(
-        header=dict(values=["Total cost"], fill_color="lightblue", align="left"),
-        cells=dict(
-            values=[total_cost],
-            fill_color="lavender",
-            align="left",
-        ),
-    )
-
-    horizontal_slope_deviations = sum(
-        model.sideways_slope_deviations_per_cable_road[selected_lines.index]
-    )
-    steep_downhill_segments = sum(model.steep_downhill_segments[selected_lines.index])
-
-    if fig:
-        fig.add_trace(table)
-        fig.add_trace(summary_table)
-    elif print_results:
-        display.display(selected_lines[columns_to_select])
-        display.display(
-            "Total cost:",
-            total_cost,
-            " Sideways Slope:",
-            horizontal_slope_deviations,
-            " Steep downhill:",
-            steep_downhill_segments,
-        )
-    else:
-        fig = make_subplots(
-            rows=2, cols=1, specs=[[{"type": "table"}], [{"type": "table"}]]
-        )
-        fig.add_trace(table, row=1, col=1)
-        fig.add_trace(summary_table, row=2, col=1)
-
-    return fig
-
-
 def model_results_comparison(
     result_list: list[classes.optimization_result],
     line_gdf: gpd.GeoDataFrame,
@@ -254,10 +170,13 @@ def model_results_comparison(
         cable_road_costs.append(total_cable_road_costs)
 
         (
-            cost_objective_here,
             sideways_slope_deviations_here,
             bad_ergonomic_distance_here,
-        ) = optimization_functions.get_objective_values(result.optimized_model)
+        ) = optimization_functions.get_secondary_objective_values_with_fac2cli(
+            result.fac2cli,
+            sideways_slope_deviations_per_cable_road,
+            ergonomic_penalty_lateral_distances,
+        )
 
         sideways_slope_deviations.append(sideways_slope_deviations_here)
         overall_ergonomic_penalty_lateral_distances.append(bad_ergonomic_distance_here)

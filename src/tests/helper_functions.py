@@ -1,11 +1,7 @@
 import pandas as pd
-import numpy as np
 import geopandas as gpd
-from shapely.geometry import LineString, Point
-from spopt.locate import PMedian
 
-
-from src.main import classes
+from src.main import optimization_functions, classes
 
 
 def set_up_gdfs():
@@ -24,11 +20,11 @@ def load_pickle(var_name: str):
 
 
 def model_to_line_gdf(
-    optimized_model, line_gdf: gpd.GeoDataFrame
+    optimized_object: classes.optimization_object, line_gdf: gpd.GeoDataFrame
 ) -> tuple[gpd.GeoDataFrame, pd.Series]:
     """This function takes the optimized model and the line gdf and returns the selected lines and the cable road objects
     Args:
-        optimized_model (PMedian): The optimized model
+        optimized_object: The optimized model
         line_gdf (gpd.GeoDataFrame): The line gdf
     Returns:
         gpd.GeoDataFrame: The selected lines
@@ -36,15 +32,10 @@ def model_to_line_gdf(
     """
 
     # get the positive facility variables and select those from the line gdf
-    if hasattr(optimized_model, "fac_vars"):
-        fac_vars = [bool(var.value()) for var in optimized_model.fac_vars]
+    if hasattr(optimized_object, "model"):
+        fac_vars = optimization_functions.get_fac_vars(optimized_object)
         selected_lines = line_gdf[fac_vars]
-    elif isinstance(optimized_model, np.ndarray):
-        # then we expect to be passed one of the solution np arrays from NSGA 2 (ie X[n])
-        fac_vars = optimized_model[-1]
-        selected_lines = line_gdf[fac_vars.astype(bool)]
     else:
-        print("Neither PULP nor NSGA properties found")
+        selected_lines = line_gdf[optimized_object.fac_vars]
 
-    cable_road_objects = selected_lines.loc[:, "Cable Road Object"]
-    return selected_lines, cable_road_objects
+    return selected_lines, selected_lines["Cable Road Object"]

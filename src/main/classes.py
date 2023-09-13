@@ -4,7 +4,6 @@ import geopandas as gpd
 from itertools import pairwise
 import pulp
 from spopt.locate import PMedian
-from src.tests import helper_functions
 
 
 class Point_3D:
@@ -52,7 +51,7 @@ class LineString_3D:
         return self.start_point.distance(self.end_point)
 
 
-class optimization_model:
+class optimization_object:
     def __init__(
         self,
         name: str,
@@ -60,7 +59,6 @@ class optimization_model:
         harvesteable_trees_gdf: gpd.GeoDataFrame,
         height_gdf: gpd.GeoDataFrame,
         slope_line: LineString,
-        uphill_yarding: bool = False,
         objective_to_select: int = -1,
     ):
         # Create a matrix with the distance between every tree and line and the distance between the support (beginning of the CR) and the carriage
@@ -86,19 +84,7 @@ class optimization_model:
         self.client_range = range(self.distance_tree_line.shape[0])
         self.facility_range = range(self.distance_tree_line.shape[1])
 
-        # add facility cost with an optional scaling factor
-        facility_scaling_factor = 1
-
-        self.facility_cost = line_gdf.line_cost.values * facility_scaling_factor
-
-        # # create the aij cost matrix, which is really just the distance from the tree to the line
-        # distance_greater_15_mask = self.distance_tree_line > 15
-        # self.distance_tree_line[
-        #     distance_greater_15_mask
-        # ] = (  # square all distances greater than 15
-        #     self.distance_tree_line[distance_greater_15_mask]
-        #     + (self.distance_tree_line[distance_greater_15_mask] - 15) * 2
-        # )
+        self.facility_cost = line_gdf.line_cost.values
         self.aij = self.distance_tree_line
 
         # collect the matrices needed for the optimization
@@ -116,18 +102,12 @@ class optimization_model:
             )
         )
 
-        ergonomics_penalty_treshold = 15
-        distance_greater_penalty_treshold_mask = (
-            self.distance_tree_line > ergonomics_penalty_treshold
-        )
         # double all distances greater than penalty_treshold
-        self.ergonomic_penalty_lateral_distances = (
-            self.distance_tree_line[distance_greater_penalty_treshold_mask]
-            + (
-                self.distance_tree_line[distance_greater_penalty_treshold_mask]
-                - ergonomics_penalty_treshold
-            )
-            * 2
+        ergonomics_penalty_treshold = 15
+        self.ergonomic_penalty_lateral_distances = np.where(
+            self.distance_tree_line > 15,
+            (self.distance_tree_line - ergonomics_penalty_treshold) * 2,
+            self.distance_tree_line,
         )
 
         # and the productivity cost combination of each line combination
@@ -136,7 +116,7 @@ class optimization_model:
             self.facility_range,
             self.aij,
             self.distance_carriage_support,
-            self.tree_volumes_list,
+            self.tree_volumes_list.values,
             self.average_steepness,
         )
 
@@ -191,10 +171,10 @@ class optimization_model:
         self, i_range_min_max: float, j_range_min_max: float
     ):
         """Returns the total objective value of the model, ie. the first objective plus the epsilon-scaled other objectives"""
-        cost, sideways, downhill = optimization_functions.get_objective_values(self)
+        cost, sideways, ergonomics = optimization_functions.get_objective_values(self)
         self.epsilon = 1
         return cost + self.epsilon * (
-            (sideways / i_range_min_max) + (downhill / j_range_min_max)
+            (sideways / i_range_min_max) + (ergonomics / j_range_min_max)
         )
 
     def add_single_objective(self):
@@ -207,10 +187,13 @@ class optimization_model:
         self.model = self.model.solve(self.solver)
 
 
+from src.tests import helper_functions
+
+
 class optimization_result:
     def __init__(
         self,
-        optimization_object,
+        optimization_object: optimization_object,
         line_gdf: gpd.GeoDataFrame,
         selection_index: int,
         print_results: bool = False,
@@ -223,7 +206,7 @@ class optimization_result:
             (
                 self.selected_lines,
                 self.cable_road_objects,
-            ) = helper_functions.model_to_line_gdf(self.optimized_model, line_gdf)
+            ) = helper_functions.model_to_line_gdf(optimization_object, line_gdf)
             self.fac2cli = optimization_object.model.fac2cli
 
         elif hasattr(optimization_object, "X"):
@@ -253,8 +236,12 @@ class optimization_result:
             (
                 self.selected_lines,
                 self.cable_road_objects,
-            ) = helper_functions.model_to_line_gdf(variable_matrix, line_gdf)
+            ) = helper_functions.model_to_line_gdf(self.optimized_model, line_gdf)
 
+        # copy this to prevent pandas warning about wrong indexing due to slicing
+        self.selected_lines = self.selected_lines.copy()
+
+        # compute the number of supports
         self.selected_lines["number_int_supports"] = [
             len(list(cable_road.get_all_subsegments())) - 1
             if list(cable_road.get_all_subsegments())
