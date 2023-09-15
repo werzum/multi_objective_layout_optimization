@@ -105,9 +105,9 @@ class optimization_object:
         # double all distances greater than penalty_treshold
         ergonomics_penalty_treshold = 15
         self.ergonomic_penalty_lateral_distances = np.where(
-            self.distance_tree_line > 15,
+            self.distance_tree_line > ergonomics_penalty_treshold,
             (self.distance_tree_line - ergonomics_penalty_treshold) * 2,
-            self.distance_tree_line,
+            0,
         )
 
         # and the productivity cost combination of each line combination

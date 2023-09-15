@@ -206,6 +206,7 @@ class MyMutation(Mutation):
         problem: SupportLinesProblem,
         fac_vars: np.ndarray,
         cli_assgn_vars: np.ndarray,
+        t: float,
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Randomly opens a facility and reassigns clients to the closest open facilities.
@@ -218,7 +219,7 @@ class MyMutation(Mutation):
         Returns:
             Tuple[np.ndarray, np.ndarray]: Tuple containing updated cli_assgn_vars and fac_vars.
         """
-        for _ in range(10):
+        for _ in range(1):
             # Get the objective value before the mutation
             objective_value_before = self.get_objective_value(
                 problem, fac_vars, cli_assgn_vars
@@ -242,8 +243,16 @@ class MyMutation(Mutation):
                     problem, fac_vars, cli_assgn_vars
                 )
 
-                # Check if this mutation decreased the objective function
-                if objective_value_after < objective_value_before:
+                metroplis_criterion = np.exp(
+                    -(objective_value_after - objective_value_before) / t
+                )
+
+                # Check if this mutation decreased the objective function or if the metropolis criterion is fulfilled
+                # we can accept a worse solution with decreasing chance
+                if (
+                    objective_value_after < objective_value_before
+                    or metroplis_criterion > np.random.uniform()
+                ):
                     break  # Mutation improved the objective, stop trying
                 else:
                     # Undo this mutation and keep trying other facilities
@@ -283,15 +292,20 @@ class MyMutation(Mutation):
         buffer = []  # Create a buffer to store mutated solutions
         x_shape = x.shape[0]  # Get the number of solutions in 'x'
 
+        temperature = 1
+        iteration = kwargs["algorithm"].n_gen
+        t = temperature / iteration
+
         for j in range(x_shape):
             fac_vars, cli_assgn_vars = self.get_fac_cli_assgn_vars(problem, x, j)
 
             for _ in range(10):
                 fac_indices = np.where(fac_vars == 1)[0]
 
+                # add a facility if there are none - we always need at least one
                 if len(fac_indices) == 0:
                     cli_assgn_vars, fac_vars = self.add_facility(
-                        problem, fac_vars, cli_assgn_vars
+                        problem, fac_vars, cli_assgn_vars, t
                     )
                 else:
                     # Try to remove a facility that decreases the objective value or add one if not possible
@@ -301,7 +315,7 @@ class MyMutation(Mutation):
                         )
                     else:
                         cli_assgn_vars, fac_vars = self.add_facility(
-                            problem, fac_vars, cli_assgn_vars
+                            problem, fac_vars, cli_assgn_vars, t
                         )
 
             buffer.append(
