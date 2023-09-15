@@ -134,6 +134,7 @@ class MyMutation(Mutation):
         problem: SupportLinesProblem,
         fac_vars: np.ndarray,
         cli_assgn_vars: np.ndarray,
+        t: float
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Randomly removes a facility and reassigns clients to other open facilities.
@@ -173,8 +174,9 @@ class MyMutation(Mutation):
                 problem, fac_vars, cli_assgn_vars
             )
 
+
             # Check if this mutation decreased the objective function
-            if objective_value_after < objective_value_before:
+            if metropolis_decision(objective_value_after, objective_value_before, t)
                 break  # Mutation improved the objective, stop trying
             else:
                 # Undo this mutation and keep trying other facilities
@@ -243,16 +245,9 @@ class MyMutation(Mutation):
                     problem, fac_vars, cli_assgn_vars
                 )
 
-                metroplis_criterion = np.exp(
-                    -(objective_value_after - objective_value_before) / t
-                )
-
                 # Check if this mutation decreased the objective function or if the metropolis criterion is fulfilled
                 # we can accept a worse solution with decreasing chance
-                if (
-                    objective_value_after < objective_value_before
-                    or metroplis_criterion > np.random.uniform()
-                ):
+                if metropolis_decision(objective_value_after, objective_value_before,t):
                     break  # Mutation improved the objective, stop trying
                 else:
                     # Undo this mutation and keep trying other facilities
@@ -263,6 +258,7 @@ class MyMutation(Mutation):
                     )
 
         return cli_assgn_vars, fac_vars
+
 
     def get_fac_cli_assgn_vars(self, problem, x, j):
         # Reshape the solution 'x[j]' into a matrix with 'problem.client_range + 1' rows and 'problem.facility_range' columns
@@ -311,7 +307,7 @@ class MyMutation(Mutation):
                     # Try to remove a facility that decreases the objective value or add one if not possible
                     if randint(0, 1):
                         cli_assgn_vars, fac_vars = self.remove_facility(
-                            problem, fac_vars, cli_assgn_vars
+                            problem, fac_vars, cli_assgn_vars, t
                         )
                     else:
                         cli_assgn_vars, fac_vars = self.add_facility(
@@ -362,3 +358,19 @@ def reassign_clients(
     a[fac_indices] = 1
 
     return updated_cli_assgn_vars, fac_vars
+
+def metropolis_decision(objective_value_after: float, objective_value_before: float, t: float) -> bool:
+    """ Return True if we accept the mutation"""
+    metroplis_criterion = np.exp(
+            -(objective_value_after - objective_value_before) / t
+        )
+
+    # Check if this mutation decreased the objective function or if the metropolis criterion is fulfilled
+    # we can accept a worse solution with decreasing chance
+    if (
+            objective_value_after < objective_value_before
+            or metroplis_criterion > np.random.uniform()
+    ):
+        return True
+    else:
+        return False
