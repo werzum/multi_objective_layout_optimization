@@ -203,6 +203,111 @@ def model_results_comparison(
     )
 
 
+def expert_results_extraction(
+    fac2cli: list,
+    line_gdf: gpd.GeoDataFrame,
+    aij: np.ndarray,
+    distance_carriage_support: np.ndarray,
+    productivity_cost_matrix: np.ndarray,
+    tree_volumes_list: pd.Series,
+    sideways_slope_deviations_per_cable_road: pd.Series,
+    ergonomic_penalty_lateral_distances: np.ndarray,
+    name: str,
+):
+    """Compare the results of the different models in one table
+    Args:
+        result_list (list): a list of the models with different tradeoffs
+        productivity_cost_matrix (np.ndarray): the productivity cost matrix
+        aij (np.ndarray): the distance matrix
+        distance_carriage_support (np.ndarray): the distance matrix
+    """
+    productivity_array = []
+    aij_array = []
+    distance_carriage_support_array = []
+    overall_profit = []
+    cable_road_costs = []
+    facility_cost = line_gdf["line_cost"].values
+
+    sideways_slope_deviations = []
+    overall_ergonomic_penalty_lateral_distances = []
+
+    total_profit_per_layout_baseline = 0
+    for index, row in enumerate(fac2cli):
+        if row:
+            profit_per_row = tree_volumes_list.iloc[row] * 80
+            profit_this_cr = profit_per_row.sum()
+            total_profit_per_layout_baseline += profit_this_cr
+
+    # and the corresponding rows from the distance matrix
+    row_sums = []
+    for index, row in enumerate(fac2cli):
+        if row:
+            distance_per_this_row = aij[row, index]
+            row_sum_distance = distance_per_this_row.sum()
+            row_sums.append(row_sum_distance)
+    aij_array.append(sum(row_sums))
+
+    row_sums = []
+    for index, row in enumerate(fac2cli):
+        if row:
+            productivity_per_row = productivity_cost_matrix[row, index]
+            row_sum_distance = productivity_per_row.sum()
+            row_sums.append(row_sum_distance)
+    productivity_array.append(sum(row_sums))
+
+    row_sums = []
+    for index, row in enumerate(fac2cli):
+        if row:
+            distance_per_this_row = distance_carriage_support[row, index]
+            row_sum_distance = distance_per_this_row.sum()
+            row_sums.append(row_sum_distance)
+    distance_carriage_support_array.append(sum(row_sums))
+
+    # subtract the productivity cost from the total profit
+    overall_profit.append(total_profit_per_layout_baseline - productivity_array[-1])
+
+    # get the total cable road costs
+    total_cable_road_costs = 0
+    for index, row in enumerate(fac2cli):
+        if row:
+            cable_road_cost = facility_cost[index]
+            total_cable_road_costs += cable_road_cost
+    cable_road_costs.append(total_cable_road_costs)
+
+    (
+        sideways_slope_deviations_here,
+        bad_ergonomic_distance_here,
+    ) = optimization_functions.get_secondary_objective_values_with_fac2cli(
+        fac2cli,
+        sideways_slope_deviations_per_cable_road,
+        ergonomic_penalty_lateral_distances,
+    )
+
+    sideways_slope_deviations.append(sideways_slope_deviations_here)
+    overall_ergonomic_penalty_lateral_distances.append(bad_ergonomic_distance_here)
+
+    overall_profit_unscaled = np.array(overall_profit)  # * profit_scaling
+    profit_baseline = min(overall_profit_unscaled)
+    print(f"Profit baseline is {profit_baseline}")
+    profit_comparison = overall_profit_unscaled - profit_baseline
+
+    name_list = name
+
+    return pd.DataFrame(
+        data={
+            "Total distance of trees to cable roads": aij_array,
+            "Productivity cost per m3 as per Stampfer": productivity_array,
+            "Total distance from carriage to support": distance_carriage_support_array,
+            "overall_profit": overall_profit,
+            "cable_road_costs": cable_road_costs,
+            "profit_comparison": profit_comparison,
+            "name": name_list,
+            "sideways_slope_deviations": sideways_slope_deviations,
+            "bad_ergonomics_distance": overall_ergonomic_penalty_lateral_distances,
+        }
+    )
+
+
 def plot_optimization_layout(
     result: classes.optimization_result,
     line_gdf: gpd.GeoDataFrame,
