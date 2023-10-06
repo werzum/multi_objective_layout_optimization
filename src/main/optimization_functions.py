@@ -144,17 +144,6 @@ def line_cost_function(
     install_time = setup_time + takedown_time
     line_cost = install_time * cost_man_hour
     return line_cost
-    # add penalty according to deviation
-    # def deviation_condition (individual_cost, individual_deviation):
-    #     if 10 <= individual_deviation <= 35:
-    #         return individual_cost
-    #     elif individual_deviation >= 45:
-    #         return individual_cost+line_length*2
-    #     else:
-    #         return individual_cost+(line_length*0.5)
-
-    # apply the penalty computation to each element and return this list
-    # return deviation_condition(line_length, slope_deviation)
 
 
 def compute_tree_volume(BHD: pd.Series, height: pd.Series) -> pd.Series:
@@ -510,7 +499,12 @@ def get_secondary_objective_values_with_fac2cli(
         fac_vars * np.array(sideways_slope_deviations_per_cable_road)
     )
 
-    bad_ergonomic_distance_here = np.sum(fac_vars * np.array(bad_ergonomic_distance))
+    bad_ergonomic_distance_here = np.sum(
+        np.min(
+            bad_ergonomic_distance[:, np.array(fac_vars)],
+            axis=1,
+        )
+    )
 
     return sideways_slope_deviations_here, bad_ergonomic_distance_here
 
@@ -604,57 +598,14 @@ def compute_ergonomics_objective(
     Returns:
         float: The ergonomics objective value"""
 
-    return np.sum(
-        fac_vars * np.array(optimization_object.ergonomic_penalty_lateral_distances)
-    )
+    try:
+        ergonomics_obj = np.sum(
+            np.min(optimization_object.ergonomic_penalty_lateral_distances)[
+                :, fac_vars
+            ],
+            axis=1,
+        )
+    except:
+        ergonomics_obj = 0
 
-
-def test_and_reassign_clis(
-    fac_range, cli_range, fac_vars, cli_assgn_vars, fac_indices, aij
-):
-    """Ensure that the opening and assignment constraint are satisfied
-
-    Returns:
-        _type_: _description_
-    """
-
-    for i in range(fac_range):
-        #  find where a cli is assigned to a fac that is not opened (sum of row is negative)
-        opening_assignment_test = fac_vars[i] - cli_assgn_vars[:, i]
-        if operator.contains(opening_assignment_test, -1):
-            # assign all clis to the nearest opened fac:
-            for j in range(cli_range):
-                # skip if no facs are opened
-                if len(fac_indices > 0):
-                    # get the 2nd smallest distance to avoid finding distance to self
-                    smallest_distance = min(aij[j, fac_indices])
-
-                    # find its position
-                    min_index = np.where(aij[j] == smallest_distance)[0]
-                    # and assign this client to this one
-                    random_fac = choices(min_index)
-                    cli_assgn_vars[j, random_fac] = 1
-
-    for j in range(cli_range):
-        if np.sum(cli_assgn_vars[j, :]) > 1:
-            # get indices of the facs this cli is assigned
-            cli_assgn_indices = np.where(fac_vars == 1)[0]
-
-            # skip if this one isnt assigned (which should not happen) or we have no more facs opened
-            if len(cli_assgn_indices) < 1 or len(fac_indices) < 1:
-                continue
-
-            # get the 2nd smallest to avoid finding distance to self
-            smallest_distance = min(aij[j, fac_indices])
-            # find its position
-            min_index = np.where(aij[j] == smallest_distance)[0]
-            # and assign to one of them
-            random_fac = choices(min_index)
-            # random_fac = choices(cli_assgn_indices)
-
-            # set whole row to zero
-            cli_assgn_vars[j] = np.zeros(fac_range)
-            # and randomly set one of those facs to 1
-            cli_assgn_vars[j, random_fac] = 1
-
-    return cli_assgn_vars, fac_vars
+    return ergonomics_obj

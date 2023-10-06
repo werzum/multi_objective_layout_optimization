@@ -12,17 +12,17 @@ from src.main import optimization_functions
 class SupportLinesProblem(ElementwiseProblem):
     def __init__(
         self,
-        cost_matrix,
+        distance_matrix,
         line_cost,
         sideways_lines: pd.Series,
         ergonomic_penalty_lateral_distances: np.ndarray,
         **kwargs
     ):
-        self.cost_matrix = cost_matrix
+        self.distance_matrix = distance_matrix
 
         # create the nr of possible facilities and clients
-        self.client_range = cost_matrix.shape[0]
-        self.facility_range = cost_matrix.shape[1]
+        self.client_range = distance_matrix.shape[0]
+        self.facility_range = distance_matrix.shape[1]
 
         # add facility cost
         self.facility_cost = np.array(line_cost)
@@ -51,7 +51,8 @@ class SupportLinesProblem(ElementwiseProblem):
         cli_assgn_vars = variable_matrix[:-1]
         fac_vars = variable_matrix[-1]
 
-        overall_distance_obj = np.sum(cli_assgn_vars * self.cost_matrix)
+        # TODO these need to be updated with the correct way to compute the objectives - distance and cost as one obj, then also sideways and ergonomic
+        overall_distance_obj = np.sum(cli_assgn_vars * self.distance_matrix)
         overall_cost_obj = np.sum(fac_vars * self.facility_cost)
 
         # for each row sum should be 1 -> only one client allowed
@@ -134,7 +135,7 @@ class MyMutation(Mutation):
         problem: SupportLinesProblem,
         fac_vars: np.ndarray,
         cli_assgn_vars: np.ndarray,
-        t: float
+        t: float,
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Randomly removes a facility and reassigns clients to other open facilities.
@@ -174,9 +175,8 @@ class MyMutation(Mutation):
                 problem, fac_vars, cli_assgn_vars
             )
 
-
             # Check if this mutation decreased the objective function
-            if metropolis_decision(objective_value_after, objective_value_before, t)
+            if metropolis_decision(objective_value_after, objective_value_before, t):
                 break  # Mutation improved the objective, stop trying
             else:
                 # Undo this mutation and keep trying other facilities
@@ -189,14 +189,25 @@ class MyMutation(Mutation):
         return cli_assgn_vars, fac_vars
 
     def get_objective_value(self, problem, fac_vars, cli_assgn_vars) -> float:
-        overall_distance_obj = np.sum(cli_assgn_vars * problem.cost_matrix)
+        overall_distance_obj = np.sum(cli_assgn_vars * problem.distance_matrix)
         overall_cost_obj = np.sum(fac_vars * problem.facility_cost)
 
         sideways_obj = np.sum(fac_vars * problem.sideways_lines)
-        # check if this is the right way to compute it
-        ergonomics_obj = np.sum(
-            fac_vars * problem.ergonomic_penalty_lateral_distances, axis=0
-        )
+        # select only those columns from distances which are in the fac_vars array and get the sum of the min values of each row
+        try:
+            ergonomics_obj = np.sum(
+                np.min(
+                    problem.ergonomic_penalty_lateral_distances[
+                        :, np.array(fac_vars).astype(bool)
+                    ],
+                    axis=1,
+                )
+            )
+        except:
+            ergonomics_obj = 0
+
+        # now we need to assign them to the closest fac with argmin
+
         epsilon_obj = problem.epsilon * np.sum(sideways_obj + ergonomics_obj)
 
         objective_value = overall_cost_obj + overall_distance_obj + epsilon_obj
@@ -247,7 +258,9 @@ class MyMutation(Mutation):
 
                 # Check if this mutation decreased the objective function or if the metropolis criterion is fulfilled
                 # we can accept a worse solution with decreasing chance
-                if metropolis_decision(objective_value_after, objective_value_before,t):
+                if metropolis_decision(
+                    objective_value_after, objective_value_before, t
+                ):
                     break  # Mutation improved the objective, stop trying
                 else:
                     # Undo this mutation and keep trying other facilities
@@ -258,7 +271,6 @@ class MyMutation(Mutation):
                     )
 
         return cli_assgn_vars, fac_vars
-
 
     def get_fac_cli_assgn_vars(self, problem, x, j):
         # Reshape the solution 'x[j]' into a matrix with 'problem.client_range + 1' rows and 'problem.facility_range' columns
@@ -344,7 +356,7 @@ def reassign_clients(
         Tuple[np.ndarray, np.ndarray]: Tuple containing updated cli_assgn_vars and fac_vars.
     """
     # Find the positions of the closest facilities for each client
-    min_indices = np.argmin(problem.cost_matrix[:, fac_indices], axis=1)
+    min_indices = np.argmin(problem.distance_matrix[:, fac_indices], axis=1)
 
     # Create an array for the updated client assignments
     updated_cli_assgn_vars = np.zeros_like(cli_assgn_vars)
@@ -359,17 +371,18 @@ def reassign_clients(
 
     return updated_cli_assgn_vars, fac_vars
 
-def metropolis_decision(objective_value_after: float, objective_value_before: float, t: float) -> bool:
-    """ Return True if we accept the mutation"""
-    metroplis_criterion = np.exp(
-            -(objective_value_after - objective_value_before) / t
-        )
+
+def metropolis_decision(
+    objective_value_after: float, objective_value_before: float, t: float
+) -> bool:
+    """Return True if we accept the mutation"""
+    metroplis_criterion = np.exp(-(objective_value_after - objective_value_before) / t)
 
     # Check if this mutation decreased the objective function or if the metropolis criterion is fulfilled
     # we can accept a worse solution with decreasing chance
     if (
-            objective_value_after < objective_value_before
-            or metroplis_criterion > np.random.uniform()
+        objective_value_after < objective_value_before
+        or metroplis_criterion > np.random.uniform()
     ):
         return True
     else:

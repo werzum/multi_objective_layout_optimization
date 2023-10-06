@@ -384,7 +384,7 @@ def plot_optimization_layout(
             )
         )
 
-    fig.update_layout(title=result.name, width=1200, height=800)
+    fig.update_layout(width=1200, height=800)
     return fig
     # fig.show("notebook_connected")
 
