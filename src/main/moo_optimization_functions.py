@@ -13,7 +13,8 @@ class SupportLinesProblem(ElementwiseProblem):
     def __init__(
         self,
         distance_matrix,
-        line_cost,
+        productivity_cost,
+        facility_cost,
         sideways_lines: pd.Series,
         ergonomic_penalty_lateral_distances: np.ndarray,
         **kwargs
@@ -24,8 +25,8 @@ class SupportLinesProblem(ElementwiseProblem):
         self.client_range = distance_matrix.shape[0]
         self.facility_range = distance_matrix.shape[1]
 
-        # add facility cost
-        self.facility_cost = np.array(line_cost)
+        self.productivity_cost = productivity_cost
+        self.facility_cost = facility_cost
 
         self.sideways_lines = sideways_lines
         self.ergonomic_penalty_lateral_distances = ergonomic_penalty_lateral_distances
@@ -36,7 +37,7 @@ class SupportLinesProblem(ElementwiseProblem):
 
         super().__init__(
             n_var=self.n_var,
-            n_obj=2,
+            n_obj=3,
             n_eq_constr=self.client_range,
             n_ieq_constr=self.client_range,
             xl=0,
@@ -52,8 +53,15 @@ class SupportLinesProblem(ElementwiseProblem):
         fac_vars = variable_matrix[-1]
 
         # TODO these need to be updated with the correct way to compute the objectives - distance and cost as one obj, then also sideways and ergonomic
-        overall_distance_obj = np.sum(cli_assgn_vars * self.distance_matrix)
-        overall_cost_obj = np.sum(fac_vars * self.facility_cost)
+        # overall_distance_obj = np.sum(cli_assgn_vars * self.distance_matrix)
+        # overall_cost_obj = np.sum(fac_vars * self.facility_cost)
+        # overall_ergo_obj
+
+        (
+            cost_obj,
+            ecological_obj,
+            ergonomic_obj,
+        ) = get_objective_values(self, fac_vars, cli_assgn_vars)
 
         # for each row sum should be 1 -> only one client allowed
         singular_assignment_constr = np.sum(cli_assgn_vars, axis=1) - 1
@@ -61,7 +69,7 @@ class SupportLinesProblem(ElementwiseProblem):
         # want to enforce that for each row where a 1 exists, fac_vars also has a 1
         facility_is_opened_constr = -np.sum(fac_vars - cli_assgn_vars, axis=1)
 
-        out["F"] = np.column_stack([overall_distance_obj, overall_cost_obj])
+        out["F"] = np.column_stack([cost_obj, ecological_obj, ergonomic_obj])
         # ieq constr
         out["G"] = np.column_stack([facility_is_opened_constr])
         # eq constr
@@ -123,7 +131,42 @@ class CustomSampling(Sampling):
         # repeat this for all samples
         return np.vstack([vars] * n_samples)
 
-        # return np.zeros((n_samples, problem.n_var))
+
+def get_objective_values(
+    problem, fac_vars, cli_assgn_vars
+) -> tuple[float, float, float]:
+    # overall_distance_obj = np.sum(cli_assgn_vars * problem.distance_matrix)
+    overall_cost_obj = np.sum(fac_vars * problem.facility_cost) + np.sum(
+        cli_assgn_vars * problem.productivity_cost
+    )
+
+    sideways_obj = np.sum(fac_vars * problem.sideways_lines)
+
+    # Count the ergonomics objective
+    # select only those columns from distances which are in the fac_vars array and get the sum of the min values of each row
+    try:
+        ergonomics_obj = np.sum(
+            np.min(
+                problem.ergonomic_penalty_lateral_distances[
+                    :, np.array(fac_vars).astype(bool)
+                ],
+                axis=1,
+            )
+        )
+    except:
+        ergonomics_obj = 0
+
+    return overall_cost_obj, sideways_obj, ergonomics_obj
+
+
+def get_total_objective_value(problem, fac_vars, cli_assgn_vars):
+    """Get the combined objective value as per AUGMECON"""
+
+    overall_cost_obj, sideways_obj, ergonomics_obj = get_objective_values(
+        problem, fac_vars, cli_assgn_vars
+    )
+
+    return overall_cost_obj + problem.epsilon * (sideways_obj + ergonomics_obj)
 
 
 class MyMutation(Mutation):
@@ -164,14 +207,14 @@ class MyMutation(Mutation):
             # Use the mask for boolean indexing and set the corresponding elements to 0
             cli_assgn_vars[mask, fac_to_delete] = 0
 
-            objective_value_before = self.get_objective_value(
+            objective_value_before = get_total_objective_value(
                 problem, fac_vars, cli_assgn_vars
             )
 
             # Reassign clients to the closest open facilities
             reassign_clients(problem, fac_vars, cli_assgn_vars, fac_indices)
 
-            objective_value_after = self.get_objective_value(
+            objective_value_after = get_total_objective_value(
                 problem, fac_vars, cli_assgn_vars
             )
 
@@ -187,32 +230,6 @@ class MyMutation(Mutation):
                 )
 
         return cli_assgn_vars, fac_vars
-
-    def get_objective_value(self, problem, fac_vars, cli_assgn_vars) -> float:
-        overall_distance_obj = np.sum(cli_assgn_vars * problem.distance_matrix)
-        overall_cost_obj = np.sum(fac_vars * problem.facility_cost)
-
-        sideways_obj = np.sum(fac_vars * problem.sideways_lines)
-        # select only those columns from distances which are in the fac_vars array and get the sum of the min values of each row
-        try:
-            ergonomics_obj = np.sum(
-                np.min(
-                    problem.ergonomic_penalty_lateral_distances[
-                        :, np.array(fac_vars).astype(bool)
-                    ],
-                    axis=1,
-                )
-            )
-        except:
-            ergonomics_obj = 0
-
-        # now we need to assign them to the closest fac with argmin
-
-        epsilon_obj = problem.epsilon * np.sum(sideways_obj + ergonomics_obj)
-
-        objective_value = overall_cost_obj + overall_distance_obj + epsilon_obj
-
-        return objective_value
 
     def add_facility(
         self,
@@ -234,7 +251,7 @@ class MyMutation(Mutation):
         """
         for _ in range(1):
             # Get the objective value before the mutation
-            objective_value_before = self.get_objective_value(
+            objective_value_before = get_total_objective_value(
                 problem, fac_vars, cli_assgn_vars
             )
 
@@ -252,7 +269,7 @@ class MyMutation(Mutation):
                 )
 
                 # Get the objective value after the mutation
-                objective_value_after = self.get_objective_value(
+                objective_value_after = get_total_objective_value(
                     problem, fac_vars, cli_assgn_vars
                 )
 
