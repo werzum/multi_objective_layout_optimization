@@ -1,7 +1,8 @@
 import pandas as pd
 import geopandas as gpd
+from main import optimization_compute_quantification
 
-from src.main import optimization_functions, classes
+from main import classes_cable_road_computation
 
 
 def set_up_gdfs():
@@ -20,7 +21,8 @@ def load_pickle(var_name: str):
 
 
 def model_to_line_gdf(
-    optimized_object: classes.optimization_object, line_gdf: gpd.GeoDataFrame
+    optimized_object: classes_cable_road_computation.optimization_object,
+    line_gdf: gpd.GeoDataFrame,
 ) -> tuple[gpd.GeoDataFrame, pd.Series]:
     """This function takes the optimized model and the line gdf and returns the selected lines and the cable road objects
     Args:
@@ -33,7 +35,7 @@ def model_to_line_gdf(
 
     # get the positive facility variables and select those from the line gdf
     if hasattr(optimized_object, "model"):
-        fac_vars = optimization_functions.get_fac_vars(optimized_object)
+        fac_vars = optimization_compute_quantification.get_fac_vars(optimized_object)
         selected_lines = line_gdf[fac_vars]
     else:
         selected_lines = line_gdf[optimized_object.fac_vars]

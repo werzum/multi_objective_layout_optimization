@@ -1,4 +1,5 @@
 import math
+from main import classes_cable_road_computation
 from shapely.geometry import LineString, Point, Polygon
 from shapely.geometry.base import BaseGeometry
 from shapely.affinity import rotate
@@ -8,12 +9,12 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 
-from src.main import geometry_utilities, geometry_operations, classes, plotting_2d
+from src.main import geometry_utilities, geometry_operations, plotting_2d
 
 
 # high level functions
 def check_if_no_collisions_cable_road(
-    this_cable_road: classes.Cable_Road,
+    this_cable_road: classes_cable_road_computation.Cable_Road,
 ):
     """A function to check whether there are any points along the line candidate (spanned up by the starting/end points elevation plus the support height) which are less than min_height away from the line.
     Returns the cable_road object, and sets the no_collisions property correspondingly
@@ -43,7 +44,8 @@ def check_if_no_collisions_cable_road(
 
 
 def check_if_support_withstands_tension(
-    current_segment: classes.SupportedSegment, next_segment: classes.SupportedSegment
+    current_segment: classes_cable_road_computation.SupportedSegment,
+    next_segment: classes_cable_road_computation.SupportedSegment,
 ) -> bool:
     """
     This function calculates the exerted force on a support tree, based on the tension in a loaded cable road
@@ -88,11 +90,11 @@ def check_if_support_withstands_tension(
 
 
 def get_line_3d_from_cr_startpoint_to_centroid(
-    cable_road: classes.Cable_Road,
+    cable_road: classes_cable_road_computation.Cable_Road,
     move_towards_start_point: bool,
     sloped: bool,
     index: int,
-) -> classes.LineString_3D:
+) -> classes_cable_road_computation.LineString_3D:
     """
     Compute the centroid of the cable road and the line that connects the centroid to the start point
 
@@ -126,16 +128,16 @@ def get_line_3d_from_cr_startpoint_to_centroid(
     xy_point_along_line = cable_road.points_along_line[index * index_swap]
 
     # construct a 3d point along the line with the given height
-    centroid_xyz = classes.Point_3D(
+    centroid_xyz = classes_cable_road_computation.Point_3D(
         xy_point_along_line.x, xy_point_along_line.y, centroid_height
     )
 
-    return classes.LineString_3D(start_point_3d, centroid_xyz)
+    return classes_cable_road_computation.LineString_3D(start_point_3d, centroid_xyz)
 
 
 def compute_resulting_force_on_cable(
-    straight_line: classes.LineString_3D,
-    sloped_line: classes.LineString_3D,
+    straight_line: classes_cable_road_computation.LineString_3D,
+    sloped_line: classes_cable_road_computation.LineString_3D,
     tension: float,
     scaling_factor: int,
 ) -> float:
@@ -161,8 +163,8 @@ def compute_resulting_force_on_cable(
 
 
 def compute_tension_loaded_vs_unloaded_cableroad(
-    loaded_cable_road: classes.Cable_Road,
-    unloaded_cable_road: classes.Cable_Road,
+    loaded_cable_road: classes_cable_road_computation.Cable_Road,
+    unloaded_cable_road: classes_cable_road_computation.Cable_Road,
     scaling_factor: int,
     reverse_direction: bool = False,
     fig: go.Figure = None,
@@ -380,7 +382,7 @@ def parallelverschiebung(force: float, angle: float) -> float:
 
 
 def check_if_tower_and_anchor_trees_hold(
-    this_cable_road: classes.Cable_Road,
+    this_cable_road: classes_cable_road_computation.Cable_Road,
     max_holding_force: list[float],
     anchor_triplets: list,
     height_gdf: gpd.GeoDataFrame,
@@ -412,7 +414,7 @@ def check_if_tower_and_anchor_trees_hold(
     index = min(
         int(exerted_force // scaling_factor), len(this_cable_road.points_along_line) - 1
     )
-    loaded_cr_interpolated_tension_point = classes.Point_3D(
+    loaded_cr_interpolated_tension_point = classes_cable_road_computation.Point_3D(
         this_cable_road.points_along_line[index].x,
         this_cable_road.points_along_line[index].y,
         this_cable_road.absolute_loaded_line_height[index],
@@ -427,7 +429,7 @@ def check_if_tower_and_anchor_trees_hold(
         anchor_point_height = geometry_operations.fetch_point_elevation(
             anchor_start_point_xy, height_gdf, 1
         )
-        anchor_start_point_xyz = classes.Point_3D(
+        anchor_start_point_xyz = classes_cable_road_computation.Point_3D(
             anchor_start_point_xy.x, anchor_start_point_xy.y, anchor_point_height
         )
         anchor_start_point_distance = (
@@ -459,9 +461,9 @@ from varname import nameof
 
 
 def construct_tower_force_parallelogram(
-    tower_point: classes.Point_3D,
-    s_max_point: classes.Point_3D,
-    s_a_point_real: classes.Point_3D,
+    tower_point: classes_cable_road_computation.Point_3D,
+    s_max_point: classes_cable_road_computation.Point_3D,
+    s_a_point_real: classes_cable_road_computation.Point_3D,
     scaling_factor: int,
     fig: go.Figure = None,
 ) -> tuple[float, float]:
@@ -483,11 +485,13 @@ def construct_tower_force_parallelogram(
     s_max_to_anchor_dist = s_max_point.distance(tower_point)
     s_max_to_anchor_height = tower_point.z - s_max_point.z
 
-    tower_s_max_x_point = classes.Point_3D(tower_point.x, tower_point.y, s_max_point.z)
+    tower_s_max_x_point = classes_cable_road_computation.Point_3D(
+        tower_point.x, tower_point.y, s_max_point.z
+    )
     tower_s_max_x_point_distance = s_max_point.distance(tower_s_max_x_point)
 
     # get the point along the line which is the force distance away from the tower point
-    s_a_point_interpolated = classes.LineString_3D(
+    s_a_point_interpolated = classes_cable_road_computation.LineString_3D(
         tower_point, s_a_point_real
     ).interpolate(tower_s_max_x_point_distance)
 
@@ -502,25 +506,25 @@ def construct_tower_force_parallelogram(
     s_a_interpolated_length = s_a_point_interpolated.distance(tower_point)
 
     # and the central point along the tower xz line with the coordinates of sa
-    tower_s_a_radius = classes.Point_3D(
+    tower_s_a_radius = classes_cable_road_computation.Point_3D(
         tower_point.x,
         tower_point.y,
         tower_point.z - s_a_interpolated_length,
     )
 
-    tower_s_max_radius = classes.Point_3D(
+    tower_s_max_radius = classes_cable_road_computation.Point_3D(
         tower_point.x,
         tower_point.y,
         tower_point.z - s_max_to_anchor_height,
     )
 
     # shifting s_max z down by s_a distance to get a_3
-    a_3_point = classes.Point_3D(
+    a_3_point = classes_cable_road_computation.Point_3D(
         s_max_point.x, s_max_point.y, tower_s_max_radius.z - s_max_to_anchor_height
     )
 
     # shifting s_a down by s_a_distance
-    a_4_point = classes.Point_3D(
+    a_4_point = classes_cable_road_computation.Point_3D(
         s_a_point_interpolated.x,
         s_a_point_interpolated.y,
         s_a_point_interpolated.z - s_a_interpolated_length,
@@ -531,7 +535,7 @@ def construct_tower_force_parallelogram(
     z_distance_anchor_to_a_4 = tower_point.z - a_4_point.z
     z_distance_anchor_a5 = z_distance_anchor_to_a_3 + z_distance_anchor_to_a_4
     # and now shifting the tower point down by this distance
-    a_5_point = classes.Point_3D(
+    a_5_point = classes_cable_road_computation.Point_3D(
         tower_point.x,
         tower_point.y,
         tower_point.z - z_distance_anchor_a5,
@@ -585,7 +589,9 @@ def construct_tower_force_parallelogram(
     return force_on_anchor, force_on_tower
 
 
-def pestal_load_path(cable_road: classes.Cable_Road, loaded: bool = True):
+def pestal_load_path(
+    cable_road: classes_cable_road_computation.Cable_Road, loaded: bool = True
+):
     """Calculates the load path of the cable road based on the pestal method
 
     Args:

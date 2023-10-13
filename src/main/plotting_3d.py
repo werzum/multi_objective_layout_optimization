@@ -1,15 +1,16 @@
 import plotly.graph_objects as go
 import geopandas as gpd
+from main import classes_cable_road_computation
 from shapely.geometry import LineString, Point
 from spopt.locate import PMedian
 
 
-from src.main import classes, mechanical_computations
+from src.main import mechanical_computations
 from src.tests import helper_functions
 
 
 def plot_lines(
-    this_cable_road: classes.Cable_Road,
+    this_cable_road: classes_cable_road_computation.Cable_Road,
     pos: list,
 ):
     """Plot the lines of the cable road.
@@ -29,7 +30,7 @@ def plot_lines(
 
 
 def plot_cr_relief(
-    sample_cable_road: classes.Cable_Road,
+    sample_cable_road: classes_cable_road_computation.Cable_Road,
     line_gdf: gpd.GeoDataFrame,
     height_gdf: gpd.GeoDataFrame,
     index: int,
@@ -164,7 +165,7 @@ def plot_supported_cr_relief(
 
 
 def add_all_anchors_to_go_figure(
-    sample_cable_road: classes.Cable_Road,
+    sample_cable_road: classes_cable_road_computation.Cable_Road,
     line_gdf: gpd.GeoDataFrame,
     height_gdf: gpd.GeoDataFrame,
     index: int,
@@ -184,13 +185,13 @@ def add_all_anchors_to_go_figure(
         anchor_line = LineString(
             [anchor_point, sample_cable_road.start_support.xy_location]
         )
-        anchor_support = classes.Support(
+        anchor_support = classes_cable_road_computation.Support(
             sample_cable_road.start_support.total_height,
             anchor_point,
             height_gdf,
             80000,
         )
-        anchor_cable_road = classes.Cable_Road(
+        anchor_cable_road = classes_cable_road_computation.Cable_Road(
             anchor_line,
             height_gdf,
             sample_cable_road.start_support,
@@ -226,7 +227,9 @@ def get_x_y_z_points(sample_cable_road):
     return x_sample_cr, y_sample_cr, z__sloped
 
 
-def add_relief_to_go_figure(sample_cable_road: classes.Cable_Road, fig: go.Figure):
+def add_relief_to_go_figure(
+    sample_cable_road: classes_cable_road_computation.Cable_Road, fig: go.Figure
+):
     """Add the relief of a single cable road to a figure.
 
     Args:
@@ -250,7 +253,7 @@ def add_relief_to_go_figure(sample_cable_road: classes.Cable_Road, fig: go.Figur
 
 
 def add_straight_line_to_go_figure(
-    sample_cable_road: classes.Cable_Road, fig: go.Figure
+    sample_cable_road: classes_cable_road_computation.Cable_Road, fig: go.Figure
 ):
     """Add the straight line distance to a figure.
 
@@ -313,7 +316,7 @@ def plot_3d_model_results(model: PMedian, line_gdf, height_gdf) -> go.Figure:
 
 
 def plot_parallelogram(
-    cable_road: classes.Cable_Road,
+    cable_road: classes_cable_road_computation.Cable_Road,
     max_holding_force: list[float],
     anchor_triplets: list,
     height_gdf: gpd.GeoDataFrame,
@@ -336,7 +339,7 @@ def plot_tension_loaded_unloaded_cr(loaded_cr, unloaded_cr):
 
 
 def plot_Linestring_3D(
-    line: classes.LineString_3D, fig: go.Figure, label: str
+    line: classes_cable_road_computation.LineString_3D, fig: go.Figure, label: str
 ) -> go.Figure:
     fig.add_trace(
         go.Scatter3d(

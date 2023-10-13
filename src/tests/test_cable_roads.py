@@ -1,9 +1,9 @@
+from main import classes_cable_road_computation
 from shapely.geometry import Point, LineString
 import geopandas as gpd
 from itertools import pairwise
 
 from src.main import (
-    classes,
     geometry_utilities,
     mechanical_computations,
     cable_road_computation,
@@ -14,7 +14,7 @@ from src.tests import helper_functions
 
 def main_test_cable_roads():
     line_gdf, tree_gdf, height_gdf = helper_functions.set_up_gdfs()
-    cable_road = classes.load_cable_road(line_gdf, 0)
+    cable_road = classes_cable_road_computation.load_cable_road(line_gdf, 0)
 
     return cable_road, line_gdf, tree_gdf, height_gdf
 
@@ -36,7 +36,7 @@ def test_cable_road_creation(line_gdf, height_gdf):
 def test_unsupported_cable_road_parameters(
     line_gdf: gpd.GeoDataFrame, height_gdf: gpd.GeoDataFrame
 ):
-    cable_road = classes.load_cable_road(line_gdf, 1)
+    cable_road = classes_cable_road_computation.load_cable_road(line_gdf, 1)
 
     assert min(cable_road.sloped_line_to_floor_distances) > 0
     # assert that this one is at least one meter higher - should always be the case
@@ -57,7 +57,7 @@ def test_unsupported_cable_road_parameters(
 def test_supported_cable_road_parameters(
     line_gdf: gpd.GeoDataFrame, height_gdf: gpd.GeoDataFrame, line: gpd.GeoSeries
 ):
-    cable_road = classes.load_cable_road(line_gdf, 0)
+    cable_road = classes_cable_road_computation.load_cable_road(line_gdf, 0)
 
     for current_segment, next_segment in pairwise(cable_road.supported_segments):
         mechanical_computations.check_if_no_collisions_cable_road(
@@ -86,7 +86,9 @@ def test_supported_cable_road_parameters(
         )
 
 
-def test_raise_height_and_check_tension(cable_road: classes.Cable_Road):
+def test_raise_height_and_check_tension(
+    cable_road: classes_cable_road_computation.Cable_Road,
+):
     segment_1 = cable_road.supported_segments[0]
     segment_2 = cable_road.supported_segments[1]
 
@@ -107,7 +109,9 @@ def test_raise_height_and_check_tension(cable_road: classes.Cable_Road):
     assert segment_2_min_height_raised > segment_2_min_height
 
 
-def test_raise_tension_and_check_height(cable_road: classes.Cable_Road):
+def test_raise_tension_and_check_height(
+    cable_road: classes_cable_road_computation.Cable_Road,
+):
     assert cable_road.count_segments() == 2
 
     segment_1 = cable_road.supported_segments[0]

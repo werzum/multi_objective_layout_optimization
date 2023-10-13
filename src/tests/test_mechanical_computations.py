@@ -1,10 +1,10 @@
+from main import classes_cable_road_computation
 from shapely.geometry import Point, LineString
 import geopandas as gpd
 from itertools import pairwise
 import numpy as np
 
 from src.main import (
-    classes,
     geometry_utilities,
     mechanical_computations,
     cable_road_computation,
@@ -14,7 +14,7 @@ from src.tests import helper_functions
 
 
 def test_check_if_no_collisions_cable_road(line_gdf: gpd.GeoDataFrame):
-    cable_road = classes.load_cable_road(line_gdf, 2)
+    cable_road = classes_cable_road_computation.load_cable_road(line_gdf, 2)
     assert cable_road.count_segments() == 0
 
     cable_road.s_current_tension = 20000
@@ -27,7 +27,7 @@ def test_check_if_no_collisions_cable_road(line_gdf: gpd.GeoDataFrame):
 
 
 def test_check_if_support_withstands_tension(line_gdf: gpd.GeoDataFrame):
-    cable_road = classes.load_cable_road(line_gdf, 3)
+    cable_road = classes_cable_road_computation.load_cable_road(line_gdf, 3)
     assert cable_road.count_segments() == 2
 
     # set to a high CR tension and low support force - but not to 80.000, since then we dont have any slack, which determines the force on the support
@@ -61,7 +61,7 @@ def test_check_if_support_withstands_tension(line_gdf: gpd.GeoDataFrame):
 
 # TODO - rework this for 3D
 def test_xz_line_from_cr_startpoint_to_centroid(line_gdf: gpd.GeoDataFrame):
-    cable_road = classes.load_cable_road(line_gdf, 1)
+    cable_road = classes_cable_road_computation.load_cable_road(line_gdf, 1)
     start_point = cable_road.xz_left_start_point
 
     index = len(cable_road.points_along_line) // 2
@@ -120,7 +120,9 @@ def test_compute_resulting_force_on_cable():
     assert np.isclose(resulting_force, 20000, rtol=0.2)
 
 
-def test_compute_tension_loaded_vs_unloaded_cableroad(cable_road: classes.Cable_Road):
+def test_compute_tension_loaded_vs_unloaded_cableroad(
+    cable_road: classes_cable_road_computation.Cable_Road,
+):
     loaded_cr = cable_road.supported_segments[0].cable_road
     unloaded_cr = cable_road.supported_segments[1].cable_road
 

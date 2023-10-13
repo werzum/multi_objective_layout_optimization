@@ -1,0 +1,407 @@
+from pymoo.core.sampling import Sampling
+
+
+class MyRepair(Repair):
+    def _do(self, problem, x, **kwargs):
+        buffer = []  # Create a buffer to store mutated solutions
+        x_shape = x.shape[0]  # Get the number of solutions in 'x'
+
+        for j in range(x_shape):
+            # Reshape the solution 'x[j]' into a matrix with 'problem.client_range + 1' rows and 'problem.facility_range' columns
+            variable_matrix = x[j].reshape(
+                (problem.client_range + 1, problem.facility_range)
+            )
+            cli_assgn_vars = variable_matrix[
+                :-1
+            ]  # Extract the rows except the last one (client assignment variables)
+            fac_vars = variable_matrix[-1]  # Extract the last row (facility variables)
+
+            # get indices of open facs
+            fac_indices = np.where(fac_vars == 1)[0]
+
+            if fac_indices.any():
+                # reassign all clis to open facs
+                cli_assgn_vars, fac_vars = reassign_clients(
+                    problem, fac_vars, cli_assgn_vars, fac_indices
+                )
+
+            # append this solution
+            buffer.append(np.vstack([cli_assgn_vars, fac_vars]))
+
+        x = np.array(buffer).reshape(
+            (x.shape[0], (problem.client_range + 1) * problem.facility_range)
+        )
+        return x
+
+
+class CustomSampling(Sampling):
+    """Custom sampling with one open fac for the start configuration"""
+
+    def _do(self, problem, n_samples, **kwargs):
+        # initially zero array
+        vars = np.zeros((problem.client_range + 1, problem.facility_range))
+
+        # Randomly open a facility (set its variable to 1)
+        factory_to_open = randint(0, problem.facility_range - 1)
+        # set all clients to this fac (ie all rows)
+        vars[:, factory_to_open] = 1
+        # and open this fac
+        vars[-1, factory_to_open] = 1
+
+        vars = vars.flatten()
+
+        # repeat this for all samples
+        return np.vstack([vars] * n_samples)
+
+
+import numpy as np
+
+from main import classes_linear_optimization
+
+
+def get_objective_values(
+    problem, fac_vars, cli_assgn_vars
+) -> tuple[float, float, float]:
+    # overall_distance_obj = np.sum(cli_assgn_vars * problem.distance_matrix)
+    overall_cost_obj = np.sum(fac_vars * problem.facility_cost) + np.sum(
+        cli_assgn_vars * problem.productivity_cost
+    )
+
+    ecological_obj = compute_sum_lateral_distances(
+        problem.ecological_distances, fac_vars
+    )
+    ergonomics_obj = compute_sum_lateral_distances(
+        problem.ergonomic_distances, fac_vars
+    )
+
+    return overall_cost_obj, ecological_obj, ergonomics_obj
+
+
+def compute_sum_lateral_distances(distances, fac_vars):
+    """Compute the sum of the lateral distances for the given facility variables
+    Args:
+        distances (np.ndarray): Array containing the lateral distances.
+        fac_vars (np.ndarray): Binary array representing open/closed status of facilities.
+    Returns:
+        float: Sum of the lateral distances.
+    """
+    try:
+        obj_here = np.sum(
+            np.min(
+                distances[:, np.array(fac_vars).astype(bool)],
+                axis=1,
+            )
+        )
+    except:
+        obj_here = 0
+
+    return obj_here
+
+
+def get_total_objective_value(problem, fac_vars, cli_assgn_vars):
+    """Get the combined objective value as per AUGMECON"""
+
+    overall_cost_obj, ecological_obj, ergonomics_obj = get_objective_values(
+        problem, fac_vars, cli_assgn_vars
+    )
+
+    return overall_cost_obj + problem.epsilon * (ecological_obj + ergonomics_obj)
+
+
+class MyMutation(Mutation):
+    def __init__(self):
+        super().__init__()
+
+    def remove_facility(
+        self,
+        problem: classes_linear_optimization.SupportLinesProblem,
+        fac_vars: np.ndarray,
+        cli_assgn_vars: np.ndarray,
+        t: float,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Randomly removes a facility and reassigns clients to other open facilities.
+
+        Args:
+            problem ('SupportLinesProblem'): The problem instance containing cost and facility data.
+            fac_vars (np.ndarray): Binary array representing open/closed status of facilities.
+            cli_assgn_vars (np.ndarray): Binary array representing client assignments to facilities.
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray]: Tuple containing updated cli_assgn_vars and fac_vars.
+        """
+        # duplicate code, but dont see how to remove this if we fork in different ways during the loop
+        for _ in range(10):
+            # Get the indices of open facilities
+            fac_indices = np.where(fac_vars == 1)[0]
+            if len(fac_indices) == 0:
+                break  # No open facilities, no mutation possible
+
+            # Randomly choose a facility to delete
+            fac_to_delete = np.random.choice(fac_indices)
+            fac_vars[fac_to_delete] = 0
+
+            # Create a boolean mask for the condition cli_assgn_vars[j, fac_to_delete] == 1
+            mask = cli_assgn_vars[:, fac_to_delete] == 1
+            # Use the mask for boolean indexing and set the corresponding elements to 0
+            cli_assgn_vars[mask, fac_to_delete] = 0
+
+            objective_value_before = get_total_objective_value(
+                problem, fac_vars, cli_assgn_vars
+            )
+
+            # Reassign clients to the closest open facilities
+            reassign_clients(problem, fac_vars, cli_assgn_vars, fac_indices)
+
+            objective_value_after = get_total_objective_value(
+                problem, fac_vars, cli_assgn_vars
+            )
+
+            # Check if this mutation decreased the objective function
+            if metropolis_decision(objective_value_after, objective_value_before, t):
+                break  # Mutation improved the objective, stop trying
+            else:
+                # Undo this mutation and keep trying other facilities
+                fac_vars[fac_to_delete] = 1
+                # Reassign clients again to their original facility (using precomputed values)
+                cli_assgn_vars, fac_vars = reassign_clients(
+                    problem, fac_vars, cli_assgn_vars, fac_indices
+                )
+
+        return cli_assgn_vars, fac_vars
+
+    def add_facility(
+        self,
+        problem: SupportLinesProblem,
+        fac_vars: np.ndarray,
+        cli_assgn_vars: np.ndarray,
+        t: float,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Randomly opens a facility and reassigns clients to the closest open facilities.
+
+        Args:
+            problem (SupportLinesProblem): The problem instance containing cost and facility data.
+            fac_vars (np.ndarray): Binary array representing open/closed status of facilities.
+            cli_assgn_vars (np.ndarray): Binary array representing client assignments to facilities.
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray]: Tuple containing updated cli_assgn_vars and fac_vars.
+        """
+        for _ in range(1):
+            # Get the objective value before the mutation
+            objective_value_before = get_total_objective_value(
+                problem, fac_vars, cli_assgn_vars
+            )
+
+            # Randomly open a facility (set its variable to 1)
+            factory_to_open = randint(0, problem.facility_range - 1)
+            fac_vars[factory_to_open] = 1
+            fac_indices = np.where(fac_vars == 1)[
+                0
+            ]  # Get the indices of open facilities
+
+            # Reassign clients to the closest open facilities
+            if len(fac_indices) > 0:
+                cli_assgn_vars, fac_vars = reassign_clients(
+                    problem, fac_vars, cli_assgn_vars, fac_indices
+                )
+
+                # Get the objective value after the mutation
+                objective_value_after = get_total_objective_value(
+                    problem, fac_vars, cli_assgn_vars
+                )
+
+                # Check if this mutation decreased the objective function or if the metropolis criterion is fulfilled
+                # we can accept a worse solution with decreasing chance
+                if metropolis_decision(
+                    objective_value_after, objective_value_before, t
+                ):
+                    break  # Mutation improved the objective, stop trying
+                else:
+                    # Undo this mutation and keep trying other facilities
+                    fac_vars[factory_to_open] = 0
+                    # Reassign clients again to their original facility
+                    cli_assgn_vars, fac_vars = reassign_clients(
+                        problem, fac_vars, cli_assgn_vars, fac_indices
+                    )
+
+        return cli_assgn_vars, fac_vars
+
+    def get_fac_cli_assgn_vars(self, problem, x, j):
+        # Reshape the solution 'x[j]' into a matrix with 'problem.client_range + 1' rows and 'problem.facility_range' columns
+
+        variable_matrix = x[j].reshape(
+            (problem.client_range + 1, problem.facility_range)
+        )
+        cli_assgn_vars = variable_matrix[
+            :-1
+        ]  # Extract the rows except the last one (client assignment variables)
+
+        fac_vars = variable_matrix[-1]  # Extract the last row (facility variables)
+
+        return fac_vars, cli_assgn_vars
+
+    def _do(self, problem: SupportLinesProblem, x: np.ndarray, **kwargs) -> np.ndarray:
+        """
+        Applies the mutation operator to the solutions in 'x'.
+
+        Args:
+            problem (SupportLinesProblem): The problem instance containing cost and facility data.
+            x (np.ndarray): Array of solutions to be mutated.
+
+        Returns:
+            np.ndarray: Mutated solutions.
+        """
+        buffer = []  # Create a buffer to store mutated solutions
+        x_shape = x.shape[0]  # Get the number of solutions in 'x'
+
+        temperature = 1
+        iteration = kwargs["algorithm"].n_gen
+        t = temperature / iteration
+
+        for j in range(x_shape):
+            fac_vars, cli_assgn_vars = self.get_fac_cli_assgn_vars(problem, x, j)
+
+            for _ in range(10):
+                fac_indices = np.where(fac_vars == 1)[0]
+
+                # add a facility if there are none - we always need at least one
+                if len(fac_indices) == 0:
+                    cli_assgn_vars, fac_vars = self.add_facility(
+                        problem, fac_vars, cli_assgn_vars, t
+                    )
+                else:
+                    # Try to remove a facility that decreases the objective value or add one if not possible
+                    if randint(0, 1):
+                        cli_assgn_vars, fac_vars = self.remove_facility(
+                            problem, fac_vars, cli_assgn_vars, t
+                        )
+                    else:
+                        cli_assgn_vars, fac_vars = self.add_facility(
+                            problem, fac_vars, cli_assgn_vars, t
+                        )
+
+            buffer.append(
+                np.vstack([cli_assgn_vars, fac_vars])
+            )  # Store the mutated solution
+
+        # Reshape the buffer into the same shape as 'x'
+        x = np.array(buffer).reshape(
+            (x_shape, (problem.client_range + 1) * problem.facility_range)
+        )
+        return x  # Return the mutated solutions
+
+
+def reassign_clients(
+    problem: SupportLinesProblem,
+    fac_vars: np.ndarray,
+    cli_assgn_vars: np.ndarray,
+    fac_indices: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Reassign clients to the closest open facilities.
+
+    Args:
+        problem ('NSGA2Problem'): The problem instance containing cost and facility data.
+        fac_vars (np.ndarray): Binary array representing open/closed status of facilities.
+        cli_assgn_vars (np.ndarray): Binary array representing client assignments to facilities.
+        fac_indices (np.ndarray): Array containing indices of open facilities.
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray]: Tuple containing updated cli_assgn_vars and fac_vars.
+    """
+    # Find the positions of the closest facilities for each client
+    min_indices = np.argmin(problem.distance_matrix[:, fac_indices], axis=1)
+
+    # Create an array for the updated client assignments
+    updated_cli_assgn_vars = np.zeros_like(cli_assgn_vars)
+
+    # Use numpy fancy indexing to update the client assignments efficiently
+    rows = np.arange(problem.client_range)
+    cols = fac_indices[min_indices]
+    updated_cli_assgn_vars[rows, cols] = 1
+
+    a = np.zeros(len(fac_vars))
+    a[fac_indices] = 1
+
+    return updated_cli_assgn_vars, fac_vars
+
+
+def metropolis_decision(
+    objective_value_after: float, objective_value_before: float, t: float
+) -> bool:
+    """Return True if we accept the mutation"""
+    metroplis_criterion = np.exp(-(objective_value_after - objective_value_before) / t)
+
+    # Check if this mutation decreased the objective function or if the metropolis criterion is fulfilled
+    # we can accept a worse solution with decreasing chance
+    if (
+        objective_value_after < objective_value_before
+        or metroplis_criterion > np.random.uniform()
+    ):
+        return True
+    else:
+        return False
+
+
+class SupportLinesProblem(ElementwiseProblem):
+    def __init__(
+        self,
+        distance_matrix,
+        productivity_cost,
+        facility_cost,
+        ecological_penalty_lateral_distances: np.ndarray,
+        ergonomic_penalty_lateral_distances: np.ndarray,
+        **kwargs
+    ):
+        self.distance_matrix = distance_matrix
+
+        # create the nr of possible facilities and clients
+        self.client_range = distance_matrix.shape[0]
+        self.facility_range = distance_matrix.shape[1]
+
+        self.productivity_cost = productivity_cost
+        self.facility_cost = facility_cost
+
+        self.ecological_penalty_lateral_distances = ecological_penalty_lateral_distances
+        self.ergonomic_penalty_lateral_distances = ergonomic_penalty_lateral_distances
+        self.epsilon = 0.1
+
+        # = (n_trees*n_facs+n_facs)+n_facs
+        self.n_var = self.client_range * self.facility_range + self.facility_range
+
+        super().__init__(
+            n_var=self.n_var,
+            n_obj=3,
+            n_eq_constr=self.client_range,
+            n_ieq_constr=self.client_range,
+            xl=0,
+            xu=1,
+            vtype=int,
+            **kwargs,
+        )
+
+    def _evaluate(self, x, out, *args, **kwargs):
+        # reshape n_var to (n_trees*n_facs+n_facs)
+        variable_matrix = x.reshape((self.client_range + 1, self.facility_range))
+        cli_assgn_vars = variable_matrix[:-1]
+        fac_vars = variable_matrix[-1]
+
+        (
+            cost_obj,
+            ecological_obj,
+            ergonomic_obj,
+        ) = get_objective_values(self, fac_vars, cli_assgn_vars)
+
+        # for each row sum should be 1 -> only one client allowed
+        singular_assignment_constr = np.sum(cli_assgn_vars, axis=1) - 1
+
+        # want to enforce that for each row where a 1 exists, fac_vars also has a 1
+        facility_is_opened_constr = -np.sum(fac_vars - cli_assgn_vars, axis=1)
+
+        out["F"] = np.column_stack([cost_obj, ecological_obj, ergonomic_obj])
+        # ieq constr
+        out["G"] = np.column_stack([facility_is_opened_constr])
+        # eq constr
+        out["H"] = np.column_stack([singular_assignment_constr])

@@ -1,3 +1,4 @@
+from main import classes_cable_road_computation
 from shapely.geometry import LineString, Point
 import numpy as np
 import itertools
@@ -9,7 +10,6 @@ from itertools import pairwise
 from src.main import (
     geometry_utilities,
     mechanical_computations,
-    classes,
     global_vars,
 )
 
@@ -174,9 +174,9 @@ def compute_required_supports(
     overall_trees: gpd.GeoDataFrame,
     pre_tension: int = 0,
     from_line: LineString = None,
-    from_segment: classes.SupportedSegment = None,
+    from_segment: classes_cable_road_computation.SupportedSegment = None,
     recursion_counter: int = 0,
-) -> classes.Cable_Road:
+) -> classes_cable_road_computation.Cable_Road:
     # sourcery skip: boolean-if-exp-identity, remove-unnecessary-cast
     """A function to check whether there are any points along the line candidate (spanned up by the starting/end points
      elevation plus the support height) which are less than min_height away from the line.
@@ -207,7 +207,7 @@ def compute_required_supports(
             len(tree_anchor_support_trees.iloc[0].max_supported_force_series) - 1, 8
         )
 
-        this_cable_road = classes.initialize_cable_road_with_supports(
+        this_cable_road = classes_cable_road_computation.initialize_cable_road_with_supports(
             from_line,
             height_gdf,
             start_point_max_supported_force=0,
@@ -352,19 +352,19 @@ def return_failed() -> bool:
 
 # TODO - how to collect the supports and locations for all sub crs?
 def return_sucessful(
-    this_cable_road: classes.Cable_Road,
-) -> classes.Cable_Road:
+    this_cable_road: classes_cable_road_computation.Cable_Road,
+) -> classes_cable_road_computation.Cable_Road:
     return this_cable_road
 
 
-def current_tension(this_cable_road: classes.Cable_Road) -> int:
+def current_tension(this_cable_road: classes_cable_road_computation.Cable_Road) -> int:
     """return the current tension of the cable road"""
     return int(this_cable_road.s_current_tension)
 
 
 def raise_height_and_check_tension(
-    start_segment: classes.SupportedSegment,
-    end_segment: classes.SupportedSegment,
+    start_segment: classes_cable_road_computation.SupportedSegment,
+    end_segment: classes_cable_road_computation.SupportedSegment,
     height_index: int,
 ) -> tuple[bool, bool]:
     """raise the height of the support and check if it now withstands tension"""
@@ -378,11 +378,11 @@ def raise_height_and_check_tension(
 
 
 def set_up_recursive_supports(
-    this_cable_road: classes.Cable_Road,
+    this_cable_road: classes_cable_road_computation.Cable_Road,
     overall_trees: gpd.GeoDataFrame,
     distance_candidates: gpd.GeoDataFrame,
     height_gdf: gpd.GeoDataFrame,
-) -> classes.Cable_Road:
+) -> classes_cable_road_computation.Cable_Road:
     """set up the next iteration for finding supports.
     We select the first candidate as support, create a segment for it and add it to the cable road.
 
@@ -415,10 +415,10 @@ def set_up_recursive_supports(
 
 
 def check_segment_for_feasibility(
-    start_segment: classes.SupportedSegment,
-    end_segment: classes.SupportedSegment,
+    start_segment: classes_cable_road_computation.SupportedSegment,
+    end_segment: classes_cable_road_computation.SupportedSegment,
     candidate_tree: gpd.GeoSeries,
-    this_cable_road: classes.Cable_Road,
+    this_cable_road: classes_cable_road_computation.Cable_Road,
 ):
     # check if the candidate is too close to the anchor
     if candidate_is_too_close_to_anchor(
@@ -463,7 +463,7 @@ def check_segment_for_feasibility(
 
 
 def evaluate_cr_collisions(
-    this_cable_road: classes.Cable_Road,
+    this_cable_road: classes_cable_road_computation.Cable_Road,
 ):
     """evaluate the anchors and collisions of the cable road"""
     mechanical_computations.check_if_no_collisions_cable_road(this_cable_road)
@@ -490,8 +490,8 @@ def candidate_is_too_close_to_anchor(support_segment) -> bool:
 
 
 def check_support_tension_and_collision(
-    start_segment: classes.SupportedSegment,
-    end_segment: classes.SupportedSegment,
+    start_segment: classes_cable_road_computation.SupportedSegment,
+    end_segment: classes_cable_road_computation.SupportedSegment,
 ) -> tuple[bool, bool]:
     """check if the support withstands tension and if there are collisions.
     Return false if support doesnt hold or if there are collisions
@@ -671,7 +671,7 @@ def create_candidate_points_and_lines(
 
 
 def setup_support_candidates(
-    this_cable_road: classes.Cable_Road,
+    this_cable_road: classes_cable_road_computation.Cable_Road,
     overall_trees: gpd.GeoDataFrame,
 ) -> gpd.GeoDataFrame:
     """Generate a list of support candidates for the current cable road.
@@ -716,10 +716,10 @@ def setup_support_candidates(
 
 def create_left_end_segments_and_support_tree(
     overall_trees: gpd.GeoDataFrame,
-    this_cable_road: classes.Cable_Road,
+    this_cable_road: classes_cable_road_computation.Cable_Road,
     candidate_index: int,
     height_gdf: gpd.GeoDataFrame,
-) -> tuple[classes.SupportedSegment, classes.SupportedSegment, gpd.GeoSeries]:
+) -> tuple[classes_cable_road_computation.SupportedSegment, classes_cable_road_computation.SupportedSegment, gpd.GeoSeries]:
     """Create the sideways cable roads as well as the candidate tree and return them
 
     Args:
@@ -752,7 +752,7 @@ def create_left_end_segments_and_support_tree(
 
     # Create the supports for the left CR segment
     road_to_support_cable_road_start_support = this_cable_road.start_support
-    road_to_support_cable_road_end_support = classes.Support(
+    road_to_support_cable_road_end_support = classes_cable_road_computation.Support(
         attachment_height=6,
         xy_location=Point(road_to_support_line.coords[1]),
         height_gdf=height_gdf,
@@ -764,14 +764,14 @@ def create_left_end_segments_and_support_tree(
     support_to_anchor_cable_road_end_support = this_cable_road.end_support
 
     # create left and right sub_cableroad
-    road_to_support_cable_road = classes.Cable_Road(
+    road_to_support_cable_road = classes_cable_road_computation.Cable_Road(
         road_to_support_line,
         height_gdf,
         road_to_support_cable_road_start_support,
         road_to_support_cable_road_end_support,
         pre_tension=this_cable_road.s_current_tension,
     )
-    support_to_anchor_cable_road = classes.Cable_Road(
+    support_to_anchor_cable_road = classes_cable_road_computation.Cable_Road(
         support_to_anchor_line,
         height_gdf,
         support_to_anchor_cable_road_start_support,
@@ -780,13 +780,13 @@ def create_left_end_segments_and_support_tree(
     )
 
     # and both segments, which in turn contain the corresponding CRs and the supports
-    start_segment = classes.SupportedSegment(
+    start_segment = classes_cable_road_computation.SupportedSegment(
         road_to_support_cable_road,
         this_cable_road.start_support,
         road_to_support_cable_road_end_support,
     )
 
-    end_segment = classes.SupportedSegment(
+    end_segment = classes_cable_road_computation.SupportedSegment(
         support_to_anchor_cable_road,
         support_to_anchor_cable_road_start_support,
         this_cable_road.end_support,

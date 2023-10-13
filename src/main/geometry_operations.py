@@ -1,3 +1,4 @@
+from main import classes_cable_road_computation
 from shapely.geometry import LineString, Point, Polygon
 from shapely.geometry.base import BaseGeometry
 import numpy as np
@@ -152,7 +153,7 @@ def fetch_point_elevation(
     return height_gdf.iloc[i]["elev"].values[0]
 
 
-from src.main import geometry_utilities, classes
+from src.main import geometry_utilities
 
 
 def compute_average_terrain_steepness(
@@ -178,7 +179,7 @@ def compute_average_terrain_steepness(
     return sum(averages) / len(averages)
 
 
-def get_slope(cable_road: classes.Cable_Road) -> float:
+def get_slope(cable_road: classes_cable_road_computation.Cable_Road) -> float:
     """Get the slope of a given cable road
     Args:
         cable_road (classes.Cable_Road): Cable road object
