@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import math
+from main import classes_cable_road_computation
 import pytest
 
 from shapely.geometry import LineString, Point
@@ -9,7 +10,6 @@ from src.main import (
     geometry_utilities,
     geometry_operations,
     mechanical_computations,
-    classes,
 )
 
 from src.tests import helper_functions, test_cable_roads
@@ -87,7 +87,7 @@ def test_cr_parameter_feasability(cable_road, line_gdf, tree_gdf, height_gdf):
 
 def test_rotation():
     # ensure that if we rotate the z axis down at x and y, we get a lower z
-    v = classes.Point_3D(1, 0, 1)
+    v = classes_cable_road_computation.Point_3D(1, 0, 1)
     v_prime = geometry_utilities.rotate_3d_point_in_z_direction(v, 45)
     np.testing.assert_allclose(v_prime.xyz, np.array([1.4, 0, 0]), atol=1e-1)
 
@@ -96,18 +96,21 @@ def test_rotation():
     np.testing.assert_allclose(v_prime.xyz, np.array([1, 0, -1]), atol=1e-1)
 
     # ensure that it also works when we have both x and y component
-    v = classes.Point_3D(1, 1, 1)
+    v = classes_cable_road_computation.Point_3D(1, 1, 1)
     v_prime = geometry_utilities.rotate_3d_point_in_z_direction(v, 45)
     # np.testing.assert_allclose(v_prime.xyz, np.array([1.2, 1.2, 0]), atol=1e-1)
 
     # how about negative xy components with higher values?
-    v = classes.Point_3D(-10, 10, 10)
+    v = classes_cable_road_computation.Point_3D(-10, 10, 10)
     v_prime = geometry_utilities.rotate_3d_point_in_z_direction(v, 45)
     # np.testing.assert_allclose(v_prime.xyz, np.array([-12, 12, 0]), atol=1)
 
 
 def test_3d_line_rotate():
-    line = classes.LineString_3D(classes.Point_3D(0, 0, 0), classes.Point_3D(1, 0, 1))
+    line = classes_cable_road_computation.LineString_3D(
+        classes_cable_road_computation.Point_3D(0, 0, 0),
+        classes_cable_road_computation.Point_3D(1, 0, 1),
+    )
     line_rotated = geometry_utilities.rotate_3d_line_in_z_direction(line, 45)
 
     # ensure the start has not moved
@@ -120,17 +123,26 @@ def test_3d_line_rotate():
     )
 
     # ensure that it also works in the other direction
-    line = classes.LineString_3D(classes.Point_3D(0, 0, 0), classes.Point_3D(-1, -1, 1))
+    line = classes_cable_road_computation.LineString_3D(
+        classes_cable_road_computation.Point_3D(0, 0, 0),
+        classes_cable_road_computation.Point_3D(-1, -1, 1),
+    )
     line = geometry_utilities.rotate_3d_line_in_z_direction(line, 45)
     # np.testing.assert_allclose(line.end_point.xyz, np.array([-1.2, -1.2, 0]), atol=1e-1)
 
     # ensure that the rotated line has the same lenght
-    line = classes.LineString_3D(classes.Point_3D(0, 0, 0), classes.Point_3D(1, 1, 1))
+    line = classes_cable_road_computation.LineString_3D(
+        classes_cable_road_computation.Point_3D(0, 0, 0),
+        classes_cable_road_computation.Point_3D(1, 1, 1),
+    )
     line_rotated = geometry_utilities.rotate_3d_line_in_z_direction(line, 45)
     assert np.isclose(line.length(), line_rotated.length(), atol=1e-1)
 
     # ensure that if we move the end by 45degs, the distance between two points is about the arc length
-    line = classes.LineString_3D(classes.Point_3D(0, 0, 0), classes.Point_3D(1, 1, 1))
+    line = classes_cable_road_computation.LineString_3D(
+        classes_cable_road_computation.Point_3D(0, 0, 0),
+        classes_cable_road_computation.Point_3D(1, 1, 1),
+    )
     line_rotated = geometry_utilities.rotate_3d_line_in_z_direction(line, 45)
     assert np.isclose(
         line.end_point.distance(line_rotated.end_point),
@@ -139,8 +151,9 @@ def test_3d_line_rotate():
     )
 
     # test whether it also works with longer distances
-    line = classes.LineString_3D(
-        classes.Point_3D(0, 0, 0), classes.Point_3D(10, 10, 10)
+    line = classes_cable_road_computation.LineString_3D(
+        classes_cable_road_computation.Point_3D(0, 0, 0),
+        classes_cable_road_computation.Point_3D(10, 10, 10),
     )
     line_rotated = geometry_utilities.rotate_3d_line_in_z_direction(line, 45)
     # np.testing.assert_allclose(
@@ -150,8 +163,9 @@ def test_3d_line_rotate():
     assert np.isclose(line.end_point.distance(line_rotated.end_point), 13, atol=1)
 
     # and test with non-zero start points
-    line = classes.LineString_3D(
-        classes.Point_3D(1, 1, 1), classes.Point_3D(11, 11, 11)
+    line = classes_cable_road_computation.LineString_3D(
+        classes_cable_road_computation.Point_3D(1, 1, 1),
+        classes_cable_road_computation.Point_3D(11, 11, 11),
     )
     line_rotated = geometry_utilities.rotate_3d_line_in_z_direction(line, 45)
     np.testing.assert_allclose(
@@ -161,16 +175,19 @@ def test_3d_line_rotate():
     assert np.isclose(line.end_point.distance(line_rotated.end_point), 13, atol=1)
 
     # simple test case with rotating further down
-    line = classes.LineString_3D(classes.Point_3D(0, 0, 0), classes.Point_3D(1.4, 0, 0))
+    line = classes_cable_road_computation.LineString_3D(
+        classes_cable_road_computation.Point_3D(0, 0, 0),
+        classes_cable_road_computation.Point_3D(1.4, 0, 0),
+    )
     line_rotated = geometry_utilities.rotate_3d_line_in_z_direction(line, 45)
     np.testing.assert_allclose(
         line_rotated.end_point.xyz, np.array([1, 0, -1]), atol=0.1
     )
 
     # fail-case of real line:
-    line = classes.LineString_3D(
-        classes.Point_3D(-77.894284, 52.61685171, -41.6463),
-        classes.Point_3D(-51.1378244, 24.62131712, -54.66351325),
+    line = classes_cable_road_computation.LineString_3D(
+        classes_cable_road_computation.Point_3D(-77.894284, 52.61685171, -41.6463),
+        classes_cable_road_computation.Point_3D(-51.1378244, 24.62131712, -54.66351325),
     )
     line_rotated = geometry_utilities.rotate_3d_line_in_z_direction(line, 45)
     # assert angle stays the same
@@ -178,7 +195,10 @@ def test_3d_line_rotate():
 
 
 def test_angle_between_3d_lines():
-    line = classes.LineString_3D(classes.Point_3D(0, 0, 0), classes.Point_3D(1, 0, 1))
+    line = classes_cable_road_computation.LineString_3D(
+        classes_cable_road_computation.Point_3D(0, 0, 0),
+        classes_cable_road_computation.Point_3D(1, 0, 1),
+    )
     line_rotated = geometry_utilities.rotate_3d_line_in_z_direction(line, 45)
     # does our angle function now return the right angle?
     assert np.isclose(geometry_utilities.angle_between_3d_lines(line, line_rotated), 45)

@@ -1,4 +1,3 @@
-from main import optimization_compute_quantification
 from shapely.geometry import LineString, Point
 import numpy as np
 import geopandas as gpd

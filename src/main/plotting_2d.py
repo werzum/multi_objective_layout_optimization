@@ -6,16 +6,10 @@ import matplotlib.pyplot as plt
 
 from itertools import chain
 
-from plotly.subplots import make_subplots
 from itertools import cycle
-from IPython import display
 
 import plotly.graph_objects as go
-from main import optimization_compute_quantification
-
-from main import classes_cable_road_computation
-
-from src.tests import helper_functions
+from src.main import optimization_compute_quantification
 
 
 def plot_gdfs(gdfs: list):
@@ -204,8 +198,11 @@ def expert_results_extraction(
     )
 
 
+from src.main import classes_linear_optimization
+
+
 def plot_optimization_layout(
-    result: classes_cable_road_computation.optimization_result,
+    result: classes_linear_optimization.result_object,
     line_gdf: gpd.GeoDataFrame,
     harvesteable_trees_gdf: gpd.GeoDataFrame,
 ):

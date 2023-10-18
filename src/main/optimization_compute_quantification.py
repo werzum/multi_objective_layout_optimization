@@ -1,9 +1,4 @@
 import numpy as np
-from main import classes_cable_road_computation
-import pulp
-from pulp import LpConstraint, LpConstraintLE
-import operator
-from random import randint, choices
 import math
 import geopandas as gpd
 import pandas as pd
