@@ -1,4 +1,3 @@
-from main import classes_cable_road_computation
 from shapely.geometry import LineString, Point
 import numpy as np
 import itertools
@@ -11,6 +10,7 @@ from src.main import (
     geometry_utilities,
     mechanical_computations,
     global_vars,
+    classes_cable_road_computation,
 )
 
 # Main functions to compute the cable road which calls the other functions
@@ -719,7 +719,11 @@ def create_left_end_segments_and_support_tree(
     this_cable_road: classes_cable_road_computation.Cable_Road,
     candidate_index: int,
     height_gdf: gpd.GeoDataFrame,
-) -> tuple[classes_cable_road_computation.SupportedSegment, classes_cable_road_computation.SupportedSegment, gpd.GeoSeries]:
+) -> tuple[
+    classes_cable_road_computation.SupportedSegment,
+    classes_cable_road_computation.SupportedSegment,
+    gpd.GeoSeries,
+]:
     """Create the sideways cable roads as well as the candidate tree and return them
 
     Args:

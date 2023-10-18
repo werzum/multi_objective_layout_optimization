@@ -1,5 +1,4 @@
 import math
-from main import classes_cable_road_computation
 from shapely.geometry import LineString, Point, Polygon
 from shapely.geometry.base import BaseGeometry
 from shapely.affinity import rotate
@@ -9,7 +8,12 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 
-from src.main import geometry_utilities, geometry_operations, plotting_2d
+from src.main import (
+    geometry_utilities,
+    geometry_operations,
+    plotting_2d,
+    classes_cable_road_computation,
+)
 
 
 # high level functions

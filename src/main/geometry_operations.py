@@ -1,10 +1,9 @@
-from main import classes_cable_road_computation
 from shapely.geometry import LineString, Point, Polygon
 from shapely.geometry.base import BaseGeometry
 import numpy as np
 import geopandas as gpd
 
-from src.main import global_vars
+from src.main import global_vars, classes_cable_road_computation
 
 
 def generate_road_points(

@@ -9,7 +9,7 @@ from itertools import chain
 from itertools import cycle
 
 import plotly.graph_objects as go
-from src.main import optimization_compute_quantification
+from src.main import optimization_compute_quantification, classes_linear_optimization
 
 
 def plot_gdfs(gdfs: list):
@@ -196,9 +196,6 @@ def expert_results_extraction(
             "bad_ergonomics_distance": overall_ergonomic_penalty_lateral_distances,
         }
     )
-
-
-from src.main import classes_linear_optimization
 
 
 def plot_optimization_layout(

@@ -2,7 +2,7 @@ import numpy as np
 import math
 from scipy.spatial.transform import Rotation as Rot
 from shapely.geometry import LineString, Point
-from main import classes_cable_road_computation
+from src.main import classes_cable_road_computation
 
 
 def unit_vector(vector):
