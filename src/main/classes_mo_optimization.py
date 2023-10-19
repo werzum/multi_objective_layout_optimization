@@ -3,6 +3,7 @@ from pymoo.core.problem import ElementwiseProblem
 from pymoo.core.repair import Repair
 from pymoo.core.mutation import Mutation
 
+import geopandas as gpd
 import numpy as np
 from random import randint
 
@@ -105,10 +106,20 @@ class optimization_object_pymoo(
         variable_matrix = self.x.reshape((self.client_range + 1, self.facility_range))
         return variable_matrix[:-1]
 
+    def set_fac_vars(self, fac_vars):
+        variable_matrix = self.x.reshape((self.client_range + 1, self.facility_range))
+        variable_matrix[-1] = fac_vars
+        self.x = variable_matrix.flatten()
+
+    def set_cli_assgn_vars(self, cli_assgn_vars):
+        variable_matrix = self.x.reshape((self.client_range + 1, self.facility_range))
+        variable_matrix[:-1] = cli_assgn_vars
+        self.x = variable_matrix.flatten()
+
     def reassign_clients(
         self,
         fac_indices: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ):
         """
         Reassign clients to the closest open facilities.
 
@@ -135,7 +146,8 @@ class optimization_object_pymoo(
         fac_vars_updated = np.zeros(len(self.fac_vars))
         fac_vars_updated[fac_indices] = 1
 
-        return updated_cli_assgn_vars, fac_vars_updated
+        self.set_cli_assgn_vars(updated_cli_assgn_vars)
+        self.set_fac_vars(fac_vars_updated)
 
     def _evaluate(self, x, out, *args, **kwargs):
         # reshape n_var to (n_trees*n_facs+n_facs)
@@ -170,29 +182,27 @@ class MyRepair(Repair):
         for j in range(x_shape):
             optimization_object.x = x[j]
 
-            # Reshape the solution 'x[j]' into a matrix with 'optimization_object.client_range + 1' rows and 'optimization_object.facility_range' columns
-            variable_matrix = x[j].reshape(
-                (
-                    optimization_object.client_range + 1,
-                    optimization_object.facility_range,
-                )
-            )
-            cli_assgn_vars = variable_matrix[
-                :-1
-            ]  # Extract the rows except the last one (client assignment variables)
-            fac_vars = variable_matrix[-1]  # Extract the last row (facility variables)
+            # # Reshape the solution 'x[j]' into a matrix with 'optimization_object.client_range + 1' rows and 'optimization_object.facility_range' columns
+            # variable_matrix = x[j].reshape(
+            #     (
+            #         optimization_object.client_range + 1,
+            #         optimization_object.facility_range,
+            #     )
+            # )
+            # cli_assgn_vars = variable_matrix[
+            #     :-1
+            # ]  # Extract the rows except the last one (client assignment variables)
+            # fac_vars = variable_matrix[-1]  # Extract the last row (facility variables)
 
             # get indices of open facs
-            fac_indices = np.where(fac_vars == 1)[0]
+            fac_indices = np.where(optimization_object.fac_vars == 1)[0]
 
             if fac_indices.any():
                 # reassign all clis to open facs
-                cli_assgn_vars, fac_vars = optimization_object.reassign_clients(
-                    fac_indices
-                )
+                optimization_object.reassign_clients(fac_indices)
 
             # append this solution
-            buffer.append(np.vstack([cli_assgn_vars, fac_vars]))
+            buffer.append(optimization_object.x)
 
         x = np.array(buffer).reshape(
             (
@@ -233,10 +243,8 @@ class MyMutation(Mutation):
     def remove_facility(
         self,
         optimization_object: optimization_object_pymoo,
-        fac_vars: np.ndarray,
-        cli_assgn_vars: np.ndarray,
         t: float,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ):
         """
         Randomly removes a facility and reassigns clients to other open facilities.
 
@@ -251,23 +259,26 @@ class MyMutation(Mutation):
         # duplicate code, but dont see how to remove this if we fork in different ways during the loop
         for _ in range(10):
             # Get the indices of open facilities
-            fac_indices = np.where(fac_vars == 1)[0]
+            fac_indices = np.where(optimization_object.fac_vars == 1)[0]
             if len(fac_indices) == 0:
                 break  # No open facilities, no mutation possible
 
             # Randomly choose a facility to delete
             fac_to_delete = np.random.choice(fac_indices)
-            fac_vars[fac_to_delete] = 0
+            modified_fac_vars = optimization_object.fac_vars.copy()
+            modified_fac_vars[fac_to_delete] = 0
+            modified_fac_indices = np.where(modified_fac_vars == 1)[0]
 
             # Create a boolean mask for the condition cli_assgn_vars[j, fac_to_delete] == 1
-            mask = cli_assgn_vars[:, fac_to_delete] == 1
+            mask = optimization_object.cli_assgn_vars[:, fac_to_delete] == 1
             # Use the mask for boolean indexing and set the corresponding elements to 0
-            cli_assgn_vars[mask, fac_to_delete] = 0
+            modified_cli_assgn_vars = optimization_object.cli_assgn_vars.copy()
+            modified_cli_assgn_vars[mask, fac_to_delete] = 0
 
             objective_value_before = optimization_object.get_total_objective_value()
 
             # Reassign clients to the closest open facilities
-            cli_assgn_vars, fac_vars = optimization_object.reassign_clients(fac_indices)
+            optimization_object.reassign_clients(modified_fac_indices)
 
             objective_value_after = optimization_object.get_total_objective_value()
 
@@ -278,21 +289,16 @@ class MyMutation(Mutation):
                 break  # Mutation improved the objective, stop trying
             else:
                 # Undo this mutation and keep trying other facilities
-                fac_vars[fac_to_delete] = 1
                 # Reassign clients again to their original facility (using precomputed values)
-                cli_assgn_vars, fac_vars = optimization_object.reassign_clients(
-                    fac_indices
-                )
-
-        return cli_assgn_vars, fac_vars
+                optimization_object.reassign_clients(fac_indices)
 
     def add_facility(
         self,
         optimization_object: optimization_object_pymoo,
-        fac_vars: np.ndarray,
-        cli_assgn_vars: np.ndarray,
+        # fac_vars: np.ndarray,
+        # cli_assgn_vars: np.ndarray,
         t: float,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ):
         """
         Randomly opens a facility and reassigns clients to the closest open facilities.
 
@@ -310,16 +316,17 @@ class MyMutation(Mutation):
 
             # Randomly open a facility (set its variable to 1)
             factory_to_open = randint(0, optimization_object.facility_range - 1)
-            fac_vars[factory_to_open] = 1
-            fac_indices = np.where(fac_vars == 1)[
+            modified_fac_vars = optimization_object.fac_vars.copy()
+            modified_fac_vars[factory_to_open] = 1
+
+            fac_indices = np.where(modified_fac_vars == 1)[
                 0
             ]  # Get the indices of open facilities
 
             # Reassign clients to the closest open facilities
             if len(fac_indices) > 0:
-                cli_assgn_vars, fac_vars = optimization_object.reassign_clients(
-                    fac_indices
-                )
+                # cli_assgn_vars, fac_vars =
+                optimization_object.reassign_clients(fac_indices)
 
                 # Get the objective value after the mutation
                 objective_value_after = optimization_object.get_total_objective_value()
@@ -332,27 +339,28 @@ class MyMutation(Mutation):
                     break  # Mutation improved the objective, stop trying
                 else:
                     # Undo this mutation and keep trying other facilities
-                    fac_vars[factory_to_open] = 0
-                    # Reassign clients again to their original facility
-                    cli_assgn_vars, fac_vars = reassign_clients(
-                        optimization_object, fac_vars, cli_assgn_vars, fac_indices
-                    )
+                    modified_fac_vars[factory_to_open] = 0
+                    optimization_object.set_fac_vars(modified_fac_vars)
+                    # # Reassign clients again to their original facility
+                    # cli_assgn_vars, fac_vars = optimization_object.reassign_clients(
+                    #     optimization_object, fac_vars, cli_assgn_vars, fac_indices
+        #             )
 
-        return cli_assgn_vars, fac_vars
+        # return cli_assgn_vars, fac_vars
 
-    def get_fac_cli_assgn_vars(self, optimization_object, x, j):
-        # Reshape the solution 'x[j]' into a matrix with 'optimization_object.client_range + 1' rows and 'optimization_object.facility_range' columns
+    # def get_fac_cli_assgn_vars(self, optimization_object):
+    #     # Reshape the solution 'x[j]' into a matrix with 'optimization_object.client_range + 1' rows and 'optimization_object.facility_range' columns
 
-        variable_matrix = x[j].reshape(
-            (optimization_object.client_range + 1, optimization_object.facility_range)
-        )
-        cli_assgn_vars = variable_matrix[
-            :-1
-        ]  # Extract the rows except the last one (client assignment variables)
+    #     variable_matrix = x.reshape(
+    #         (optimization_object.client_range + 1, optimization_object.facility_range)
+    #     )
+    #     cli_assgn_vars = variable_matrix[
+    #         :-1
+    #     ]  # Extract the rows except the last one (client assignment variables)
 
-        fac_vars = variable_matrix[-1]  # Extract the last row (facility variables)
+    #     fac_vars = variable_matrix[-1]  # Extract the last row (facility variables)
 
-        return fac_vars, cli_assgn_vars
+    #     return fac_vars, cli_assgn_vars
 
     def metropolis_decision(
         self, objective_value_after: float, objective_value_before: float, t: float
@@ -393,32 +401,27 @@ class MyMutation(Mutation):
         t = temperature / iteration
 
         for j in range(x_shape):
-            fac_vars, cli_assgn_vars = self.get_fac_cli_assgn_vars(
-                optimization_object, x, j
-            )
+            optimization_object.x = x[
+                j
+            ]  # update the x in the optimization object to be this specific x out of all x's
+            # fac_vars, cli_assgn_vars = self.get_fac_cli_assgn_vars(
+            #     optimization_object, x, j
+            # )
 
             for _ in range(10):
-                fac_indices = np.where(fac_vars == 1)[0]
+                fac_indices = np.where(optimization_object.fac_vars == 1)[0]
 
                 # add a facility if there are none - we always need at least one
-                if len(fac_indices) == 0:
-                    cli_assgn_vars, fac_vars = self.add_facility(
-                        optimization_object, fac_vars, cli_assgn_vars, t
-                    )
+                if len(fac_indices) == 1:
+                    self.add_facility(optimization_object, t)
                 else:
                     # Try to remove a facility that decreases the objective value or add one if not possible
                     if randint(0, 1):
-                        cli_assgn_vars, fac_vars = self.remove_facility(
-                            optimization_object, fac_vars, cli_assgn_vars, t
-                        )
+                        self.remove_facility(optimization_object, t)
                     else:
-                        cli_assgn_vars, fac_vars = self.add_facility(
-                            optimization_object, fac_vars, cli_assgn_vars, t
-                        )
+                        self.add_facility(optimization_object, t)
 
-            buffer.append(
-                np.vstack([cli_assgn_vars, fac_vars])
-            )  # Store the mutated solution
+            buffer.append(optimization_object.x)  # Store the mutated solution
 
         # Reshape the buffer into the same shape as 'x'
         x = np.array(buffer).reshape(
@@ -429,9 +432,6 @@ class MyMutation(Mutation):
             )
         )
         return x  # Return the mutated solutions
-
-
-import geopandas as gpd
 
 
 class pymoo_result(classes_linear_optimization.result_object):

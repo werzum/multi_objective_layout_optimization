@@ -69,7 +69,7 @@ def generate_possible_lines(
     line_df = line_df[line_df["slope_deviation"] < max_main_line_slope_deviation]
     print(len(line_df), " after slope deviations")
 
-    line_df = line_df.iloc[::10]
+    # line_df = line_df.iloc[::10]
 
     # filter the candidates for support trees
     # overall_trees, target, point, possible_line

@@ -251,8 +251,10 @@ class optimization_object_spopt(optimization_object):
 
         try:
             ecological__obj = np.sum(
-                np.min(self.ecological_penalty_lateral_distances)[:, self.fac_vars],
-                axis=1,
+                np.min(
+                    self.ecological_penalty_lateral_distances[:, self.fac_vars],
+                    axis=1,
+                )
             )
         except:
             ecological__obj = 0
@@ -270,8 +272,10 @@ class optimization_object_spopt(optimization_object):
 
         try:
             ergonomics_obj = np.sum(
-                np.min(self.ergonomic_penalty_lateral_distances)[:, self.fac_vars],
-                axis=1,
+                np.min(
+                    self.ergonomic_penalty_lateral_distances[:, self.fac_vars],
+                    axis=1,
+                )
             )
         except:
             ergonomics_obj = 0
