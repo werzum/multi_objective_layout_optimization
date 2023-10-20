@@ -160,8 +160,9 @@ class optimization_object_spopt(optimization_object):
         if objective_to_select == 1:
             # add a named constraint to facilitate overwriting it later
             sum_deviations_variables = pulp.lpSum(
-                np.array(self.model.fac_vars)
-                * np.array(self.ecological_penalty_lateral_distances)
+                self.numpy_minimal_lateral_distances(
+                    self.ecological_penalty_lateral_distances
+                )
             )
 
             # if constraint does not exist, add it to the problem
@@ -182,8 +183,9 @@ class optimization_object_spopt(optimization_object):
 
         elif objective_to_select == 2:
             sum_bad_ergonomic_distances_variables = pulp.lpSum(
-                np.array(self.model.fac_vars)
-                * np.array(self.ergonomic_penalty_lateral_distances)
+                self.numpy_minimal_lateral_distances(
+                    self.ergonomic_penalty_lateral_distances
+                )
             )
 
             # if constraint does not exist, add it to the problem
@@ -250,11 +252,8 @@ class optimization_object_spopt(optimization_object):
             float: The ecological_distance value"""
 
         try:
-            ecological__obj = np.sum(
-                np.min(
-                    self.ecological_penalty_lateral_distances[:, self.fac_vars],
-                    axis=1,
-                )
+            ecological__obj = self.numpy_minimal_lateral_distances(
+                self.ecological_penalty_lateral_distances
             )
         except:
             ecological__obj = 0
@@ -271,11 +270,8 @@ class optimization_object_spopt(optimization_object):
             float: The ergonomics objective value"""
 
         try:
-            ergonomics_obj = np.sum(
-                np.min(
-                    self.ergonomic_penalty_lateral_distances[:, self.fac_vars],
-                    axis=1,
-                )
+            ergonomics_obj = self.numpy_minimal_lateral_distances(
+                self.ergonomic_penalty_lateral_distances
             )
         except:
             ergonomics_obj = 0
@@ -379,8 +375,9 @@ class optimization_object_spopt(optimization_object):
 
     def add_ecological_objective(self):
         return pulp.lpSum(
-            np.array(self.model.fac_vars)
-            * np.array(self.ecological_penalty_lateral_distances)
+            self.numpy_minimal_lateral_distances(
+                self.ecological_penalty_lateral_distances
+            )
         )
 
     def add_ergonomic_objective(self):
@@ -390,9 +387,29 @@ class optimization_object_spopt(optimization_object):
         Returns:
         """
         return pulp.lpSum(
-            np.array(self.model.fac_vars)
-            * np.array(self.ergonomic_penalty_lateral_distances)
+            self.numpy_minimal_lateral_distances(
+                self.ergonomic_penalty_lateral_distances
+            )
         )
+
+    def numpy_minimal_lateral_distances(self, set_of_distances: np.ndarray) -> float:
+        """Compute the minimal lateral distance for each fac var for the given set of distances
+        Args:
+            set_of_distances (np.ndarray): The set of distances to compute the minimal lateral distance for
+        Returns:
+            float: The minimal lateral distance
+        """
+        try:
+            return_value = np.sum(
+                np.min(
+                    set_of_distances[:, self.fac_vars],
+                    axis=1,
+                )
+            )
+        except:
+            return_value = 0
+
+        return return_value
 
     def add_singular_assignment_constraint(self):
         """Add the constraint that the sum of facilities assigned for each client == 1 -> only one facility should be assigned to each line
@@ -552,6 +569,6 @@ def model_results_comparison(
             "profit_comparison": profit_comparison,
             "name": name_list,
             "ecological_distances": ecological_distances,
-            "bad_ergonomics_distance": overall_ergonomic_penalty_lateral_distances,
+            "ergonomics_distances": overall_ergonomic_penalty_lateral_distances,
         }
     )
