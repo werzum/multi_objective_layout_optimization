@@ -141,8 +141,8 @@ class optimization_object_spopt(optimization_object):
         self.range_2 = j_range.max() - j_range.min()
 
         self.model.problem += (
-            self.add_cost_objective()
-            + self.epsilon
+            self.add_cost_objective() + self.epsilon
+            # THIS DOESNT MAKE SENSE; NEED TO ADD OUR VARS HERE
             * pulp.lpSum((self.slack_1 / self.range_1) + (self.slack_2 / self.range_2)),
             "objective function",
         )
@@ -159,32 +159,27 @@ class optimization_object_spopt(optimization_object):
         """
         if objective_to_select == 1:
             # add a named constraint to facilitate overwriting it later
-            sum_deviations_variables = pulp.lpSum(
-                self.numpy_minimal_lateral_distances(
-                    self.ecological_penalty_lateral_distances
-                )
+            sum_deviations_variables = self.numpy_minimal_lateral_distances(
+                self.ecological_penalty_lateral_distances,
+                operate_on_model_vars=True,
             )
 
             # if constraint does not exist, add it to the problem
             if "sw_constraint" not in self.model.problem.constraints:
-                self.model.problem += LpConstraint(
-                    sum_deviations_variables,
-                    sense=LpConstraintLE,
-                    rhs=target_value,
-                    name="sw_constraint",
+                self.model.problem += (
+                    sum_deviations_variables <= target_value,
+                    "sw_constraint",
                 )
+
             else:  # update it
-                self.model.problem.constraints["sw_constraint"] = LpConstraint(
-                    sum_deviations_variables,
-                    sense=LpConstraintLE,
-                    rhs=target_value,
-                    name="sw_constraint",
+                self.model.problem.constraints["sw_constraint"] = (
+                    sum_deviations_variables <= target_value
                 )
 
         elif objective_to_select == 2:
-            sum_bad_ergonomic_distances_variables = pulp.lpSum(
+            sum_bad_ergonomic_distances_variables = (
                 self.numpy_minimal_lateral_distances(
-                    self.ergonomic_penalty_lateral_distances
+                    self.ergonomic_penalty_lateral_distances, operate_on_model_vars=True
                 )
             )
 
@@ -205,6 +200,12 @@ class optimization_object_spopt(optimization_object):
                 )
 
         return self.model
+
+    def remove_epsilon_constraint(self, constraint_to_delete: str):
+        """
+        Removes the epsilon constraint from the model
+        """
+        self.model.problem.constraints.pop(constraint_to_delete)
 
     @property
     def c2f_vars(self) -> np.ndarray:
@@ -392,7 +393,9 @@ class optimization_object_spopt(optimization_object):
             )
         )
 
-    def numpy_minimal_lateral_distances(self, set_of_distances: np.ndarray) -> float:
+    def numpy_minimal_lateral_distances(
+        self, set_of_distances: np.ndarray, operate_on_model_vars=False
+    ):
         """Compute the minimal lateral distance for each fac var for the given set of distances
         Args:
             set_of_distances (np.ndarray): The set of distances to compute the minimal lateral distance for
@@ -400,12 +403,21 @@ class optimization_object_spopt(optimization_object):
             float: The minimal lateral distance
         """
         try:
-            return_value = np.sum(
-                np.min(
-                    set_of_distances[:, self.fac_vars],
-                    axis=1,
+            # if operate_on_model_vars is True, use the actual variables from the model, else use the boolean list
+
+            if operate_on_model_vars:
+                return_value = np.sum(
+                    np.multiply(set_of_distances, self.model.cli_assgn_vars)
                 )
-            )
+
+            else:
+                return_value = np.sum(
+                    np.min(
+                        set_of_distances[:, self.fac_vars],
+                        axis=1,
+                    )
+                )
+
         except:
             return_value = 0
 
