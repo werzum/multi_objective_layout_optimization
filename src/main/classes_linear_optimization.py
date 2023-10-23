@@ -475,6 +475,7 @@ class spopt_result(result_object):
         self.name = name
 
         self.fac2cli = optimization_object.model.fac2cli
+        self.c2f_vars = optimization_object.c2f_vars
         self.fac_vars = optimization_object.fac_vars
         self.cli_assgn_vars = optimization_object.model.cli_assgn_vars
 
@@ -521,41 +522,24 @@ def model_results_comparison(
             total_profit_per_layout_baseline += profit_this_cr
 
     for result in result_list:
-        # and the corresponding rows from the distance matrix
-        row_sums = []
-        for index, row in enumerate(result.fac2cli):
-            if row:
-                distance_per_this_row = distance_tree_line[row, index]
-                row_sum_distance = distance_per_this_row.sum()
-                row_sums.append(row_sum_distance)
-        distance_tree_line_array.append(sum(row_sums))
-
-        row_sums = []
-        for index, row in enumerate(result.fac2cli):
-            if row:
-                productivity_per_row = productivity_cost_matrix[row, index]
-                row_sum_distance = productivity_per_row.sum()
-                row_sums.append(row_sum_distance)
-        productivity_array.append(sum(row_sums))
-
-        row_sums = []
-        for index, row in enumerate(result.fac2cli):
-            if row:
-                distance_per_this_row = distance_carriage_support[row, index]
-                row_sum_distance = distance_per_this_row.sum()
-                row_sums.append(row_sum_distance)
-        distance_carriage_support_array.append(sum(row_sums))
-
-        # subtract the productivity cost from the total profit
-        overall_profit.append(total_profit_per_layout_baseline - productivity_array[-1])
+        # and the corresponding rows from the distance matrix, pc matrix etc
+        distance_tree_line_array.append(np.sum(result.c2f_vars * distance_tree_line))
+        productivity_array.append(np.sum(result.c2f_vars * productivity_cost_matrix))
+        distance_carriage_support_array.append(
+            np.sum(result.c2f_vars * distance_carriage_support)
+        )
 
         # get the total cable road costs
-        total_cable_road_costs = 0
-        for index, row in enumerate(result.fac2cli):
-            if row:
-                cable_road_cost = facility_cost[index]
-                total_cable_road_costs += cable_road_cost
+        total_cable_road_costs = np.sum(result.fac_vars * facility_cost)
         cable_road_costs.append(total_cable_road_costs)
+
+        # subtract the productivity cost from the total profit
+        total_profit_here = (
+            total_profit_per_layout_baseline
+            - productivity_array[-1]
+            - total_cable_road_costs
+        )
+        overall_profit.append(total_profit_here)
 
         ecological_distances.append(result.ecological_objective)
         overall_ergonomic_penalty_lateral_distances.append(result.ergonomics_objective)
