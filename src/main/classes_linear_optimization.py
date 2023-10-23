@@ -41,6 +41,7 @@ class optimization_object_spopt(optimization_object):
         harvesteable_trees_gdf: gpd.GeoDataFrame,
         height_gdf: gpd.GeoDataFrame,
         objective_to_select: int = -1,
+        maximum_nuber_cable_roads: int = 5,
     ):
         # Create a matrix with the distance between every tree and line and the distance between the support (beginning of the CR) and the carriage
         # (cloests point on the CR to the tree)
@@ -52,6 +53,7 @@ class optimization_object_spopt(optimization_object):
         )
 
         self.objective_to_select = objective_to_select
+        self.maximum_nuber_cable_roads = maximum_nuber_cable_roads
 
         # sort the facility (=lines) and demand points (=trees)
         self.facility_points_gdf = line_gdf.reset_index()
@@ -125,6 +127,10 @@ class optimization_object_spopt(optimization_object):
         # Add opening/shipping constraint - each factory that has a client assigned to it should also be opened
         self.model = optimization_object_spopt.add_facility_is_opened_constraint(self)
 
+        self.model = optimization_object_spopt.add_max_number_facilities_constraint(
+            self
+        )
+
     def add_epsilon_objective(
         self,
         i_slack: float,
@@ -134,8 +140,8 @@ class optimization_object_spopt(optimization_object):
     ):
         """Adds an epsilon objective to the model to minimize the first objective and further minimize the epsilon-scaled other objectives"""
         self.epsilon = 1
-        self.slack_1 = i_slack
-        self.slack_2 = j_slack
+        self.slack_1 = abs(i_slack)
+        self.slack_2 = abs(j_slack)
         # get the range (as in from .. to ..) of each objective
         self.range_1 = i_range.max() - i_range.min()
         self.range_2 = j_range.max() - j_range.min()
@@ -150,54 +156,33 @@ class optimization_object_spopt(optimization_object):
         return self.model
 
     def add_epsilon_constraint(
-        self, target_value: float, objective_to_select: int = -1
+        self,
+        target_value: float,
+        constraint_to_select: str,
+        distances_to_use: np.ndarray,
     ):
         """Adds an epsilon constraint to the model - constrain the objective to be within a certain range of
         Args:
             target_value (float): the minimum value of the objective -
             objective_to_select (int, optional): the objective to select. Defaults to -1.
         """
-        if objective_to_select == 1:
-            # add a named constraint to facilitate overwriting it later
-            sum_deviations_variables = self.numpy_minimal_lateral_distances(
-                self.ecological_penalty_lateral_distances,
-                operate_on_model_vars=True,
+        # add a named constraint to facilitate overwriting it later
+        sum_deviations_variables = self.numpy_minimal_lateral_distances(
+            distances_to_use,
+            operate_on_model_vars=True,
+        )
+
+        # if constraint does not exist, add it to the problem
+        if constraint_to_select not in self.model.problem.constraints:
+            self.model.problem += (
+                sum_deviations_variables <= target_value,
+                constraint_to_select,
             )
 
-            # if constraint does not exist, add it to the problem
-            if "sw_constraint" not in self.model.problem.constraints:
-                self.model.problem += (
-                    sum_deviations_variables <= target_value,
-                    "sw_constraint",
-                )
-
-            else:  # update it
-                self.model.problem.constraints["sw_constraint"] = (
-                    sum_deviations_variables <= target_value
-                )
-
-        elif objective_to_select == 2:
-            sum_bad_ergonomic_distances_variables = (
-                self.numpy_minimal_lateral_distances(
-                    self.ergonomic_penalty_lateral_distances, operate_on_model_vars=True
-                )
+        else:  # update it
+            self.model.problem.constraints[constraint_to_select] = (
+                sum_deviations_variables <= target_value
             )
-
-            # if constraint does not exist, add it to the problem
-            if "ergo_constraint" not in self.model.problem.constraints:
-                self.model.problem += LpConstraint(
-                    sum_bad_ergonomic_distances_variables,
-                    sense=LpConstraintLE,
-                    rhs=target_value,
-                    name="ergo_constraint",
-                )
-            else:  # update it
-                self.model.problem.constraints["ergo_constraint"] = LpConstraint(
-                    sum_bad_ergonomic_distances_variables,
-                    sense=LpConstraintLE,
-                    rhs=target_value,
-                    name="ergo_constraint",
-                )
 
         return self.model
 
@@ -377,7 +362,7 @@ class optimization_object_spopt(optimization_object):
     def add_ecological_objective(self):
         return pulp.lpSum(
             self.numpy_minimal_lateral_distances(
-                self.ecological_penalty_lateral_distances
+                self.ecological_penalty_lateral_distances, operate_on_model_vars=True
             )
         )
 
@@ -389,7 +374,7 @@ class optimization_object_spopt(optimization_object):
         """
         return pulp.lpSum(
             self.numpy_minimal_lateral_distances(
-                self.ergonomic_penalty_lateral_distances
+                self.ergonomic_penalty_lateral_distances, operate_on_model_vars=True
             )
         )
 
@@ -455,6 +440,17 @@ class optimization_object_spopt(optimization_object):
                 self.model.problem += (
                     self.model.fac_vars[fac] - self.model.cli_assgn_vars[cli][fac] >= 0
                 )
+
+        return self.model
+
+    def add_max_number_facilities_constraint(self):
+        """
+        Set an upper limit for the number of facilities to be built to ensure that not simply all CRs are activated
+        """
+
+        self.model.problem += (
+            pulp.lpSum(self.model.fac_vars) <= self.maximum_nuber_cable_roads
+        )
 
         return self.model
 
