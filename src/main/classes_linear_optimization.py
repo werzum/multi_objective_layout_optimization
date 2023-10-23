@@ -463,6 +463,58 @@ class result_object(ABC):
     cli_assgn_vars: list[list[bool]]
 
 
+class expert_result(result_object):
+    """A class to store the results of the expert model based on selected lines"""
+
+    def __init__(
+        self,
+        indices: list[int],
+        name: str,
+        line_gdf: gpd.GeoDataFrame,
+        harvesteable_trees_gdf: gpd.GeoDataFrame,
+    ):
+        self.name = name
+
+        fac_range = len(line_gdf)
+        cli_range = len(harvesteable_trees_gdf)
+
+        fac_vars = np.ndarray((fac_range,), dtype=bool)
+        fac_vars[indices] = True
+        self.fac_vars = fac_vars
+
+        # extract our selected lines only
+        rot_line_gdf = line_gdf[line_gdf.index.isin(indices)]
+
+        # Create a matrix with the distance between every tree and line and the distance between the support (beginning of the CR) and the carriage (cloests point on the CR to the tree)
+        (
+            distance_tree_line,
+            distance_carriage_support,
+        ) = geometry_operations.compute_distances_facilities_clients(
+            harvesteable_trees_gdf, rot_line_gdf
+        )
+
+        tree_to_line_assignment = np.argmin(distance_tree_line, axis=1)
+
+        # compute the distance of each tree to its assigned line
+        distance_trees_to_lines = sum(
+            distance_tree_line[
+                range(len(tree_to_line_assignment)), tree_to_line_assignment
+            ]
+        )
+
+        # the assignment of each facility to the clients
+        self.fac2cli = [[] for i in range(len(line_gdf))]
+        for index, val in enumerate(tree_to_line_assignment):
+            self.fac2cli[indices[val]].append(index)
+
+        # the assignment of each client to the facilities
+        self.cli_assgn_vars = [[0] * fac_range for i in range(cli_range)]
+        for index, val in enumerate(tree_to_line_assignment):
+            self.cli_assgn_vars[index][indices[val]] = 1
+
+        self.c2f_vars = np.array(self.cli_assgn_vars)
+
+
 class spopt_result(result_object):
     def __init__(
         self,
