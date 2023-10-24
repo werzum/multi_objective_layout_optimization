@@ -60,7 +60,9 @@ class optimization_object_spopt(optimization_object):
         self.demand_points_gdf = harvesteable_trees_gdf.reset_index()
 
         # set up the solver
-        self.solver = pulp.PULP_CBC_CMD(msg=False, warmStart=False)
+        self.solver = pulp.PULP_CBC_CMD(
+            msg=True, warmStart=True, gapRel=0.1, timeLimit=120, threads=8
+        )
         self.name = "model"
 
         # create the nr of possible facilities and clients
@@ -303,7 +305,8 @@ class optimization_object_spopt(optimization_object):
         var_name = "x[{i}]"
         fac_vars = [
             pulp.LpVariable(
-                var_name.format(i=fac), lowBound=0, upBound=1, cat=pulp.LpInteger
+                var_name.format(i=fac),
+                cat=pulp.LpBinary,  # lowBound=0, upBound=1, cat=pulp.LpInteger
             )
             for fac in self.facility_range
         ]
@@ -324,7 +327,8 @@ class optimization_object_spopt(optimization_object):
         cli_assgn_vars = [
             [
                 pulp.LpVariable(
-                    var_name.format(i=i, j=j), lowBound=0, upBound=1, cat=pulp.LpInteger
+                    var_name.format(i=i, j=j),
+                    cat=pulp.LpBinary,  # lowBound=0, upBound=1, cat=pulp.LpInteger
                 )
                 for j in self.facility_range
             ]
@@ -391,7 +395,7 @@ class optimization_object_spopt(optimization_object):
             # if operate_on_model_vars is True, use the actual variables from the model, else use the boolean list
 
             if operate_on_model_vars:
-                return_value = np.sum(
+                return_value = pulp.lpSum(
                     np.multiply(set_of_distances, self.model.cli_assgn_vars)
                 )
 
@@ -438,7 +442,10 @@ class optimization_object_spopt(optimization_object):
         for cli in self.client_range:
             for fac in self.facility_range:
                 self.model.problem += (
-                    self.model.fac_vars[fac] - self.model.cli_assgn_vars[cli][fac] >= 0
+                    pulp.LpAffineExpression(
+                        self.model.fac_vars[fac] - self.model.cli_assgn_vars[cli][fac]
+                    )
+                    >= 0
                 )
 
         return self.model
