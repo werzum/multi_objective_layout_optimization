@@ -472,6 +472,9 @@ class expert_result(result_object):
         name: str,
         line_gdf: gpd.GeoDataFrame,
         harvesteable_trees_gdf: gpd.GeoDataFrame,
+        sample_productivity_cost_matrix: np.ndarray,
+        ecological_penalty_lateral_distances: np.ndarray,
+        ergonomics_penalty_lateral_distances: np.ndarray,
     ):
         self.name = name
 
@@ -513,6 +516,27 @@ class expert_result(result_object):
             self.cli_assgn_vars[index][indices[val]] = 1
 
         self.c2f_vars = np.array(self.cli_assgn_vars)
+
+        self.productivity_cost_overall = np.sum(
+            sample_productivity_cost_matrix[
+                range(len(tree_to_line_assignment)), tree_to_line_assignment
+            ]
+        )
+        self.cr_cost = np.sum(rot_line_gdf["line_cost"].values)
+
+        self.ecological_objective = np.sum(
+            np.multiply(ecological_penalty_lateral_distances, self.c2f_vars)
+        )
+        self.ergonomics_objective = np.sum(
+            np.multiply(ergonomics_penalty_lateral_distances, self.c2f_vars)
+        )
+
+    def get_objective_values(self):
+        return (
+            self.productivity_cost_overall,
+            self.ecological_objective,
+            self.ergonomics_objective,
+        )
 
 
 class spopt_result(result_object):
