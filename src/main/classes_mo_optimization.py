@@ -2,6 +2,7 @@ from pymoo.core.sampling import Sampling
 from pymoo.core.problem import ElementwiseProblem
 from pymoo.core.repair import Repair
 from pymoo.core.mutation import Mutation
+from pymoo.core.crossover import Crossover
 
 import geopandas as gpd
 import numpy as np
@@ -90,7 +91,9 @@ class optimization_object_pymoo(
 
         overall_cost_obj, ecological_obj, ergonomics_obj = self.get_objective_values()
 
-        return overall_cost_obj + self.epsilon * (ecological_obj + ergonomics_obj)
+        return (
+            overall_cost_obj + ecological_obj + ergonomics_obj
+        )  # self.epsilon * (ecological_obj + ergonomics_obj)
 
     @property
     def aij(self):
@@ -234,6 +237,59 @@ class CustomSampling(Sampling):
 
         # repeat this for all samples
         return np.vstack([vars] * n_samples)
+
+
+class CustomCrossOver(Crossover):
+    """Custom crossover to iteratively select cable roads from our fit configurations"""
+
+    def __init__(self):
+        super().__init__(2, 2)
+
+    def _do(
+        self, problem, X, **kwargs
+    ):  # , n_parents, n_offsprings, optimization_object, n_samples, **kwargs):
+        # The input of has the following shape (n_parents, n_matings, n_var)
+        _, n_matings, n_var = X.shape
+
+        # The output owith the shape (n_offsprings, n_matings, n_var)
+        # Because there the number of parents and offsprings are equal it keeps the shape of X
+        Y = np.full_like(X, None, dtype=object)
+
+        # for each mating provided
+        for k in range(n_matings):
+            # get the first and the second parent
+            a, b = X[0, k], X[1, k]
+
+            a_reshape = a.reshape((problem.client_range + 1, problem.facility_range))
+            fac_vars_a = a_reshape[-1]
+
+            b_reshape = b.reshape((problem.client_range + 1, problem.facility_range))
+            fac_vars_b = b_reshape[-1]
+
+            # create the offspring in the same shape as the parents
+            offspring_a = np.zeros(fac_vars_a.shape)
+            offspring_b = np.zeros(fac_vars_b.shape)
+
+            # randomly select their own or the other parent's fac vars
+            for i in range(len(fac_vars_a)):
+                if np.random.random() < 0.5:
+                    offspring_a[i] = fac_vars_a[i]
+                    offspring_b[i] = fac_vars_b[i]
+                else:
+                    offspring_a[i] = fac_vars_b[i]
+                    offspring_b[i] = fac_vars_a[i]
+
+            # set the new fac vars for the offspring
+            a_reshape[-1] = offspring_a
+            b_reshape[-1] = offspring_b
+
+            # and flatten them
+            a = a_reshape.flatten()
+            b = b_reshape.flatten()
+
+            Y[0, k], Y[1, k] = a, b
+
+        return Y
 
 
 class MyMutation(Mutation):

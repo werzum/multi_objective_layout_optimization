@@ -61,7 +61,7 @@ class optimization_object_spopt(optimization_object):
 
         # set up the solver
         self.solver = pulp.PULP_CBC_CMD(
-            msg=True, warmStart=True, gapRel=0.1, timeLimit=120, threads=8
+            msg=False, warmStart=True, gapRel=0.1, timeLimit=120, threads=8
         )
         self.name = "model"
 
