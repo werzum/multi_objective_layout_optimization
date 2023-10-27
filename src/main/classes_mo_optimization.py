@@ -155,8 +155,8 @@ class optimization_object_pymoo(
     def _evaluate(self, x, out, *args, **kwargs):
         # reshape n_var to (n_trees*n_facs+n_facs)
         variable_matrix = x.reshape((self.client_range + 1, self.facility_range))
-        cli_assgn_vars = variable_matrix[:-1]
-        fac_vars = variable_matrix[-1]
+        self.set_cli_assgn_vars(variable_matrix[:-1])
+        self.set_fac_vars(variable_matrix[-1])
 
         (
             cost_obj,
@@ -165,10 +165,10 @@ class optimization_object_pymoo(
         ) = self.get_objective_values()
 
         # for each row sum should be 1 -> only one client allowed
-        singular_assignment_constr = np.sum(cli_assgn_vars, axis=1) - 1
+        singular_assignment_constr = np.sum(self.cli_assgn_vars, axis=1) - 1
 
         # want to enforce that for each row where a 1 exists, fac_vars also has a 1
-        facility_is_opened_constr = -np.sum(fac_vars - cli_assgn_vars, axis=1)
+        facility_is_opened_constr = -np.sum(self.fac_vars - self.cli_assgn_vars, axis=1)
 
         out["F"] = np.column_stack([cost_obj, ecological_obj, ergonomic_obj])
         # ieq constr
@@ -513,6 +513,7 @@ class pymoo_result(classes_linear_optimization.result_object):
                 facility_range,
             )
         )
+
         # transpose the variable matrix to the fac2cli format and then get the indices of the selected lines
         fac2cli = variable_matrix[:-1].T
         self.fac2cli = [np.where(row)[0].tolist() for row in fac2cli]
