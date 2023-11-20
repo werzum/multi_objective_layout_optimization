@@ -109,21 +109,36 @@ def parse_list_float(list_string):
     return parsed_numbers
 
 
-def load_processed_gdfs():
-    with open("03_Data/Resources_Organized/Dataframes_Processed/tree_gdf.csv") as file:
+def load_processed_gdfs(data_to_load: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Load the processed dataframes from the csv files
+    """
+    with open(
+        f"03_Data/Resources_Organized/Dataframes_Processed/Bestand_{data_to_load}.csv"
+    ) as file:
         bestand = pd.read_csv(file)
 
-    with open("03_Data/Resources_Organized/Dataframes_Processed/height_df.csv") as file:
+    with open(
+        f"03_Data/Resources_Organized/Dataframes_Processed/Height_{data_to_load}.csv"
+    ) as file:
         height = pd.read_csv(file)
 
-    # Apply the function to the 'point' column using the apply method
-    bestand["geometry"] = bestand["geometry"].apply(parse_point)
-    height["geometry"] = height["geometry"].apply(parse_point)
+    bestand_gdf = gpd.GeoDataFrame(
+        bestand, geometry=gpd.points_from_xy(bestand.x, bestand.y)
+    )
 
-    bestand["height_series"] = bestand["height_series"].apply(parse_list_int)
-    bestand["diameter_series"] = bestand["diameter_series"].apply(parse_list_float)
+    height_gdf = gpd.GeoDataFrame(
+        height, geometry=gpd.points_from_xy(height.x, height.y)
+    )
 
-    bestand = gpd.GeoDataFrame(bestand, geometry=bestand["geometry"])
-    height = gpd.GeoDataFrame(height, geometry=height["geometry"])
+    # # Apply the function to the 'point' column using the apply method
+    # bestand["geometry"] = bestand["geometry"].apply(parse_point)
+    # height["geometry"] = height["geometry"].apply(parse_point)
 
-    return bestand, height
+    # bestand["height_series"] = bestand["height_series"].apply(parse_list_int)
+    # bestand["diameter_series"] = bestand["diameter_series"].apply(parse_list_float)
+
+    # bestand = gpd.GeoDataFrame(bestand, geometry=bestand["geometry"])
+    # height = gpd.GeoDataFrame(height, geometry=height["geometry"])
+
+    return bestand_gdf, height_gdf
