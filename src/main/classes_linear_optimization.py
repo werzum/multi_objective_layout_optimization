@@ -593,6 +593,7 @@ def model_results_comparison(
     overall_profit = []
     cable_road_costs = []
     facility_cost = line_gdf["line_cost"].values
+    cost_objective = []
 
     ecological_distances = []
     overall_ergonomic_penalty_lateral_distances = []
@@ -622,6 +623,8 @@ def model_results_comparison(
             - productivity_array[-1]
             - total_cable_road_costs
         )
+
+        cost_objective.append(productivity_array[-1] + total_cable_road_costs)
         overall_profit.append(total_profit_here)
 
         ecological_distances.append(result.ecological_objective)
@@ -634,7 +637,7 @@ def model_results_comparison(
 
     name_list = [result.name for result in result_list]
 
-    return pd.DataFrame(
+    df = pd.DataFrame(
         data={
             "Total distance of trees to cable roads": distance_tree_line_array,
             "Productivity cost per m3 as per Stampfer": productivity_array,
@@ -643,7 +646,19 @@ def model_results_comparison(
             "cable_road_costs": cable_road_costs,
             "profit_comparison": profit_comparison,
             "name": name_list,
+            "cost_objective": cost_objective,
             "ecological_distances": ecological_distances,
             "ergonomics_distances": overall_ergonomic_penalty_lateral_distances,
         }
     )
+
+    # get those relative results
+    for target_column in [
+        "ecological_distances",
+        "ergonomics_distances",
+        "cost_objective",
+    ]:
+        min_value = df[target_column].min()
+        df[target_column + "_RNI"] = ((min_value / df[target_column] * 100)).astype(int)
+
+    return df
