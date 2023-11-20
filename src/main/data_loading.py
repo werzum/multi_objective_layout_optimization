@@ -1,4 +1,5 @@
 import rasterio
+from rasterio import features
 from shapely.geometry import Polygon, Point
 import pandas as pd
 import geopandas as gpd
@@ -22,7 +23,7 @@ def read_tif(file_path):
         mask = dataset.dataset_mask()
 
         # Extract feature shapes and values from the array.
-        for geom, val in rasterio.features.shapes(mask, transform=dataset.transform):
+        for geom, val in features.shapes(mask, transform=dataset.transform):
             geom_array.append(Polygon(geom["coordinates"][0]))
 
         # stackoverflow magic to read the height values to an array https://stackoverflow.com/questions/51485603/converting-numpy-structured-array-to-pandas-dataframes
@@ -42,40 +43,45 @@ def read_tif(file_path):
     return geom_array, height_df
 
 
-def read_csv(file_path):
+def read_csv(file_path: str) -> pd.DataFrame:
+    """Reads a given csv file and returns a dataframe"""
     with open(file_path) as file:
         bestand = pd.read_csv(file, sep="\t", dtype=str)
     return bestand
 
 
-def format_csv(csv):
+def format_tree_dataframe(csv: pd.DataFrame) -> pd.DataFrame:
+    """
+    Format the tree dataframe to the correct format, especially the columns to numeric
+
+    """
     # ensure the csv columns are parsed correctly - especially with the separators
     # convert just columns "a" and "b"
-    csv[["x", "y", "z", "id", "BHD", "crownVolume"]] = (
-        csv[["x", "y", "z", "id", "BHD", "crownVolume"]]
-        .replace(",", ".", regex=True)
-        .astype(float)
+    columns_to_change = ["x", "y", "z", "id", "BHD", "crownVolume", "h"]
+    csv[columns_to_change] = (
+        csv[columns_to_change].replace(",", ".", regex=True).astype(float)
     )
-    csv[["x", "y", "z", "id", "BHD", "crownVolume"]] = csv[
-        ["x", "y", "z", "id", "BHD", "crownVolume"]
-    ].apply(pd.to_numeric)
+    csv[columns_to_change] = csv[columns_to_change].apply(pd.to_numeric)
     return csv
 
 
-def load_bestand_and_forest():
+def load_bestand_and_forest(tif_to_load: int):
     # load the tif
-    tif_shapes, height_df = read_tif("Resources_Organized/tif/Bestand3.tif")
+    tif_shapes, height_df = read_tif(
+        f"03_Data/Resources_Organized/tif/Bestand{tif_to_load}.tif"
+    )
 
     forest_area_gdf = gpd.GeoDataFrame(
         pd.DataFrame({"name": ["area1", "area2", "area3", "area4", "area5"]}),
         geometry=tif_shapes,
     )
 
-    # load the data and show that we have correctly parsed the CSV
-    bestand_3_csv = read_csv("Resources_Organized/csv/Bestand3_h.csv")
-    bestand_3_csv = format_csv(bestand_3_csv)
+    bestand_csv = read_csv(
+        f"03_Data/Resources_Organized/csv/Bestand{tif_to_load}_h.csv"
+    )
+    tree_df = format_tree_dataframe(bestand_csv)
 
-    return forest_area_gdf, bestand_3_csv, height_df
+    return tree_df, forest_area_gdf, height_df
 
 
 def parse_point(point_string):
