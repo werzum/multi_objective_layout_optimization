@@ -10,5 +10,6 @@
   "notebook.output.scrolling": true,
   "files.exclude": {
     "moo_env/": true
-  }
+  },
+  "python.analysis.autoImportCompletions": true
 }
