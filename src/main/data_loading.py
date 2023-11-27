@@ -3,8 +3,9 @@ from rasterio import features
 from shapely.geometry import Polygon, Point
 import pandas as pd
 import geopandas as gpd
-from pandas.api.types import is_string_dtype
 import numpy as np
+
+from src.main import mechanical_computations
 
 
 def read_tif(file_path):
@@ -112,15 +113,9 @@ def load_processed_gdfs(data_to_load: int) -> tuple[pd.DataFrame, pd.DataFrame]:
         height, geometry=gpd.points_from_xy(height.x, height.y)
     )
 
-    # # Apply the function to the 'point' column using the apply method
-    # bestand["geometry"] = bestand["geometry"].apply(parse_point)
-    # height["geometry"] = height["geometry"].apply(parse_point)
-
-    # bestand["height_series"] = bestand["height_series"].apply(parse_list_int)
-    # bestand["diameter_series"] = bestand["diameter_series"].apply(parse_list_float)
-
-    # bestand = gpd.GeoDataFrame(bestand, geometry=bestand["geometry"])
-    # height = gpd.GeoDataFrame(height, geometry=height["geometry"])
+    # convert the objectified column back to lists of floats
+    for column in ["max_supported_force_series", "height_series", "diameter_series"]:
+        bestand[column] = list(map(eval, bestand[column]))
 
     return bestand_gdf, height_gdf
 
@@ -154,7 +149,9 @@ def preprocess_raw_dataframes(
     # clean up the data
     tree_df.dropna(inplace=True)
     tree_df = tree_df[tree_df["h"] > 0]
-    tree_df = tree_df[tree_df["crownVolume"].astype(int) > 0]
+    # dont do that - we want to keep the trees with no crown volume
+    # TODO - reprocess everything
+    # tree_df = tree_df[tree_df["crownVolume"].astype(int) > 0]
     tree_df.reset_index(drop=True, inplace=True)
 
     # # recreate the height and diameter series
@@ -166,7 +163,7 @@ def preprocess_raw_dataframes(
     durchmesser_csv = durchmesser_csv[durchmesser_csv.hoehe % 1 == 0]
 
     # get the unique ids
-    kes = tree_gdf.id.unique()
+    kes = tree_df.id.unique()
     id_dict = {}
     dm_dict = {}
     # get a corresponding dict of diameters at each height
@@ -192,7 +189,7 @@ def preprocess_raw_dataframes(
 
     tree_df["max_supported_force_series"] = list_of_euler_max_force_lists
 
-    tree_df["max_holding_force"] = (((tree_gdf["BHD"] * 0.1) ** 2) / 3) * 10000
+    tree_df["max_holding_force"] = (((tree_df["BHD"] * 0.1) ** 2) / 3) * 10000
 
     return tree_df, forest_area_gdf, height_df
 

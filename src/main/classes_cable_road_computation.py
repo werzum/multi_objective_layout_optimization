@@ -1,6 +1,23 @@
 from shapely.geometry import LineString, Point
+from shapely.affinity import rotate, scale
 import numpy as np
 import geopandas as gpd
+import pandas as pd
+from sklearn.cluster import KMeans
+
+from src.main import (
+    geometry_operations,
+    geometry_utilities,
+    mechanical_computations,
+    global_vars,
+    cable_road_computation,
+    optimization_compute_quantification,
+)
+
+# from src.main.geometry_operations import (
+#     fetch_point_elevation,
+#     generate_road_points,
+# )
 
 
 class Point_3D:
@@ -336,9 +353,137 @@ def load_cable_road(line_gdf: gpd.GeoDataFrame, index: int) -> Cable_Road:
     return line_gdf.iloc[index]["Cable Road Object"]
 
 
-from src.main import (
-    geometry_operations,
-    geometry_utilities,
-    mechanical_computations,
-    global_vars,
-)
+class forest_area:
+    def __init__(self, tree_gdf, height_gdf, extra_geometry_gpd):
+        """
+        # A class to represent a forest area, storing the tree and height dataframes, as well as the extra geometry dataframes.
+        """
+        self.tree_gdf = tree_gdf
+        self.height_gdf = height_gdf
+
+        interval = 2
+        self.road_points = geometry_operations.generate_road_points(
+            extra_geometry_gpd.loc["road"].geometry, interval
+        )
+
+        # get the eligible anchor and target trees inside the polygon
+        anchor_trees_gdf = geometry_operations.filter_gdf_by_contained_elements(
+            tree_gdf, extra_geometry_gpd.loc["uphill_anchors"].geometry
+        )
+        target_trees_gdf = geometry_operations.filter_gdf_by_contained_elements(
+            tree_gdf, extra_geometry_gpd.loc["downhill_anchors"].geometry
+        )
+        inner_forest_gdf = geometry_operations.filter_gdf_by_contained_elements(
+            tree_gdf, extra_geometry_gpd.loc["inner_forest"].geometry
+        )
+
+        self.harvesteable_trees_gdf = pd.concat([target_trees_gdf, inner_forest_gdf])
+
+        # filter the anchor and target trees for a BHD of 30cm or larger
+        self.anchor_trees_gdf = anchor_trees_gdf[anchor_trees_gdf["BHD"] >= 30]
+        self.target_trees_gdf = target_trees_gdf[target_trees_gdf["BHD"] >= 30]
+
+        # set the slope
+        slope_degree = 29
+
+        # set a orientation line we can plan the line deviation around
+        slope_line = LineString([(0, 0), (0, 1)])
+        slope_line = rotate(slope_line, slope_degree)
+
+        # scale the line by a factor of 100 and plot it
+        self.slope_line = scale(slope_line, 100, 100)
+
+    def compute_cable_road(self):
+        line_gdf, start_point_dict = cable_road_computation.generate_possible_lines(
+            self.road_points,
+            self.target_trees_gdf,
+            self.anchor_trees_gdf,
+            self.tree_gdf,
+            self.slope_line,
+            self.height_gdf,
+        )
+        print("we have n lines: ", len(line_gdf))
+
+        # unpack to geopandas
+        buffer = gpd.GeoSeries(line_gdf["line_candidates"].values)
+        new_line_gdf = gpd.GeoDataFrame(geometry=buffer)
+        new_line_gdf[line_gdf.columns] = line_gdf[line_gdf.columns].values
+        new_line_gdf["line_length"] = new_line_gdf.geometry.length
+        self.line_gdf = new_line_gdf
+        self.start_point_dict = start_point_dict
+
+    def compute_line_costs(self):
+        # compute the line costs
+        uphill_yarding = True
+        self.line_gdf[
+            "line_cost"
+        ] = optimization_compute_quantification.compute_line_costs(
+            self.line_gdf, uphill_yarding, large_yarder=True
+        )
+
+        # and the volume of the harvesteable trees
+        self.harvesteable_trees_gdf[
+            "cubic_volume"
+        ] = optimization_compute_quantification.compute_tree_volume(
+            self.harvesteable_trees_gdf["BHD"], self.harvesteable_trees_gdf["h"]
+        )
+
+    def cluster_trees(self):
+        n_clusters = len(self.harvesteable_trees_gdf) // 20
+        k_means = KMeans(n_clusters=n_clusters)
+        predicted_clusters = k_means.fit_predict(
+            X=[*zip(self.harvesteable_trees_gdf["x"], self.harvesteable_trees_gdf["y"])]
+        )
+
+        return n_clusters, predicted_clusters
+
+    def a_value_selection(self, A_value=5):
+        """Selects the trees to fell based on the A value and sets the harvesteable_trees_gdf_sortiment attribute
+        Args:
+            A_value (int, optional): The A value. Defaults to 5.
+        """
+        indexes_to_keep = []
+
+        n_clusters, predicted_clusters = self.cluster_trees()
+
+        # doing this too many times
+        for cluster in range(n_clusters):
+            # select trees
+            index = np.where(predicted_clusters == cluster)
+            sub_df = self.harvesteable_trees_gdf.iloc[index]
+
+            # determine index of largest tree
+            z_tree_index = sub_df["BHD"].idxmax()
+            z_tree = sub_df.loc[z_tree_index]
+            z_tree_bhd = z_tree["BHD"]
+            z_tree_h = z_tree["h"]
+
+            # compute the distance of all trees to the largest tree
+            sub_df["distance_to_z_tree"] = sub_df.distance(
+                sub_df.loc[z_tree_index].geometry
+            )
+
+            # drop the largest tree from the dataframe so we dont fell it
+            sub_df.drop(z_tree_index, inplace=True)
+
+            # # A=H/E * d/D
+            # sub_df["A_value"] = (z_tree_h / sub_df["distance_to_z_tree"]) * (
+            #     sub_df["BHD"] / z_tree_bhd
+            # )
+
+            # select those trees which are too close to the z tree with GD < H/A*d/D
+            # negate the condition, since those are the trees we keep. The trees in the list will be felled
+            sub_df = sub_df[
+                ~(
+                    sub_df["distance_to_z_tree"]
+                    < (z_tree_h / A_value) * (sub_df["BHD"] / z_tree_bhd)
+                )
+            ]
+
+            # add the indexes to fell to the list
+            indexes_to_keep.extend(sub_df.index)
+
+        # filter the harvesteable trees to only those we want to fell
+        self.harvesteable_trees_gdf_sortiment = self.harvesteable_trees_gdf.loc[
+            indexes_to_keep
+        ]

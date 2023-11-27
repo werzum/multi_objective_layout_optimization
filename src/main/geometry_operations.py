@@ -152,9 +152,6 @@ def fetch_point_elevation(
     return height_gdf.iloc[i]["elev"].values[0]
 
 
-from src.main import geometry_utilities
-
-
 def compute_average_terrain_steepness(
     line_gdf: gpd.GeoDataFrame, height_gdf: gpd.GeoDataFrame
 ) -> float:

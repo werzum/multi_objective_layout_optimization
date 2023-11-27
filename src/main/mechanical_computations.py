@@ -9,10 +9,10 @@ import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 
 from src.main import (
+    classes_cable_road_computation,
+    plotting_2d,
     geometry_utilities,
     geometry_operations,
-    plotting_2d,
-    classes_cable_road_computation,
 )
 
 

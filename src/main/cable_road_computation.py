@@ -1,7 +1,6 @@
 from shapely.geometry import LineString, Point
 import numpy as np
 import itertools
-import vispy.scene
 import geopandas as gpd
 from pandas import DataFrame
 from itertools import pairwise
@@ -23,7 +22,6 @@ def generate_possible_lines(
     overall_trees: gpd.GeoDataFrame,
     slope_line: LineString,
     height_gdf: gpd.GeoDataFrame,
-    plot_possible_lines: bool,
 ) -> tuple[DataFrame, dict]:
     """Compute which lines can be made from road_points to anchor_trees without having an angle greater than max_main_line_slope_deviation
     First, we generate all possible lines between  each point along the road and all head anchors.
@@ -45,13 +43,6 @@ def generate_possible_lines(
 
     global_vars.init(height_gdf)
     max_main_line_slope_deviation = 45
-
-    if plot_possible_lines:
-        # Make a canvas and add simple view
-        canvas = vispy.scene.SceneCanvas(keys="interactive", show=True)
-        view = canvas.central_widget.add_view()
-    else:
-        view = None
 
     # generate the list of line candidates within max_slope_angle
     line_candidate_list = list(itertools.product(road_points, target_trees.geometry))
@@ -79,6 +70,7 @@ def generate_possible_lines(
         )
         for line in line_df["line_candidates"]
     ]
+
     # add to df and filter empty entries
     line_df = line_df[line_df["tree_anchor_support_trees"].apply(len) > 0]
     print(len(line_df), " after supports trees")
@@ -94,8 +86,6 @@ def generate_possible_lines(
     print(len(line_df), " after possible anchor triples")
 
     # check if we have no height obstructions - compute the supports we need according to line tension and anchor configs
-    pos = []
-
     line_df["Cable Road Object"] = [
         compute_required_supports(
             line["possible_anchor_triples"],
@@ -553,7 +543,9 @@ def generate_triple_angle(
     min_anchor_distane = 15
 
     # 1. get list of possible anchors -> anchor trees
-    anchor_trees_working_copy = anchor_trees.copy()
+    anchor_trees_working_copy = gpd.GeoDataFrame(
+        anchor_trees, geometry=anchor_trees.geometry
+    )
 
     # 2. check which points are within distance
     anchor_trees_working_copy = anchor_trees_working_copy[
