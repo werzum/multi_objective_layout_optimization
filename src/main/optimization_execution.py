@@ -1,3 +1,4 @@
+import re
 import numpy as np
 from itertools import islice
 
@@ -102,14 +103,14 @@ from pymoo.termination import get_termination
 from pymoo.optimize import minimize
 
 
-def nsga_optimization(optimization_result_list, forest_area_gdf):
-    cost_matrix = optimization_result_list[0].distance_tree_line
+def nsga_optimization(model_list, optimization_result_list, forest_area_gdf):
+    cost_matrix = model_list[0].distance_tree_line
     nsga_problem = classes_mo_optimization.optimization_object_pymoo(
         cost_matrix,
-        optimization_result_list[0].productivity_cost,
-        optimization_result_list[0].facility_cost,
-        optimization_result_list[0].ecological_penalty_lateral_distances,
-        optimization_result_list[0].ergonomic_penalty_lateral_distances,
+        model_list[0].productivity_cost,
+        model_list[0].facility_cost,
+        model_list[0].ecological_penalty_lateral_distances,
+        model_list[0].ergonomic_penalty_lateral_distances,
     )
     termination = get_termination("n_gen", 50)
 
@@ -311,13 +312,14 @@ def augmecon_optimization(
     # surface_plot_data_x = []
     # surface_plot_data_y = []
     # surface_plot_data_z = []
+    return optimization_result_list
 
 
 def expert_layout_optimization(optimization_result_list, sample_model, forest_area_gdf):
     selected_lines = [[30, 37], [32, 59, 71]]
 
     for config in selected_lines:
-        expert_result_1 = classes_linear_optimization.expert_result(
+        expert_result = classes_linear_optimization.expert_result(
             indices=config,
             name="expert_layout_" + str(config),
             line_gdf=forest_area_gdf.line_gdf,
@@ -327,6 +329,6 @@ def expert_layout_optimization(optimization_result_list, sample_model, forest_ar
             ergonomics_penalty_lateral_distances=sample_model.ergonomic_penalty_lateral_distances,
         )
 
-        optimization_result_list.append(expert_result_1)
+        optimization_result_list.append(expert_result)
 
     return optimization_result_list
