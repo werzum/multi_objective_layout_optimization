@@ -2,7 +2,7 @@ import numpy as np
 import math
 from scipy.spatial.transform import Rotation as Rot
 from shapely.geometry import LineString, Point
-from src.main import classes_cable_road_computation
+from src.main import classes_cable_road_computation, classes_geometry_objects
 
 
 def unit_vector(vector):
@@ -132,8 +132,8 @@ def angle_between_3d(v1, v2):
 
 
 def angle_between_3d_lines(
-    line1: classes_cable_road_computation.LineString_3D,
-    line2: classes_cable_road_computation.LineString_3D,
+    line1: classes_geometry_objects.LineString_3D,
+    line2: classes_geometry_objects.LineString_3D,
 ) -> float:
     """Compute the angle between two 3d lines with the same start point
     Args:
@@ -177,15 +177,13 @@ def distance_between_points_from_origin(
     return np.sqrt(np.sum((points - origin) ** 2, 1))
 
 
-def create_xy_orthogonal_vector(point: classes_cable_road_computation.Point_3D):
+def create_xy_orthogonal_vector(point: classes_geometry_objects.Point_3D):
     # set the vector to just x and y
-    point = classes_cable_road_computation.Point_3D(point.x, point.y, 0)
+    point = classes_geometry_objects.Point_3D(point.x, point.y, 0)
     # normalize it
-    point = classes_cable_road_computation.Point_3D(
-        *(point.xyz / np.linalg.norm(point.xyz))
-    )
+    point = classes_geometry_objects.Point_3D(*(point.xyz / np.linalg.norm(point.xyz)))
     # and return
-    return classes_cable_road_computation.Point_3D(x=-point.y, y=point.x, z=0)
+    return classes_geometry_objects.Point_3D(x=-point.y, y=point.x, z=0)
 
 
 def construct_rotation_matrix(theta: float, u: np.ndarray) -> Rot:
@@ -198,8 +196,8 @@ def construct_rotation_matrix(theta: float, u: np.ndarray) -> Rot:
 
 
 def rotate_3d_point_in_z_direction(
-    point: classes_cable_road_computation.Point_3D, theta: float
-) -> classes_cable_road_computation.Point_3D:
+    point: classes_geometry_objects.Point_3D, theta: float
+) -> classes_geometry_objects.Point_3D:
     """Rotate a 3d point around the z-axis
 
     Args:
@@ -214,12 +212,12 @@ def rotate_3d_point_in_z_direction(
     point_rotated = R.apply(point.xyz)
 
     # return 3D point
-    return classes_cable_road_computation.Point_3D(*(point_rotated))
+    return classes_geometry_objects.Point_3D(*(point_rotated))
 
 
 def rotate_3d_line_in_z_direction(
-    line: classes_cable_road_computation.LineString_3D, angle: float
-) -> classes_cable_road_computation.LineString_3D:
+    line: classes_geometry_objects.LineString_3D, angle: float
+) -> classes_geometry_objects.LineString_3D:
     """Rotate a 3d line around the z-axis
 
     Args:
@@ -230,15 +228,15 @@ def rotate_3d_line_in_z_direction(
         classes.LineString_3D: Rotated line
     """
     # define  the end point relative to the start point
-    end_point_relative = classes_cable_road_computation.Point_3D(
+    end_point_relative = classes_geometry_objects.Point_3D(
         *(line.end_point.xyz - line.start_point.xyz)
     )
     # rotate it around the given angle
     end_point_rotated = rotate_3d_point_in_z_direction(end_point_relative, angle)
     # create new line by addin the rotated end point to the start point
-    return classes_cable_road_computation.LineString_3D(
+    return classes_geometry_objects.LineString_3D(
         line.start_point,
-        classes_cable_road_computation.Point_3D(
+        classes_geometry_objects.Point_3D(
             *(line.start_point.xyz + end_point_rotated.xyz)
         ),
     )

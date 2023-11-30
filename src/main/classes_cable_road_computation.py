@@ -6,11 +6,12 @@ import pandas as pd
 from sklearn.cluster import KMeans
 
 from src.main import (
+    classes_geometry_objects,
     geometry_operations,
     geometry_utilities,
-    mechanical_computations,
     global_vars,
-    cable_road_computation,
+    cable_road_computation_main,
+    mechanical_computations_separate_dependencies,
     optimization_compute_quantification,
 )
 
@@ -18,51 +19,6 @@ from src.main import (
 #     fetch_point_elevation,
 #     generate_road_points,
 # )
-
-
-class Point_3D:
-    def __init__(self, x, y, z):
-        self.x = x
-        self.y = y
-        self.z = z
-
-    @property
-    def xyz(self):
-        return np.array([self.x, self.y, self.z])
-
-    def distance(self, other):
-        """Returns the distance between two 3dpoints"""
-        return np.sqrt(
-            (self.x - other.x) ** 2 + (self.y - other.y) ** 2 + (self.z - other.z) ** 2
-        )
-
-
-class LineString_3D:
-    def __init__(self, start_point: Point_3D, end_point: Point_3D):
-        self.start_point = start_point
-        self.end_point = end_point
-
-    def interpolate(self, distance: float) -> Point_3D:
-        """Returns the interpolated point at a given distance from the start point
-        Args:
-            distance (float): distance from the start point
-        Returns:
-            Point_3D: interpolated point"""
-
-        vector = self.end_point.xyz - self.start_point.xyz
-        # normalize the vector
-        vector = vector / np.linalg.norm(vector)
-        # multiply the vector with the distance
-        vector = vector * distance
-        # add the vector to the start point
-        return Point_3D(
-            self.start_point.x + vector[0],
-            self.start_point.y + vector[1],
-            self.start_point.z + vector[2],
-        )
-
-    def length(self):
-        return self.start_point.distance(self.end_point)
 
 
 class Support:
@@ -95,7 +51,9 @@ class Support:
 
     @property
     def xyz_location(self):
-        return Point_3D(self.xy_location.x, self.xy_location.y, self.total_height)
+        return classes_geometry_objects.Point_3D(
+            self.xy_location.x, self.xy_location.y, self.total_height
+        )
 
     @property
     def max_supported_force_at_attachment_height(self):
@@ -287,7 +245,9 @@ class Cable_Road:
             loaded (bool, optional): whether the line is loaded or not. Defaults to True.
         """
 
-        y_x_deflections = mechanical_computations.pestal_load_path(self, loaded)
+        y_x_deflections = (
+            mechanical_computations_separate_dependencies.pestal_load_path(self, loaded)
+        )
 
         if loaded:
             self.sloped_line_to_floor_distances = (
@@ -394,7 +354,10 @@ class forest_area:
         self.slope_line = scale(slope_line, 100, 100)
 
     def compute_cable_road(self):
-        line_gdf, start_point_dict = cable_road_computation.generate_possible_lines(
+        (
+            line_gdf,
+            start_point_dict,
+        ) = cable_road_computation_main.generate_possible_lines(
             self.road_points,
             self.target_trees_gdf,
             self.anchor_trees_gdf,

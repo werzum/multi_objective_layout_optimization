@@ -597,6 +597,7 @@ def model_results_comparison(
 
     ecological_distances = []
     overall_ergonomic_penalty_lateral_distances = []
+    selected_lines_overall = []
 
     total_profit_per_layout_baseline = 0
     for index, row in enumerate(result_list[0].fac2cli):
@@ -630,6 +631,8 @@ def model_results_comparison(
         ecological_distances.append(result.ecological_objective)
         overall_ergonomic_penalty_lateral_distances.append(result.ergonomics_objective)
 
+        selected_lines_overall.append(result.selected_lines.index.values)
+
     overall_profit_unscaled = np.array(overall_profit)  # * profit_scaling
     profit_baseline = min(overall_profit_unscaled)
     print(f"Profit baseline is {profit_baseline}")
@@ -649,6 +652,7 @@ def model_results_comparison(
             "cost_objective": cost_objective,
             "ecological_distances": ecological_distances,
             "ergonomics_distances": overall_ergonomic_penalty_lateral_distances,
+            "selected_lines": selected_lines_overall,
         }
     )
 

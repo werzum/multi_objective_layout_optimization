@@ -3,7 +3,7 @@ from shapely.geometry.base import BaseGeometry
 import numpy as np
 import geopandas as gpd
 
-from src.main import global_vars, classes_cable_road_computation
+from src.main import global_vars
 
 
 def generate_road_points(
@@ -175,7 +175,7 @@ def compute_average_terrain_steepness(
     return sum(averages) / len(averages)
 
 
-def get_slope(cable_road: classes_cable_road_computation.Cable_Road) -> float:
+def get_slope(cable_road) -> float:
     """Get the slope of a given cable road
     Args:
         cable_road (classes.Cable_Road): Cable road object

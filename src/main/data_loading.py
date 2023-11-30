@@ -5,7 +5,7 @@ import pandas as pd
 import geopandas as gpd
 import numpy as np
 
-from src.main import mechanical_computations
+# from src.main import mechanical_computations
 
 
 def read_tif(file_path):
@@ -139,59 +139,59 @@ def load_raw_bestand_forest_height_dfs(tif_to_load: int):
     return tree_df, forest_area_gdf, height_df
 
 
-def preprocess_raw_dataframes(
-    tree_df, forest_area_gdf, height_df, data_to_load: int
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """
-    Preprocess the raw dataframes by cleaning them up and adding the height series and diameter series
-    """
+# def preprocess_raw_dataframes(
+#     tree_df, forest_area_gdf, height_df, data_to_load: int
+# ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+#     """
+#     Preprocess the raw dataframes by cleaning them up and adding the height series and diameter series
+#     """
 
-    # clean up the data
-    tree_df.dropna(inplace=True)
-    tree_df = tree_df[tree_df["h"] > 0]
-    # dont do that - we want to keep the trees with no crown volume
-    # TODO - reprocess everything
-    # tree_df = tree_df[tree_df["crownVolume"].astype(int) > 0]
-    tree_df.reset_index(drop=True, inplace=True)
+#     # clean up the data
+#     tree_df.dropna(inplace=True)
+#     tree_df = tree_df[tree_df["h"] > 0]
+#     # dont do that - we want to keep the trees with no crown volume
+#     # TODO - reprocess everything
+#     # tree_df = tree_df[tree_df["crownVolume"].astype(int) > 0]
+#     tree_df.reset_index(drop=True, inplace=True)
 
-    # # recreate the height and diameter series
-    durchmesser_csv = pd.read_csv(
-        f"03_Data/Resources_Organized/Dataframes_Processed/Diameter_Series_{data_to_load}.csv"
-    )
+#     # # recreate the height and diameter series
+#     durchmesser_csv = pd.read_csv(
+#         f"03_Data/Resources_Organized/Dataframes_Processed/Diameter_Series_{data_to_load}.csv"
+#     )
 
-    # only get the integer heights
-    durchmesser_csv = durchmesser_csv[durchmesser_csv.hoehe % 1 == 0]
+#     # only get the integer heights
+#     durchmesser_csv = durchmesser_csv[durchmesser_csv.hoehe % 1 == 0]
 
-    # get the unique ids
-    kes = tree_df.id.unique()
-    id_dict = {}
-    dm_dict = {}
-    # get a corresponding dict of diameters at each height
-    for ke in kes:
-        id_dict[ke] = durchmesser_csv[durchmesser_csv["tree.id"] == ke][
-            "hoehe"
-        ].to_list()
-        dm_dict[ke] = durchmesser_csv[durchmesser_csv["tree.id"] == ke][
-            "durchmesser"
-        ].to_list()
+#     # get the unique ids
+#     kes = tree_df.id.unique()
+#     id_dict = {}
+#     dm_dict = {}
+#     # get a corresponding dict of diameters at each height
+#     for ke in kes:
+#         id_dict[ke] = durchmesser_csv[durchmesser_csv["tree.id"] == ke][
+#             "hoehe"
+#         ].to_list()
+#         dm_dict[ke] = durchmesser_csv[durchmesser_csv["tree.id"] == ke][
+#             "durchmesser"
+#         ].to_list()
 
-    tree_df["height_series"] = tree_df["id"].map(id_dict)
-    tree_df["diameter_series"] = tree_df["id"].map(dm_dict)
+#     tree_df["height_series"] = tree_df["id"].map(id_dict)
+#     tree_df["diameter_series"] = tree_df["id"].map(dm_dict)
 
-    # get the euler forces
-    list_of_euler_max_force_lists = []
-    for index, row in tree_df.iterrows():
-        temp_list = [
-            mechanical_computations.euler_knicklast(bhd, height)
-            for bhd, height in zip(row["diameter_series"], row["height_series"])
-        ]
-        list_of_euler_max_force_lists.append(temp_list)
+#     # get the euler forces
+#     list_of_euler_max_force_lists = []
+#     for index, row in tree_df.iterrows():
+#         temp_list = [
+#             mechanical_computations.euler_knicklast(bhd, height)
+#             for bhd, height in zip(row["diameter_series"], row["height_series"])
+#         ]
+#         list_of_euler_max_force_lists.append(temp_list)
 
-    tree_df["max_supported_force_series"] = list_of_euler_max_force_lists
+#     tree_df["max_supported_force_series"] = list_of_euler_max_force_lists
 
-    tree_df["max_holding_force"] = (((tree_df["BHD"] * 0.1) ** 2) / 3) * 10000
+#     tree_df["max_holding_force"] = (((tree_df["BHD"] * 0.1) ** 2) / 3) * 10000
 
-    return tree_df, forest_area_gdf, height_df
+#     return tree_df, forest_area_gdf, height_df
 
 
 # one off for loading and preprocessing raw data
