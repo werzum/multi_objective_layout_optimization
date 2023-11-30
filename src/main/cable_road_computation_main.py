@@ -6,6 +6,9 @@ import numpy as np
 
 from pandas import DataFrame
 from shapely.geometry import LineString, Point
+
+from src.main.geometry_utilities import angle_between
+
 from src.main import (
     global_vars,
     mechanical_computations,
@@ -54,8 +57,7 @@ def generate_possible_lines(
 
     # filter by max_main_line_slope_deviation
     line_df["slope_deviation"] = [
-        geometry_utilities.angle_between(line, slope_line)
-        for line in line_candidate_list_combinations
+        angle_between(line, slope_line) for line in line_candidate_list_combinations
     ]
     line_df = line_df[line_df["slope_deviation"] < max_main_line_slope_deviation]
     print(len(line_df), " after slope deviations")

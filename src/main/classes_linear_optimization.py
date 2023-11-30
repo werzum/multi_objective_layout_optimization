@@ -495,6 +495,8 @@ class expert_result(result_object):
         # extract our selected lines only
         rot_line_gdf = line_gdf[line_gdf.index.isin(indices)]
 
+        self.selected_lines = rot_line_gdf
+
         # Create a matrix with the distance between every tree and line and the distance between the support (beginning of the CR) and the carriage (cloests point on the CR to the tree)
         (
             distance_tree_line,

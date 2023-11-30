@@ -416,7 +416,7 @@ def check_if_tower_and_anchor_trees_hold(
     index = min(
         int(exerted_force // scaling_factor), len(this_cable_road.points_along_line) - 1
     )
-    loaded_cr_interpolated_tension_point = classes_cable_road_computation.Point_3D(
+    loaded_cr_interpolated_tension_point = classes_geometry_objects.Point_3D(
         this_cable_road.points_along_line[index].x,
         this_cable_road.points_along_line[index].y,
         this_cable_road.absolute_loaded_line_height[index],

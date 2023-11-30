@@ -1,3 +1,5 @@
+import numpy as np
+
 from src.main import classes_cable_road_computation, geometry_utilities
 
 
