@@ -4,10 +4,10 @@ import itertools
 import geopandas as gpd
 from itertools import pairwise
 
-from src.main.geometry_utilities import angle_between
 
 from src.main import (
     mechanical_computations,
+    geometry_utilities,
     classes_cable_road_computation,
 )
 
@@ -458,7 +458,7 @@ def generate_triple_angle(
     # compute the angle between the slope line and the anchor line and get two dfs with possible center and side trees
     anchor_trees_working_copy["slope_angle"] = anchor_trees_working_copy[
         "anchor_line"
-    ].apply(lambda x: angle_between(x, line_candidate))
+    ].apply(lambda x: geometry_utilities.angle_between(x, line_candidate))
 
     central_trees = anchor_trees_working_copy[
         anchor_trees_working_copy["slope_angle"].between(0, max_center_tree_slope_angle)
