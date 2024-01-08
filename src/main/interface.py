@@ -1,3 +1,4 @@
+import select
 import pandas as pd
 import numpy as np
 from typing import Tuple
@@ -5,6 +6,7 @@ from random import random
 
 import plotly.graph_objects as go
 import plotly.express as px
+from ipywidgets.widgets import Button
 
 from src.main import geometry_operations
 
@@ -98,10 +100,9 @@ def plot_pareto_frontier(
             interactive_layout.update_traces(
                 line=solid_line, selector={"name": str(active_row)}
             )
-
-        # and update the list of current indices to the new ones
         current_indices = active_rows
-        update_tables(
+        # and update the list of current indices to the new ones as well as the layout
+        update_colors_and_tables(
             current_cable_roads_table_figure,
             current_cable_roads_table,
             current_layout_overview_figure,
@@ -110,11 +111,33 @@ def plot_pareto_frontier(
             forest_area_gdf,
             model_list,
         )
-        # as well as the line colors
-        update_line_colors_by_indices(current_indices, interactive_layout)
 
     pareto_frontier.data[0].on_click(selection_fn)
     return pareto_frontier
+
+
+def update_colors_and_tables(
+    current_cable_roads_table_figure,
+    current_cable_roads_table,
+    current_layout_overview_figure,
+    current_indices,
+    interactive_layout,
+    forest_area_gdf,
+    model_list,
+):
+    """
+    Wrapper function to update both the colors of the lines and the tables
+    """
+    update_tables(
+        current_cable_roads_table_figure,
+        current_cable_roads_table,
+        current_layout_overview_figure,
+        current_indices,
+        interactive_layout,
+        forest_area_gdf,
+        model_list,
+    )
+    update_line_colors_by_indices(current_indices, interactive_layout)
 
 
 def update_tables(
@@ -254,6 +277,7 @@ def update_line_colors_by_indices(current_indices, interactive_layout):
     """
     Function to set the line colors of the interactive layout based on the current indices
     """
+    print("here current indices", current_indices)
     for indice, integer in zip(current_indices, range(len(current_indices))):
         interactive_layout.data[indice + 2].line.color = px.colors.qualitative.Plotly[
             integer
@@ -262,7 +286,9 @@ def update_line_colors_by_indices(current_indices, interactive_layout):
 
 def interactive_cr_selection(
     forest_area_gdf, model_list, optimization_result_list, results_df
-) -> Tuple[go.FigureWidget, go.FigureWidget, go.FigureWidget, go.FigureWidget]:
+) -> Tuple[
+    go.FigureWidget, go.FigureWidget, go.FigureWidget, go.FigureWidget, Button, Button
+]:
     """
     Create an interactive cable road layout visualization.
 
@@ -278,6 +304,10 @@ def interactive_cr_selection(
     """
     # initialize the current indices list we use to keep track of the selected lines
     current_indices = []
+
+    # initialize the selected cr to none
+    print("selected cr to 0")
+    selected_cr = 0
 
     # define the transparent color for CRs once
     color_transparent = "rgba(0,0,0,0.4)"
@@ -349,9 +379,12 @@ def interactive_cr_selection(
 
     # create the onclick function to select new CRs
     def selection_fn(trace, points, selector):
-        print("recevied click")
         # since the handler is activated for all lines, test if this one has coordinates, ie. is the clicked line
         if points.xs:
+            # set the selected cr to none by default
+            nonlocal selected_cr
+            selected_cr = None
+
             # turn all selected lines to lightgrey
             if trace.line.color != color_transparent:
                 interactive_layout.update_traces(
@@ -367,11 +400,15 @@ def interactive_cr_selection(
                     selector={"name": trace.name},
                 )
 
+                # and set the selected cr to the name of the trace if it is a new one
+                selected_cr = int(trace.name)
+
             # get all active traces  - ie those which are not lightgrey
             active_traces = interactive_layout.select_traces(
                 selector=lambda x: True if x.line.color != color_transparent else False
             )
 
+            nonlocal current_indices
             current_indices = [int(trace.name) for trace in active_traces]
 
             # color the traces
@@ -394,9 +431,81 @@ def interactive_cr_selection(
     for trace in interactive_layout.data[2:]:
         trace.on_click(selection_fn)
 
+    # add the custom buttons
+    def set_current_cr(left=False):
+        """
+        Function to set the currently selected cr to the next one
+        Refers to the nonlocal variables selected_cr and current_indices
+        First we get the index of the cr, then we set the current cr to lightgrey, then we increment/decrement the cr, then we set the new cr to black
+        And finally we update the tables and the layout
+        """
+        nonlocal selected_cr
+        nonlocal current_indices
+
+        # if there are no current indices, return
+        if selected_cr is None:
+            return
+
+        # get the index of the currently selected cr
+        index_cr = current_indices.index(selected_cr)
+
+        # make this trace lightgrey
+        interactive_layout.update_traces(
+            line=transparent_line,
+            selector={"name": str(selected_cr)},
+        )
+
+        # in/decrement the cr
+        selected_cr = selected_cr - 1 if left else selected_cr + 1
+
+        # and set the selected_cr on the index
+        current_indices[index_cr] = selected_cr
+
+        # update this trace to turn black
+        interactive_layout.update_traces(
+            line=solid_line,
+            selector={"name": str(selected_cr)},
+        )
+
+        update_colors_and_tables(
+            current_cable_roads_table_figure,
+            current_cable_roads_table,
+            layout_overview_table_figure,
+            current_indices,
+            interactive_layout,
+            forest_area_gdf,
+            model_list,
+        )
+
+    def move_left_callback(button):
+        set_current_cr(left=True)
+
+    def move_right_callback(button):
+        set_current_cr(left=False)
+
+    def create_buttons():
+        """
+        Define the buttons for interacting with the layout and the comparison table
+        """
+        move_left_button = Button(description="<-")
+        move_right_button = Button(description="->")
+        reset_all__CRs_button = Button(description="Reset all CRs")
+
+        add_layout_to_comparison_button = Button(description="Add layout to comparison")
+        reset_comparison_button = Button(description="Reset comparison")
+
+        # and bind all the functions to the buttons
+        move_left_button.on_click(move_left_callback)
+        move_right_button.on_click(move_right_callback)
+
+        return move_left_button, move_right_button
+
+    buttons = create_buttons()
     return (
         interactive_layout,
         current_cable_roads_table_figure,
         layout_overview_table_figure,
         pareto_frontier,
+        buttons[0],
+        buttons[1],
     )
