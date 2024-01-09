@@ -7,6 +7,7 @@ from random import random
 import plotly.graph_objects as go
 import plotly.express as px
 from ipywidgets.widgets import Button
+from torch import layout
 
 from src.main import geometry_operations
 
@@ -85,7 +86,6 @@ def plot_pareto_frontier(
     )
 
     def selection_fn(trace, points, selector):
-        print("recevied click")
         # get index of this point in the trace
         index = points.point_inds[0]
 
@@ -158,16 +158,17 @@ def update_tables(
         current_indices, forest_area_gdf, model_list
     )
 
-    current_layout_overview_figure.data[0].cells.values = (
+    current_layout_overview_figure.data[0].cells.values = [
         updated_layout_costs["Tree_to_line_distance"],
         updated_layout_costs["productivity_cost_overall"],
         updated_layout_costs["line_cost"],
-    )
+    ]
 
     # set the current_cable_roads_table dataframe rows to show only these CRs
     line_costs, line_lengths, dummy_variable = current_cable_roads_table.loc[
         current_cable_roads_table.index.isin(current_indices)
     ].values.T
+
     current_cable_roads_table_figure.data[0].cells.values = [
         line_costs.astype(int),
         line_lengths.astype(int),
@@ -277,7 +278,6 @@ def update_line_colors_by_indices(current_indices, interactive_layout):
     """
     Function to set the line colors of the interactive layout based on the current indices
     """
-    print("here current indices", current_indices)
     for indice, integer in zip(current_indices, range(len(current_indices))):
         interactive_layout.data[indice + 2].line.color = px.colors.qualitative.Plotly[
             integer
@@ -306,7 +306,6 @@ def interactive_cr_selection(
     current_indices = []
 
     # initialize the selected cr to none
-    print("selected cr to 0")
     selected_cr = 0
 
     # define the transparent color for CRs once
@@ -362,6 +361,25 @@ def interactive_cr_selection(
         ]
     )
     layout_overview_table_figure.update_layout(title="Current Layout Overview")
+
+    # layout comparison table
+    layout_comparison_df = pd.DataFrame(
+        columns=[
+            "Tree_to_line_distance",
+            "Productivity_cost",
+            "Line_cost",
+        ]
+    )
+    layout_comparison_table_figure = go.FigureWidget(
+        [
+            go.Table(
+                header=dict(
+                    values=["Tree to Line Distance", "Productivity Cost", "Line Cost"]
+                ),
+                cells=dict(values=[]),
+            )
+        ]
+    )
 
     # get the pareto frontier as 3d scatter plot
     pareto_frontier = plot_pareto_frontier(
@@ -483,6 +501,37 @@ def interactive_cr_selection(
     def move_right_callback(button):
         set_current_cr(left=False)
 
+    def add_to_comparison_callback(button):
+        """
+        Function to add the current layout to the comparison table
+        """
+        nonlocal layout_comparison_df
+
+        # append the current data from the layout overview table to the comparison table
+        layout_comparison_df.loc[
+            len(layout_comparison_df) + 1
+        ] = layout_overview_table_figure.data[0].cells.values
+
+        # and update the figure accordingly
+        layout_comparison_table_figure.data[
+            0
+        ].cells.values = layout_comparison_df.values.T
+
+    def reset_comparison_table_callback(button):
+        """
+        Function to reset the comparison table by emptying the figure data
+        """
+        layout_comparison_table_figure.data[0].cells.values = []
+        # and reset the dataframe
+        nonlocal layout_comparison_df
+        layout_comparison_df = pd.DataFrame(
+            columns=[
+                "Tree_to_line_distance",
+                "Productivity_cost",
+                "Line_cost",
+            ]
+        )
+
     def create_buttons():
         """
         Define the buttons for interacting with the layout and the comparison table
@@ -497,10 +546,18 @@ def interactive_cr_selection(
         # and bind all the functions to the buttons
         move_left_button.on_click(move_left_callback)
         move_right_button.on_click(move_right_callback)
+        add_layout_to_comparison_button.on_click(add_to_comparison_callback)
+        reset_comparison_button.on_click(reset_comparison_table_callback)
 
-        return move_left_button, move_right_button
+        return (
+            move_left_button,
+            move_right_button,
+            add_layout_to_comparison_button,
+            reset_comparison_button,
+        )
 
     buttons = create_buttons()
+
     return (
         interactive_layout,
         current_cable_roads_table_figure,
@@ -508,4 +565,7 @@ def interactive_cr_selection(
         pareto_frontier,
         buttons[0],
         buttons[1],
+        buttons[2],
+        buttons[3],
+        layout_comparison_table_figure,
     )
