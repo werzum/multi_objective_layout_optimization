@@ -1,5 +1,4 @@
-import re
-import select
+from calendar import c
 import pandas as pd
 import numpy as np
 from typing import Tuple
@@ -8,18 +7,16 @@ from random import random
 import plotly.graph_objects as go
 import plotly.express as px
 from ipywidgets.widgets import Button, Dropdown
-from torch import layout
-from xarray import corr
 
-from src.main import geometry_operations
+from src.main import geometry_operations, plotting_3d
 
 
-def create_trees_and_lines_traces(forest_area_gdf, transparent_line):
+def create_trees_and_lines_traces(forest_area_3, transparent_line):
     # create a trace for the trees
     xs, ys = zip(
         *[
             (row.xy[0][0], row.xy[1][0])
-            for row in forest_area_gdf.harvesteable_trees_gdf.geometry
+            for row in forest_area_3.harvesteable_trees_gdf.geometry
         ]
     )
     trees = go.Scatter(
@@ -40,74 +37,10 @@ def create_trees_and_lines_traces(forest_area_gdf, transparent_line):
             line=transparent_line,
             name=str(id),
         )
-        for id, row in forest_area_gdf.line_gdf.iterrows()
+        for id, row in forest_area_3.line_gdf.iterrows()
     ]
 
     return trees, individual_lines
-
-
-def plot_pareto_frontier(
-    results_df,
-    current_indices,
-    interactive_layout,
-    layout_overview_table_figure,
-    current_cable_roads_table_figure,
-    current_cable_roads_table,
-    forest_area_gdf,
-    transparent_line,
-    solid_line,
-    model_list,
-):
-    pareto_frontier = go.FigureWidget(
-        go.Scatter3d(
-            x=results_df["ecological_distances_RNI"],
-            y=results_df["ergonomics_distances_RNI"],
-            z=results_df["cost_objective_RNI"],
-            mode="markers",
-        )
-    )
-
-    pareto_frontier.update_layout(
-        title="""Pareto Frontier""",
-        width=600,
-        height=600,
-        scene=dict(
-            xaxis_title="Ecological Optimality",
-            yaxis_title="Ergonomics Optimality",
-            zaxis_title="Cost Optimality",
-        ),
-        scene_camera_eye=dict(x=1.7, y=1.7, z=1),
-    )
-    pareto_frontier.add_annotation(
-        dict(
-            text="""A Pareto Frontier represents the set of all non-dominated solutions, <br> i.e. solutions where none of the objective functions can be improved in value without degrading some of the other objective values.<br>
-        Here, we consider three objectives: cost, relative ergonomical impact, and relative ecological impact. <br>Each point on the Pareto Frontier represents a unique combination of these three objectives that is Pareto optimal.<br> 
-        No point on the Pareto Frontier can be improved in one objective without worsening at least one of the other objectives1.""",
-            y=-1,
-        )
-    )
-
-    def selection_fn(trace, points, selector):
-        # get index of this point in the trace
-        index = points.point_inds[0]
-
-        # get the corresponding list of activated cable rows from the dataframe
-        current_indices = results_df.iloc[index]["selected_lines"]
-
-        update_interactive_based_on_indices(
-            current_cable_roads_table_figure,
-            current_cable_roads_table,
-            layout_overview_table_figure,
-            current_indices,
-            interactive_layout,
-            forest_area_gdf,
-            model_list,
-            transparent_line,
-            solid_line,
-        )
-
-    pareto_frontier.data[0].on_click(selection_fn)
-    return pareto_frontier
 
 
 def layout_comparison_onclick(trace, points, selector):
@@ -124,7 +57,7 @@ def update_interactive_based_on_indices(
     layout_overview_table_figure,
     current_indices,
     interactive_layout,
-    forest_area_gdf,
+    forest_area_3,
     model_list,
     transparent_line,
     solid_line,
@@ -141,6 +74,7 @@ def update_interactive_based_on_indices(
         interactive_layout.update_traces(
             line=solid_line, selector={"name": str(active_row)}
         )
+
     # and update the list of current indices to the new ones as well as the layout
     update_colors_and_tables(
         current_cable_roads_table_figure,
@@ -148,7 +82,7 @@ def update_interactive_based_on_indices(
         layout_overview_table_figure,
         current_indices,
         interactive_layout,
-        forest_area_gdf,
+        forest_area_3,
         model_list,
     )
 
@@ -159,7 +93,7 @@ def update_colors_and_tables(
     layout_overview_table_figure,
     current_indices,
     interactive_layout,
-    forest_area_gdf,
+    forest_area_3,
     model_list,
 ):
     """
@@ -171,7 +105,7 @@ def update_colors_and_tables(
         layout_overview_table_figure,
         current_indices,
         interactive_layout,
-        forest_area_gdf,
+        forest_area_3,
         model_list,
     )
     update_line_colors_by_indices(current_indices, interactive_layout)
@@ -183,7 +117,7 @@ def update_tables(
     layout_overview_table_figure,
     current_indices,
     interactive_layout,
-    forest_area_gdf,
+    forest_area_3,
     model_list,
 ):
     """
@@ -192,7 +126,7 @@ def update_tables(
 
     # and update the dataframe showing the computed costs
     updated_layout_costs = update_layout_overview(
-        current_indices, forest_area_gdf, model_list
+        current_indices, forest_area_3, model_list
     )
 
     layout_overview_table_figure.data[0].cells.values = [
@@ -243,22 +177,20 @@ def create_contour_traces(forest_area_3):
     return data
 
 
-def update_layout_overview(indices, forest_area_gdf, model_list) -> dict:
+def update_layout_overview(indices, forest_area_3, model_list) -> dict:
     """
     Function to update the cost dataframe with the updated costs for the new configuration based on the selected lines
     Returns distance_trees_to_lines, productivity_cost_overall, line_cost, total_cost, tree_to_line_assignment
     """
 
-    rot_line_gdf = forest_area_gdf.line_gdf[
-        forest_area_gdf.line_gdf.index.isin(indices)
-    ]
+    rot_line_gdf = forest_area_3.line_gdf[forest_area_3.line_gdf.index.isin(indices)]
 
     # Create a matrix with the distance between every tree and line and the distance between the support (beginning of the CR) and the carriage (cloests point on the CR to the tree)
     (
         distance_tree_line,
         distance_carriage_support,
     ) = geometry_operations.compute_distances_facilities_clients(
-        forest_area_gdf.harvesteable_trees_gdf, rot_line_gdf
+        forest_area_3.harvesteable_trees_gdf, rot_line_gdf
     )
 
     # assign all trees to their closest line
@@ -292,7 +224,7 @@ def update_layout_overview(indices, forest_area_gdf, model_list) -> dict:
     wood_volume_per_cr = [
         int(
             sum(
-                forest_area_gdf.harvesteable_trees_gdf.iloc[grouped_indices][
+                forest_area_3.harvesteable_trees_gdf.iloc[grouped_indices][
                     "cubic_volume"
                 ]
             )
@@ -323,15 +255,13 @@ def update_line_colors_by_indices(current_indices, interactive_layout):
 
 
 def interactive_cr_selection(
-    forest_area_gdf, model_list, optimization_result_list, results_df
-) -> Tuple[
-    go.FigureWidget, go.FigureWidget, go.FigureWidget, go.FigureWidget, Button, Button
-]:
+    forest_area_3, model_list, optimization_result_list, results_df
+):
     """
     Create an interactive cable road layout visualization.
 
     Parameters:
-    - forest_area_gdf: GeoDataFrame, input forest area data
+    - forest_area_3: GeoDataFrame, input forest area data
     - model_list: List, list of models
     - optimization_result_list: List, list of optimization results
     - results_df: DataFrame, optimization results DataFrame
@@ -347,17 +277,17 @@ def interactive_cr_selection(
     selected_cr = 0
 
     # define the transparent color for CRs once
-    color_transparent = "rgba(0,0,0,0.4)"
+    color_transparent = "rgba(0, 0, 0, 0.4)"
     transparent_line = dict(color=color_transparent, width=0.5)
     solid_line = dict(color="black", width=5)
 
     # create traces for the lines and trees
     trees, individual_lines = create_trees_and_lines_traces(
-        forest_area_gdf, transparent_line
+        forest_area_3, transparent_line
     )
 
     # create the traces for a contour plot
-    contour_traces = create_contour_traces(forest_area_gdf)
+    contour_traces = create_contour_traces(forest_area_3)
 
     # create a figure from all individual scatter lines
     interactive_layout = go.FigureWidget([trees, contour_traces, *individual_lines])
@@ -368,7 +298,7 @@ def interactive_cr_selection(
     )
 
     # create a dataframe and push it to a figurewidget to display details about our selected lines
-    current_cable_roads_table = forest_area_gdf.line_gdf[["line_cost", "line_length"]]
+    current_cable_roads_table = forest_area_3.line_gdf[["line_cost", "line_length"]]
     current_cable_roads_table["current_wood_volume"] = pd.Series(dtype="int")
     current_cable_roads_table_figure = go.FigureWidget(
         [
@@ -410,6 +340,72 @@ def interactive_cr_selection(
     )
     layout_comparison_table_figure.update_layout(title="Layout Comparison")
 
+    def plot_pareto_frontier(
+        results_df,
+        current_indices,
+        interactive_layout,
+        layout_overview_table_figure,
+        current_cable_roads_table_figure,
+        current_cable_roads_table,
+        forest_area_3,
+        transparent_line,
+        solid_line,
+        model_list,
+    ):
+        pareto_frontier = go.FigureWidget(
+            go.Scatter3d(
+                x=results_df["ecological_distances_RNI"],
+                y=results_df["ergonomics_distances_RNI"],
+                z=results_df["cost_objective_RNI"],
+                mode="markers",
+            )
+        )
+
+        pareto_frontier.update_layout(
+            title="""Pareto Frontier""",
+            width=600,
+            height=600,
+            scene=dict(
+                xaxis_title="Ecological Optimality",
+                yaxis_title="Ergonomics Optimality",
+                zaxis_title="Cost Optimality",
+            ),
+            scene_camera_eye=dict(x=1.7, y=1.7, z=1),
+        )
+        pareto_frontier.add_annotation(
+            dict(
+                text="""A Pareto Frontier represents the set of all non-dominated solutions, <br> i.e. solutions where none of the objective functions can be improved in value without degrading some of the other objective values.<br>
+            Here, we consider three objectives: cost, relative ergonomical impact, and relative ecological impact. <br>Each point on the Pareto Frontier represents a unique combination of these three objectives that is Pareto optimal.<br> 
+            No point on the Pareto Frontier can be improved in one objective without worsening at least one of the other objectives1.""",
+                y=-1,
+            )
+        )
+
+        def selection_fn(trace, points, selector):
+            nonlocal current_indices
+            # get index of this point in the trace
+            index = points.point_inds[0]
+
+            # get the corresponding list of activated cable rows from the dataframe
+            current_indices = results_df.iloc[index]["selected_lines"]
+
+            print("indices in selection", current_indices)
+
+            update_interactive_based_on_indices(
+                current_cable_roads_table_figure,
+                current_cable_roads_table,
+                layout_overview_table_figure,
+                current_indices,
+                interactive_layout,
+                forest_area_3,
+                model_list,
+                transparent_line,
+                solid_line,
+            )
+
+        pareto_frontier.data[0].on_click(selection_fn)
+        return pareto_frontier
+
     # get the pareto frontier as 3d scatter plot
     pareto_frontier = plot_pareto_frontier(
         results_df,
@@ -418,11 +414,14 @@ def interactive_cr_selection(
         layout_overview_table_figure,
         current_cable_roads_table_figure,
         current_cable_roads_table,
-        forest_area_gdf,
+        forest_area_3,
         transparent_line,
         solid_line,
         model_list,
     )
+
+    # 3d scatter plot for viewing the layout in 3d
+    layout_3d_scatter_plot = go.FigureWidget(go.Scatter3d())
 
     # create the onclick function to select new CRs
     def selection_fn(trace, points, selector):
@@ -432,7 +431,7 @@ def interactive_cr_selection(
             nonlocal selected_cr
             selected_cr = None
 
-            # turn all selected lines to lightgrey
+            # deactive this if it is active
             if trace.line.color != color_transparent:
                 interactive_layout.update_traces(
                     line=transparent_line,
@@ -450,13 +449,25 @@ def interactive_cr_selection(
                 # and set the selected cr to the name of the trace if it is a new one
                 selected_cr = int(trace.name)
 
+            # Aaalright. So this somehow works for the subsequent clicks after the pareto frontier has loaded the data.
+            # But it does not work for the first click- then, we have trouble differentiating the different traces.
+            # this should work, we first check if the cr is black (after having been clicked on form grey)
+            # then, it should be recognized as the only active trace and be coloured accordingly - better way to distinguish?
+            # the active trace selector seems flawed in the beginning, it catches all CRs
+
             # get all active traces  - ie those which are not lightgrey
-            active_traces = interactive_layout.select_traces(
-                selector=lambda x: True if x.line.color != color_transparent else False
-            )
+            active_traces = list(
+                interactive_layout.select_traces(
+                    selector=lambda x: True
+                    if x.line.color != color_transparent
+                    else False
+                )
+            )[2:]
 
             nonlocal current_indices
+            print("active traces", active_traces)
             current_indices = [int(trace.name) for trace in active_traces]
+            print("current indices", current_indices)
 
             # color the traces
             # we set the color of the lines in the current indices in consecutive order by choosing corresponding colors from the colorway
@@ -470,7 +481,7 @@ def interactive_cr_selection(
                 layout_overview_table_figure,
                 current_indices,
                 interactive_layout,
-                forest_area_gdf,
+                forest_area_3,
                 model_list,
             )
 
@@ -520,7 +531,7 @@ def interactive_cr_selection(
             layout_overview_table_figure,
             current_indices,
             interactive_layout,
-            forest_area_gdf,
+            forest_area_3,
             model_list,
         )
 
@@ -617,11 +628,25 @@ def interactive_cr_selection(
                 layout_overview_table_figure,
                 corresponding_indices,
                 interactive_layout,
-                forest_area_gdf,
+                forest_area_3,
                 model_list,
                 transparent_line,
                 solid_line,
             )
+
+    def view_in_3d_callback(button):
+        """
+        Function to view the current layout in 3d. This updates the layout_3d_scatter_plot with the new 3d scatterplot based on the current indices
+        """
+        nonlocal current_indices
+        print(current_indices)
+        print("view in 3d callback")
+        nonlocal layout_3d_scatter_plot
+        layout_3d_scatter_plot = go.FigureWidget(
+            plotting_3d.plot_all_cable_roads(
+                forest_area_3.height_gdf, forest_area_3.line_gdf.iloc[current_indices]
+            )
+        )
 
     def create_buttons():
         """
@@ -630,6 +655,7 @@ def interactive_cr_selection(
         move_left_button = Button(description="<-")
         move_right_button = Button(description="->")
         reset_all__CRs_button = Button(description="Reset all CRs")
+        view_in_3d_button = Button(description="View in 3D")
 
         add_layout_to_comparison_button = Button(description="Add layout to comparison")
         reset_comparison_button = Button(description="Reset comparison")
@@ -641,6 +667,7 @@ def interactive_cr_selection(
         add_layout_to_comparison_button.on_click(add_to_comparison_callback)
         reset_comparison_button.on_click(reset_comparison_table_callback)
         dropdown_menu.observe(dropdown_menu_callback)
+        view_in_3d_button.on_click(view_in_3d_callback)
 
         return (
             move_left_button,
@@ -648,6 +675,7 @@ def interactive_cr_selection(
             add_layout_to_comparison_button,
             reset_comparison_button,
             dropdown_menu,
+            view_in_3d_button,
         )
 
     buttons = list(create_buttons())
@@ -662,5 +690,7 @@ def interactive_cr_selection(
         buttons[2],
         buttons[3],
         buttons[4],
+        buttons[5],
         layout_comparison_table_figure,
+        layout_3d_scatter_plot,
     )
