@@ -1,4 +1,5 @@
 from calendar import c
+from functools import partial
 import pandas as pd
 import numpy as np
 from typing import Tuple
@@ -423,6 +424,13 @@ def interactive_cr_selection(
     # 3d scatter plot for viewing the layout in 3d
     layout_3d_scatter_plot = go.FigureWidget(go.Scatter3d())
 
+    layout_3d_scatter_plot.update_layout(
+        title="""3D Plot""",
+        width=1000,
+        height=600,
+        scene_camera_eye=dict(x=0.5, y=0.5, z=1),
+    )
+
     # create the onclick function to select new CRs
     def selection_fn(trace, points, selector):
         # since the handler is activated for all lines, test if this one has coordinates, ie. is the clicked line
@@ -448,12 +456,6 @@ def interactive_cr_selection(
 
                 # and set the selected cr to the name of the trace if it is a new one
                 selected_cr = int(trace.name)
-
-            # Aaalright. So this somehow works for the subsequent clicks after the pareto frontier has loaded the data.
-            # But it does not work for the first click- then, we have trouble differentiating the different traces.
-            # this should work, we first check if the cr is black (after having been clicked on form grey)
-            # then, it should be recognized as the only active trace and be coloured accordingly - better way to distinguish?
-            # the active trace selector seems flawed in the beginning, it catches all CRs
 
             # get all active traces  - ie those which are not lightgrey
             active_traces = list(
@@ -602,8 +604,6 @@ def interactive_cr_selection(
         """
         Function to load a custom layout from the dropdown menu
         """
-        print(change)
-        # todo - add an empty string as value, which is the default, and then check if the new value is numeric
         if change["type"] == "change" and change["name"] == "value":
             if change["new"] == "":
                 return
@@ -613,14 +613,11 @@ def interactive_cr_selection(
 
             # get the index of the selected layout
             selected_index = int(change.new)
-            print(change.new)
 
             # get the corresponding list of activated cable rows from the dataframe
             corresponding_indices = layout_comparison_df.iloc[selected_index][
                 "Selected Cable Roads"
             ][0]
-
-            print(corresponding_indices)
 
             update_interactive_based_on_indices(
                 current_cable_roads_table_figure,
@@ -634,21 +631,23 @@ def interactive_cr_selection(
                 solid_line,
             )
 
-    def view_in_3d_callback(button):
+    def view_in_3d_callback(button, scatterplot=layout_3d_scatter_plot):
         """
         Function to view the current layout in 3d. This updates the layout_3d_scatter_plot with the new 3d scatterplot based on the current indices
         """
         nonlocal current_indices
-        print(current_indices)
-        print("view in 3d callback")
-        nonlocal layout_3d_scatter_plot
-        layout_3d_scatter_plot = go.FigureWidget(
-            plotting_3d.plot_all_cable_roads(
-                forest_area_3.height_gdf, forest_area_3.line_gdf.iloc[current_indices]
-            )
-        )
 
-    def create_buttons():
+        # reset the scatterplot
+        scatterplot.data = []
+
+        # get the new traces
+        new_figure_traces = plotting_3d.plot_all_cable_roads(
+            forest_area_3.height_gdf, forest_area_3.line_gdf.iloc[current_indices]
+        ).data
+
+        scatterplot.add_traces(new_figure_traces)
+
+    def create_buttons(layout_3d_scatter_plot):
         """
         Define the buttons for interacting with the layout and the comparison table
         """
@@ -667,7 +666,9 @@ def interactive_cr_selection(
         add_layout_to_comparison_button.on_click(add_to_comparison_callback)
         reset_comparison_button.on_click(reset_comparison_table_callback)
         dropdown_menu.observe(dropdown_menu_callback)
-        view_in_3d_button.on_click(view_in_3d_callback)
+        view_in_3d_button.on_click(
+            partial(view_in_3d_callback, scatterplot=layout_3d_scatter_plot)
+        )
 
         return (
             move_left_button,
@@ -678,7 +679,7 @@ def interactive_cr_selection(
             view_in_3d_button,
         )
 
-    buttons = list(create_buttons())
+    buttons = list(create_buttons(layout_3d_scatter_plot))
 
     return (
         interactive_layout,
