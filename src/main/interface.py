@@ -7,7 +7,7 @@ from random import random
 
 import plotly.graph_objects as go
 import plotly.express as px
-from ipywidgets.widgets import Button, Dropdown
+from ipywidgets.widgets import Button, Dropdown, Textarea, Layout
 
 from src.main import geometry_operations, plotting_3d
 
@@ -42,14 +42,6 @@ def create_trees_and_lines_traces(forest_area_3, transparent_line):
     ]
 
     return trees, individual_lines
-
-
-def layout_comparison_onclick(trace, points, selector):
-    # get index of this point in the trace
-    index = points.point_inds[0]
-    print("trace", trace)
-    print("points", points)
-    print("selector", selector)
 
 
 def update_interactive_based_on_indices(
@@ -294,8 +286,8 @@ def interactive_cr_selection(
     interactive_layout = go.FigureWidget([trees, contour_traces, *individual_lines])
     interactive_layout.update_layout(
         title="Interactive Cable Road Layout",
-        width=1200,
-        height=800,
+        width=1000,
+        height=700,
     )
 
     # create a dataframe and push it to a figurewidget to display details about our selected lines
@@ -309,7 +301,11 @@ def interactive_cr_selection(
             )
         ]
     )
-    current_cable_roads_table_figure.update_layout(title="Current Cable Roads Overview")
+    current_cable_roads_table_figure.update_layout(
+        title="Current Cable Roads Overview",
+        height=250,
+        margin=dict(r=30, l=30, t=30, b=30),
+    )
 
     # and for the current layout overview
     layout_columns = [
@@ -327,7 +323,9 @@ def interactive_cr_selection(
             )
         ]
     )
-    layout_overview_table_figure.update_layout(title="Current Layout Overview")
+    layout_overview_table_figure.update_layout(
+        title="Current Layout Overview", height=150, margin=dict(r=30, l=30, t=30, b=30)
+    )
 
     # as well as the layout comparison table
     layout_comparison_df = pd.DataFrame(columns=layout_columns)
@@ -364,22 +362,25 @@ def interactive_cr_selection(
 
         pareto_frontier.update_layout(
             title="""Pareto Frontier""",
-            width=600,
-            height=600,
+            width=800,
+            height=400,
             scene=dict(
                 xaxis_title="Ecological Optimality",
                 yaxis_title="Ergonomics Optimality",
                 zaxis_title="Cost Optimality",
             ),
             scene_camera_eye=dict(x=1.7, y=1.7, z=1),
+            margin=dict(r=30, l=30, t=30, b=30),
         )
-        pareto_frontier.add_annotation(
-            dict(
-                text="""A Pareto Frontier represents the set of all non-dominated solutions, <br> i.e. solutions where none of the objective functions can be improved in value without degrading some of the other objective values.<br>
-            Here, we consider three objectives: cost, relative ergonomical impact, and relative ecological impact. <br>Each point on the Pareto Frontier represents a unique combination of these three objectives that is Pareto optimal.<br> 
-            No point on the Pareto Frontier can be improved in one objective without worsening at least one of the other objectives1.""",
-                y=-1,
-            )
+
+        text = """A Pareto Frontier represents the set of all non-dominated solutions, i.e. solutions where none of the objective functions can be improved in value without degrading some of the other objective values.Here, we consider three objectives: cost, relative ergonomical impact, and relative ecological impact. Each point on the Pareto Frontier represents a unique combination of these three objectives that is Pareto optimal. No point on the Pareto Frontier can be improved in one objective without worsening at least one of the other objectives."""
+
+        # create a widget with the text
+        pareto_explanation_widget = Textarea(
+            value=text,
+            description="Explanation:",
+            disabled=True,
+            layout=Layout(width="90%", height="50%"),
         )
 
         def selection_fn(trace, points, selector):
@@ -389,8 +390,6 @@ def interactive_cr_selection(
 
             # get the corresponding list of activated cable rows from the dataframe
             current_indices = results_df.iloc[index]["selected_lines"]
-
-            print("indices in selection", current_indices)
 
             update_interactive_based_on_indices(
                 current_cable_roads_table_figure,
@@ -405,10 +404,10 @@ def interactive_cr_selection(
             )
 
         pareto_frontier.data[0].on_click(selection_fn)
-        return pareto_frontier
+        return pareto_frontier, pareto_explanation_widget
 
     # get the pareto frontier as 3d scatter plot
-    pareto_frontier = plot_pareto_frontier(
+    pareto_frontier, pareto_explanation_widget = plot_pareto_frontier(
         results_df,
         current_indices,
         interactive_layout,
@@ -467,9 +466,7 @@ def interactive_cr_selection(
             )[2:]
 
             nonlocal current_indices
-            print("active traces", active_traces)
             current_indices = [int(trace.name) for trace in active_traces]
-            print("current indices", current_indices)
 
             # color the traces
             # we set the color of the lines in the current indices in consecutive order by choosing corresponding colors from the colorway
@@ -686,6 +683,7 @@ def interactive_cr_selection(
         current_cable_roads_table_figure,
         layout_overview_table_figure,
         pareto_frontier,
+        pareto_explanation_widget,
         buttons[0],
         buttons[1],
         buttons[2],
