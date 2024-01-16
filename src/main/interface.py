@@ -8,6 +8,7 @@ from random import random
 import plotly.graph_objects as go
 import plotly.express as px
 from ipywidgets.widgets import Button, Dropdown, Textarea, Layout
+from torch import prod
 
 from src.main import geometry_operations, plotting_3d
 
@@ -123,9 +124,9 @@ def update_tables(
     )
 
     layout_overview_table_figure.data[0].cells.values = [
-        updated_layout_costs["Tree_to_line_distance"],
-        updated_layout_costs["productivity_cost_overall"],
-        updated_layout_costs["line_cost"],
+        updated_layout_costs["Total Cable Road Costs"],
+        updated_layout_costs["Ecolgical Penalty"],
+        updated_layout_costs["Ergonomic Penalty"],
         [current_indices],
     ]
 
@@ -137,13 +138,13 @@ def update_tables(
     current_cable_roads_table_figure.data[0].cells.values = [
         line_costs.astype(int),
         line_lengths.astype(int),
-        updated_layout_costs["wood_volume_per_cr"],
+        updated_layout_costs["Wood Volume per Cable Road"],
     ]
 
     # as well as the colour of the corresponding trees
     interactive_layout.data[0].marker.color = [
         px.colors.qualitative.Plotly[integer]
-        for integer in updated_layout_costs["tree_to_line_assignment"]
+        for integer in updated_layout_costs["Tree to Cable Road Assignment"]
     ]
 
 
@@ -168,6 +169,24 @@ def create_contour_traces(forest_area_3):
         colorscale="Greys",
     )
     return data
+
+
+def compute_ergo_eco_penalty(forest_area_3, model_list, indices):
+    # calulate the environmental impact of each line beyond 10m lateral distance
+    ecological_penalty_threshold = 10
+    self.ecological_penalty_lateral_distances = np.where(
+        self.distance_tree_line > ecological_penalty_threshold,
+        self.distance_tree_line - ecological_penalty_threshold,
+        0,
+    )
+
+    # double all distances greater than penalty_treshold
+    ergonomics_penalty_treshold = 15
+    self.ergonomic_penalty_lateral_distances = np.where(
+        self.distance_tree_line > ergonomics_penalty_treshold,
+        (self.distance_tree_line - ergonomics_penalty_treshold) * 2,
+        0,
+    )
 
 
 def update_layout_overview(indices, forest_area_3, model_list) -> dict:
@@ -209,7 +228,6 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
 
     # sum of wood volume per CR
     # here we need to compute the sum of wood per tree to line assignment to return this for the CR table
-    # first we get for each class the indices
     grouped_class_indices = [
         np.nonzero(tree_to_line_assignment == label)[0]
         for label in range(len(rot_line_gdf))
@@ -227,13 +245,51 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
 
     line_cost = sum(rot_line_gdf["line_cost"])
 
+    # total cost = # get the total cable road costs
+    total_cable_road_costs = line_cost + productivity_cost_overall
+
+    # calulate the environmental impact of each line beyond 10m lateral distance
+    ecological_penalty_threshold = 10
+    ecological_penalty_lateral_distances = np.where(
+        distance_tree_line > ecological_penalty_threshold,
+        distance_tree_line - ecological_penalty_threshold,
+        0,
+    )
+
+    sum_eco_distances = sum(
+        [
+            ecological_penalty_lateral_distances[j][i]
+            for i, j in zip(
+                tree_to_line_assignment,
+                range(len(ecological_penalty_lateral_distances)),
+            )
+        ]
+    )
+
+    # double all distances greater than penalty_treshold
+    ergonomics_penalty_treshold = 15
+    ergonomic_penalty_lateral_distances = np.where(
+        distance_tree_line > ergonomics_penalty_treshold,
+        (distance_tree_line - ergonomics_penalty_treshold) * 2,
+        0,
+    )
+    sum_ergo_distances = sum(
+        [
+            ergonomic_penalty_lateral_distances[j][i]
+            for i, j in zip(
+                tree_to_line_assignment,
+                range(len(ergonomic_penalty_lateral_distances)),
+            )
+        ]
+    )
+
     # return a dict of the results and convert all results to ints for readability
     return {
-        "Tree_to_line_distance": int(distance_trees_to_lines),
-        "productivity_cost_overall": int(productivity_cost_overall),
-        "line_cost": int(line_cost),
-        "tree_to_line_assignment": tree_to_line_assignment,
-        "wood_volume_per_cr": wood_volume_per_cr,
+        "Wood Volume per Cable Road": wood_volume_per_cr,
+        "Total Cable Road Costs": int(total_cable_road_costs),
+        "Ecolgical Penalty": int(sum_eco_distances),
+        "Ergonomic Penalty": int(sum_ergo_distances),
+        "Tree to Cable Road Assignment": tree_to_line_assignment,
     }
 
 
@@ -296,7 +352,13 @@ def interactive_cr_selection(
     current_cable_roads_table_figure = go.FigureWidget(
         [
             go.Table(
-                header=dict(values=["Line Cost", "Line Length", "Wood Volume per CR"]),
+                header=dict(
+                    values=[
+                        "Cable Road Cost",
+                        "Cable Road Length",
+                        "Wood Volume per Cable Road",
+                    ]
+                ),
                 cells=dict(values=[]),
             )
         ]
@@ -309,9 +371,9 @@ def interactive_cr_selection(
 
     # and for the current layout overview
     layout_columns = [
-        "Tree to CR distance",
-        "Total Productivity Cost",
-        "Total Line Cost",
+        "Total Layout Costs",
+        "Ecological Penalty",
+        "Ergonomic Penalty",
         "Selected Cable Roads",
     ]
     layout_overview_df = pd.DataFrame(columns=layout_columns)
