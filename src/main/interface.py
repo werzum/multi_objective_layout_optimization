@@ -1,5 +1,6 @@
 from calendar import c
 from functools import partial
+import re
 from matplotlib.axis import YAxis
 import pandas as pd
 import numpy as np
@@ -435,6 +436,7 @@ def interactive_cr_selection(
                 xaxis={"autorange": "reversed"},
             ),
             scene_camera_eye=dict(x=1.7, y=1.7, z=1),
+            scene_camera_center=dict(x=0, y=0, z=-0.5),
             margin=dict(r=30, l=30, t=30, b=30),
         )
 
@@ -662,7 +664,7 @@ def interactive_cr_selection(
         nonlocal buttons
 
         # recreate the dropdown menu with the current indices and one empty selection
-        buttons[4].options = [""] + [
+        buttons[5].options = [""] + [
             str(index) for index in range(len(layout_comparison_df))
         ]
 
@@ -713,6 +715,39 @@ def interactive_cr_selection(
 
         scatterplot.add_traces(new_figure_traces)
 
+    def reset_button_callback(button):
+        """
+        Function to reset the currently selected cable roads
+        """
+        nonlocal current_indices
+        nonlocal selected_cr
+
+        # reset the selected cr to none
+        selected_cr = None
+
+        # reset the current indices
+        current_indices = []
+
+        # reset the dropdown menu
+        recreate_dropdown_menu()
+
+        # reset the layout
+        interactive_layout.update_traces(line=transparent_line)
+
+        # reset the tables
+        current_cable_roads_table_figure.data[0].cells.values = [
+            [],
+            [],
+            [],
+        ]
+
+        layout_overview_table_figure.data[0].cells.values = [
+            [],
+            [],
+            [],
+            [],
+        ]
+
     def create_buttons(layout_3d_scatter_plot):
         """
         Define the buttons for interacting with the layout and the comparison table
@@ -729,6 +764,7 @@ def interactive_cr_selection(
         # and bind all the functions to the buttons
         move_left_button.on_click(move_left_callback)
         move_right_button.on_click(move_right_callback)
+        reset_all__CRs_button.on_click(reset_button_callback)
         add_layout_to_comparison_button.on_click(add_to_comparison_callback)
         reset_comparison_button.on_click(reset_comparison_table_callback)
         dropdown_menu.observe(dropdown_menu_callback)
@@ -739,6 +775,7 @@ def interactive_cr_selection(
         return (
             move_left_button,
             move_right_button,
+            reset_all__CRs_button,
             add_layout_to_comparison_button,
             reset_comparison_button,
             dropdown_menu,
@@ -759,6 +796,7 @@ def interactive_cr_selection(
         buttons[3],
         buttons[4],
         buttons[5],
+        buttons[6],
         layout_comparison_table_figure,
         layout_3d_scatter_plot,
     )
