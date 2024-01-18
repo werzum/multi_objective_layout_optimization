@@ -1,5 +1,6 @@
 from calendar import c
 from functools import partial
+from matplotlib.axis import YAxis
 import pandas as pd
 import numpy as np
 from typing import Tuple
@@ -167,6 +168,7 @@ def create_contour_traces(forest_area_3):
         showscale=False,
         hoverinfo="none",
         colorscale="Greys",
+        name="Contour",
     )
     return data
 
@@ -430,6 +432,7 @@ def interactive_cr_selection(
                 xaxis_title="Ecological Optimality",
                 yaxis_title="Ergonomics Optimality",
                 zaxis_title="Cost Optimality",
+                xaxis={"autorange": "reversed"},
             ),
             scene_camera_eye=dict(x=1.7, y=1.7, z=1),
             margin=dict(r=30, l=30, t=30, b=30),
@@ -518,14 +521,18 @@ def interactive_cr_selection(
                 # and set the selected cr to the name of the trace if it is a new one
                 selected_cr = int(trace.name)
 
-            # get all active traces  - ie those which are not lightgrey
+            # get all active traces  - ie those which are not lightgrey. very heavy-handed expression, but it works
             active_traces = list(
                 interactive_layout.select_traces(
                     selector=lambda x: True
-                    if x.line.color != color_transparent
+                    if x.line.color
+                    and x.line.color != color_transparent
+                    and x.name != "Contour"
                     else False
                 )
-            )[2:]
+            )
+
+            print(active_traces)
 
             nonlocal current_indices
             current_indices = [int(trace.name) for trace in active_traces]
