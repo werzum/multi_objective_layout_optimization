@@ -1,11 +1,13 @@
 import plotly.graph_objects as go
 import geopandas as gpd
-from main import classes_cable_road_computation
 from shapely.geometry import LineString, Point
 from spopt.locate import PMedian
 
-
-from src.main import mechanical_computations
+from src.main import (
+    mechanical_computations,
+    classes_cable_road_computation,
+    classes_geometry_objects,
+)
 from src.tests import helper_functions
 
 
@@ -339,7 +341,7 @@ def plot_tension_loaded_unloaded_cr(loaded_cr, unloaded_cr):
 
 
 def plot_Linestring_3D(
-    line: classes_cable_road_computation.LineString_3D, fig: go.Figure, label: str
+    line: classes_geometry_objects.LineString_3D, fig: go.Figure, label: str
 ) -> go.Figure:
     fig.add_trace(
         go.Scatter3d(

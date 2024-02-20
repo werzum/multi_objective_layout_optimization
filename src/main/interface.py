@@ -1,6 +1,7 @@
 from calendar import c
 from functools import partial
 import re
+from turtle import up
 from matplotlib.axis import YAxis
 import pandas as pd
 import numpy as np
@@ -141,6 +142,8 @@ def update_tables(
         line_costs.astype(int),
         line_lengths.astype(int),
         updated_layout_costs["Wood Volume per Cable Road"],
+        updated_layout_costs["Supports Amount"],
+        updated_layout_costs["Supports Height"],
     ]
 
     # as well as the colour of the corresponding trees
@@ -246,6 +249,20 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
         for grouped_indices in grouped_class_indices
     ]
 
+    # get the height and amount of supports
+    supports_height = [
+        (
+            [
+                segment.start_support.attachment_height
+                for segment in cr_object.supported_segments[1:]
+            ]
+            if cr_object.supported_segments
+            else []
+        )
+        for cr_object in rot_line_gdf["Cable Road Object"]
+    ]
+    supports_amount = [len(heights) for heights in supports_height]
+
     line_cost = sum(rot_line_gdf["line_cost"])
 
     # total cost = # get the total cable road costs
@@ -293,6 +310,8 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
         "Ecolgical Penalty": int(sum_eco_distances),
         "Ergonomic Penalty": int(sum_ergo_distances),
         "Tree to Cable Road Assignment": tree_to_line_assignment,
+        "Supports Height": supports_height,
+        "Supports Amount": supports_amount,
     }
 
 
@@ -345,8 +364,8 @@ def interactive_cr_selection(
     interactive_layout = go.FigureWidget([trees, contour_traces, *individual_lines])
     interactive_layout.update_layout(
         title="Interactive Cable Road Layout",
-        width=1000,
-        height=700,
+        width=1200,
+        height=900,
     )
 
     # create a dataframe and push it to a figurewidget to display details about our selected lines
@@ -360,6 +379,8 @@ def interactive_cr_selection(
                         "Cable Road Cost",
                         "Cable Road Length",
                         "Wood Volume per Cable Road",
+                        "Supports Amount",
+                        "Supports Height",
                     ]
                 ),
                 cells=dict(values=[]),
@@ -526,15 +547,15 @@ def interactive_cr_selection(
             # get all active traces  - ie those which are not lightgrey. very heavy-handed expression, but it works
             active_traces = list(
                 interactive_layout.select_traces(
-                    selector=lambda x: True
-                    if x.line.color
-                    and x.line.color != color_transparent
-                    and x.name != "Contour"
-                    else False
+                    selector=lambda x: (
+                        True
+                        if x.line.color
+                        and x.line.color != color_transparent
+                        and x.name != "Contour"
+                        else False
+                    )
                 )
             )
-
-            print(active_traces)
 
             nonlocal current_indices
             current_indices = [int(trace.name) for trace in active_traces]
@@ -619,14 +640,14 @@ def interactive_cr_selection(
         nonlocal buttons
 
         # append the current data from the layout overview table to the comparison table
-        layout_comparison_df.loc[
-            len(layout_comparison_df) + 1
-        ] = layout_overview_table_figure.data[0].cells.values
+        layout_comparison_df.loc[len(layout_comparison_df) + 1] = (
+            layout_overview_table_figure.data[0].cells.values
+        )
 
         # and update the figure accordingly
-        layout_comparison_table_figure.data[
-            0
-        ].cells.values = layout_comparison_df.values.T
+        layout_comparison_table_figure.data[0].cells.values = (
+            layout_comparison_df.values.T
+        )
 
         recreate_dropdown_menu()
 

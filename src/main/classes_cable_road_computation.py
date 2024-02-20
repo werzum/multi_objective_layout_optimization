@@ -5,6 +5,10 @@ import geopandas as gpd
 import pandas as pd
 from sklearn.cluster import KMeans
 
+# to stop the shapely deprecation warning about the coords interface
+import warnings
+from shapely.errors import ShapelyDeprecationWarning
+
 from src.main import (
     classes_geometry_objects,
     geometry_operations,
@@ -107,12 +111,6 @@ class Cable_Road:
         ] = []  # list of SupportedSegment objects, ie. sub cable roads
 
         self._s_current_tension = 0.0
-        print(
-            "Cable road created from line: ",
-            self.line.coords[0],
-            "to ",
-            self.line.coords[1],
-        )
 
         # fetch the floor points along the line - xy view
         self.points_along_line = geometry_operations.generate_road_points(
@@ -245,6 +243,7 @@ class Cable_Road:
             loaded (bool, optional): whether the line is loaded or not. Defaults to True.
         """
 
+        warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
         y_x_deflections = (
             mechanical_computations_separate_dependencies.pestal_load_path(self, loaded)
         )
