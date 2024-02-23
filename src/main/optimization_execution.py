@@ -316,7 +316,9 @@ def augmecon_optimization(
 
 
 def expert_layout_optimization(optimization_result_list, sample_model, forest_area_gdf):
-    selected_lines = [[30, 37], [32, 59, 71]]
+    # selected_lines = [[30, 37], [32, 59, 71]]
+    # modified this after reworking cable road computation, need to reevaluate the expert layouts (23.02.2024)
+    selected_lines = [[1, 10], [7, 25]]
 
     for config in selected_lines:
         expert_result = classes_linear_optimization.expert_result(

@@ -142,7 +142,7 @@ def compute_required_supports(
         # TODO - fix this, provide with sensible args
         return return_sucessful(this_cable_road)
 
-    # enter the next recursive loop if not b creating supports
+    # enter the next recursive loop if not creating supports
     else:
         print("Need to find supports")
         # get the distance candidates
@@ -180,13 +180,18 @@ def compute_required_supports(
             "didnt find suitable candidate - select first candidate as support and iterate"
         )
 
-        # set the first candidate as support and add it to the current CR
+        # check if any of the left supports works and add it to the current CR
         this_cable_road = set_up_recursive_supports(
             this_cable_road,
             overall_trees,
             distance_candidates,
             height_gdf,
         )
+
+        # if none were found, return failed - none of the intermediate supports work.
+        if not this_cable_road:
+            print("no suitable supports found")
+            return return_failed()
 
         # test for collisions left and right - enter the recursive loop to compute subsupports
         left_CR = compute_required_supports(
@@ -266,7 +271,7 @@ def set_up_recursive_supports(
     overall_trees: gpd.GeoDataFrame,
     distance_candidates: gpd.GeoDataFrame,
     height_gdf: gpd.GeoDataFrame,
-) -> "classes_cable_road_computation.Cable_Road":
+) -> "classes_cable_road_computation.Cable_Road | bool":
     """set up the next iteration for finding supports.
     We select the first candidate as support, create a segment for it and add it to the cable road.
 
@@ -277,25 +282,51 @@ def set_up_recursive_supports(
         height_gdf (gpd.GeoDataFrame): the height gdf
 
     Returns:
-        classes.Cable_Road: the updated cable road
-
+        classes.Cable_Road: the updated cable road or False if no suitable candidate was found
     """
 
     # proceed with the working cr and find sub-supports - fetch the candidate we last looked at
     # select first support as starting point - this is the most protruding point
-    candidate = distance_candidates.index[0]
+    # candidate = distance_candidates.index[0]
 
-    # set up the sideways cable roads and support segment
-    (
-        start_segment,
-        end_segment,
-        support_tree,
-    ) = create_left_end_segments_and_support_tree(
-        overall_trees, this_cable_road, candidate, height_gdf
-    )
-    this_cable_road.supported_segments.extend((start_segment, end_segment))
+    # iterate over all candidates to find if a left segment is feasible - if not, we stop
+    left_cr_is_feasible = False
+    for candidate_index in distance_candidates.index:
+        # create the prospective segment
+        start_segment, end_segment, candidate_tree = (
+            create_left_end_segments_and_support_tree(
+                overall_trees, this_cable_road, candidate_index, height_gdf
+            )
+        )
 
-    return this_cable_road
+        # check if the segment is feasible
+        left_cr_is_feasible = check_segment_for_feasibility(
+            start_segment,
+            end_segment,
+            candidate_tree,
+            this_cable_road,
+        )
+
+        if left_cr_is_feasible:
+            print("found feasible left cr")
+            this_cable_road.supported_segments.extend((start_segment, end_segment))
+            return return_sucessful(this_cable_road)
+
+    # we passed the loop without any feasible left supports - stopping, returning failed
+    print("no feasible left supports found")
+    return return_failed()
+
+    #         break
+    # # set up the sideways cable roads and support segment
+    # (
+    #     start_segment,
+    #     end_segment,
+    #     support_tree,
+    # ) = create_left_end_segments_and_support_tree(
+    #     overall_trees, this_cable_road, candidate, height_gdf
+    # )
+
+    # return this_cable_road
 
 
 def check_segment_for_feasibility(
@@ -343,6 +374,7 @@ def check_segment_for_feasibility(
         this_cable_road.supported_segments.extend((start_segment, end_segment))
         return return_sucessful(this_cable_road)
     else:
+        print("segment is infesible")
         return False
 
 
@@ -393,6 +425,7 @@ def check_support_tension_and_collision(
             start_segment, end_segment
         )
     )
+    print("Support withstands tension:", support_withstands_tension)
 
     # check if we have no collisions
     mechanical_computations.check_if_no_collisions_cable_road(start_segment.cable_road)
@@ -400,6 +433,7 @@ def check_support_tension_and_collision(
     no_collisions = (
         start_segment.cable_road.no_collisions and end_segment.cable_road.no_collisions
     )
+    print("No collisions:", no_collisions)
 
     return support_withstands_tension, no_collisions
 

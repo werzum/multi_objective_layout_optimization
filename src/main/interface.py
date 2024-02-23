@@ -131,6 +131,8 @@ def update_tables(
         updated_layout_costs["Ecolgical Penalty"],
         updated_layout_costs["Ergonomic Penalty"],
         [current_indices],
+        updated_layout_costs["Max Yarding Distance"],
+        updated_layout_costs["Average Yarding Distance"],
     ]
 
     # set the current_cable_roads_table dataframe rows to show only these CRs
@@ -177,24 +179,6 @@ def create_contour_traces(forest_area_3):
     return data
 
 
-def compute_ergo_eco_penalty(forest_area_3, model_list, indices):
-    # calulate the environmental impact of each line beyond 10m lateral distance
-    ecological_penalty_threshold = 10
-    self.ecological_penalty_lateral_distances = np.where(
-        self.distance_tree_line > ecological_penalty_threshold,
-        self.distance_tree_line - ecological_penalty_threshold,
-        0,
-    )
-
-    # double all distances greater than penalty_treshold
-    ergonomics_penalty_treshold = 15
-    self.ergonomic_penalty_lateral_distances = np.where(
-        self.distance_tree_line > ergonomics_penalty_treshold,
-        (self.distance_tree_line - ergonomics_penalty_treshold) * 2,
-        0,
-    )
-
-
 def update_layout_overview(indices, forest_area_3, model_list) -> dict:
     """
     Function to update the cost dataframe with the updated costs for the new configuration based on the selected lines
@@ -216,14 +200,13 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
         tree_to_line_assignment = np.argmin(distance_tree_line, axis=1)
 
         # compute the distance of each tree to its assigned line
-        distance_trees_to_lines = sum(
-            distance_tree_line[
-                range(len(tree_to_line_assignment)), tree_to_line_assignment
-            ]
-        )
+        distance_trees_to_selected_lines = distance_tree_line[
+            range(len(tree_to_line_assignment)), tree_to_line_assignment
+        ]
+        distance_trees_to_lines_sum = sum(distance_trees_to_selected_lines)
     except:
         tree_to_line_assignment = [1 for i in range(len(distance_tree_line))]
-        distance_trees_to_lines = sum(distance_tree_line)
+        distance_trees_to_lines_sum = sum(distance_tree_line)
 
     # compute the productivity cost
     productivity_cost_overall = np.sum(
@@ -262,6 +245,10 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
         for cr_object in rot_line_gdf["Cable Road Object"]
     ]
     supports_amount = [len(heights) for heights in supports_height]
+
+    # get the max and average yarding distance
+    max_yarding_distance = max(distance_trees_to_selected_lines)
+    average_yarding_distance = np.mean(distance_trees_to_selected_lines)
 
     line_cost = sum(rot_line_gdf["line_cost"])
 
@@ -312,6 +299,8 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
         "Tree to Cable Road Assignment": tree_to_line_assignment,
         "Supports Height": supports_height,
         "Supports Amount": supports_amount,
+        "Max Yarding Distance": int(max_yarding_distance),
+        "Average Yarding Distance": int(average_yarding_distance),
     }
 
 
@@ -399,6 +388,8 @@ def interactive_cr_selection(
         "Ecological Penalty",
         "Ergonomic Penalty",
         "Selected Cable Roads",
+        "Max Yarding Distance",
+        "Average Yarding Distance",
     ]
     layout_overview_df = pd.DataFrame(columns=layout_columns)
     layout_overview_table_figure = go.FigureWidget(

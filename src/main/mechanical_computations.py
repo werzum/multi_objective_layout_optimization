@@ -84,7 +84,6 @@ def check_if_support_withstands_tension(
         reverse_direction=True,
     )
 
-    print("forces on lr support", force_on_support_left, force_on_support_right)
     # return true if the support can bear more than the exerted force
     return current_segment.end_support.max_supported_force_at_attachment_height > max(
         force_on_support_left, force_on_support_right
@@ -223,8 +222,6 @@ def compute_tension_loaded_vs_unloaded_cableroad(
     loaded_line_rotated = geometry_utilities.rotate_3d_line_in_z_direction(
         loaded_line_sp_centroid, angle_loaded_unloaded_cr
     )
-
-    print("Angle between lines", angle_loaded_unloaded_cr)
 
     if fig:
         fig.data = []  # reset the figure
