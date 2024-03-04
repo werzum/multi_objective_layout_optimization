@@ -84,6 +84,12 @@ def check_if_support_withstands_tension(
         reverse_direction=True,
     )
 
+    print("force on support left", force_on_support_left)
+    print("force on support right", force_on_support_right)
+    print(
+        "max supported force",
+        current_segment.end_support.max_supported_force_at_attachment_height,
+    )
     # return true if the support can bear more than the exerted force
     return current_segment.end_support.max_supported_force_at_attachment_height > max(
         force_on_support_left, force_on_support_right
@@ -588,10 +594,10 @@ def construct_tower_force_parallelogram(
     return force_on_anchor, force_on_tower
 
 
-def euler_knicklast(tree_diameter: float, height_of_attachment: float) -> float:
+def euler_knicklast(middle_diameter: float, height_of_attachment: float) -> float:
     """Calculates the euler case 2 knicklast of a tree
     Args:
-        tree_diameter (float): the diameter of the tree in cm
+        middle_diameter (float): the diameter at the middle of the tree in cm
         height_of_attachment (float): the height of the attachment in meters
     Returns:
         float: the force the tree can withstand in Newton
@@ -599,13 +605,11 @@ def euler_knicklast(tree_diameter: float, height_of_attachment: float) -> float:
     if not height_of_attachment:
         height_of_attachment = 1
 
-    # convert meters to cm
-    height_of_attachment *= 100
+    height_of_attachment = height_of_attachment * 10  # convert to cm
 
-    # emodule in cm
-    E_module_wood = 80000
-    security_factor = 5
+    E_module_wood = 80000  # in N/cm^2
+    security_factor = 10
 
-    return (math.pi**2 * E_module_wood * math.pi * tree_diameter**4) / (
+    return ((math.pi**2) * E_module_wood * math.pi * (middle_diameter**4)) / (
         (height_of_attachment**2) * 64 * security_factor
     )

@@ -677,7 +677,7 @@ def create_left_end_segments_and_support_tree(
     # Create the supports for the left CR segment
     road_to_support_cable_road_start_support = this_cable_road.start_support
     road_to_support_cable_road_end_support = classes_cable_road_computation.Support(
-        attachment_height=6,
+        attachment_height=7,
         xy_location=Point(road_to_support_line.coords[1]),
         height_gdf=height_gdf,
         max_supported_force=candidate_tree.max_supported_force_series,
