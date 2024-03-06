@@ -147,6 +147,7 @@ def update_tables(
         updated_layout_costs["Wood Volume per Cable Road"],
         updated_layout_costs["Supports Amount"],
         updated_layout_costs["Supports Height"],
+        updated_layout_costs["Average Tree Size"],
     ]
 
     # as well as the colour of the corresponding trees
@@ -233,6 +234,16 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
         for grouped_indices in grouped_class_indices
     ]
 
+    # get the average tree size per CR
+    average_tree_size_per_cr = [
+        round(
+            sum(forest_area_3.harvesteable_trees_gdf.iloc[grouped_indices]["h"])
+            / len(grouped_indices),
+            2,
+        )
+        for grouped_indices in grouped_class_indices
+    ]
+
     # get the height and amount of supports
     supports_height = [
         (
@@ -303,7 +314,8 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
         "Supports Amount": supports_amount,
         "Max Yarding Distance": int(max_yarding_distance),
         "Average Yarding Distance": int(average_yarding_distance),
-        "Cost per m3": int(cost_per_m3),
+        "Cost per m3": round(cost_per_m3, 2),
+        "Average Tree Size": average_tree_size_per_cr,
     }
 
 
@@ -373,6 +385,7 @@ def interactive_cr_selection(
                         "Wood Volume per Cable Road",
                         "Supports Amount",
                         "Supports Height",
+                        "Average Tree Size",
                     ]
                 ),
                 cells=dict(values=[]),
