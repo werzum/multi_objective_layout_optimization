@@ -133,6 +133,7 @@ def update_tables(
         [current_indices],
         updated_layout_costs["Max Yarding Distance"],
         updated_layout_costs["Average Yarding Distance"],
+        updated_layout_costs["Cost per m3"],
     ]
 
     # set the current_cable_roads_table dataframe rows to show only these CRs
@@ -254,6 +255,7 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
 
     # total cost = # get the total cable road costs
     total_cable_road_costs = line_cost + productivity_cost_overall
+    cost_per_m3 = total_cable_road_costs / sum(wood_volume_per_cr)
 
     # calulate the environmental impact of each line beyond 10m lateral distance
     ecological_penalty_threshold = 10
@@ -301,6 +303,7 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
         "Supports Amount": supports_amount,
         "Max Yarding Distance": int(max_yarding_distance),
         "Average Yarding Distance": int(average_yarding_distance),
+        "Cost per m3": int(cost_per_m3),
     }
 
 
@@ -390,6 +393,7 @@ def interactive_cr_selection(
         "Selected Cable Roads",
         "Max Yarding Distance",
         "Average Yarding Distance",
+        "Cost per m3",
     ]
     layout_overview_df = pd.DataFrame(columns=layout_columns)
     layout_overview_table_figure = go.FigureWidget(
