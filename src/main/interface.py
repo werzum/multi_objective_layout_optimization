@@ -135,6 +135,7 @@ def update_tables(
         updated_layout_costs["Max Yarding Distance (m)"],
         updated_layout_costs["Average Yarding Distance (m)"],
         updated_layout_costs["Cost per m3 (€)"],
+        updated_layout_costs["Wood Volume per Running Meter (m3/m)"],
     ]
 
     # set the current_cable_roads_table dataframe rows to show only these CRs
@@ -304,6 +305,11 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
         ]
     )
 
+    # wood volume per running meter of cable road
+    # get the total length of the cable road
+    total_cable_road_length = sum(rot_line_gdf["line_length"])
+    volume_per_running_meter = total_cable_road_length / sum(wood_volume_per_cr)
+
     # return a dict of the results and convert all results to ints for readability
     return {
         "Wood Volume per Cable Road (m3)": wood_volume_per_cr,
@@ -321,6 +327,7 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
         "Average Yarding Distance (m)": int(average_yarding_distance),
         "Cost per m3 (€)": round(cost_per_m3, 2),
         "Average Tree Size (m)": average_tree_size_per_cr,
+        "Wood Volume per Running Meter (m3/m)": round(volume_per_running_meter, 2),
     }
 
 
@@ -413,6 +420,7 @@ def interactive_cr_selection(
         "Max Yarding Distance (m)",
         "Average Yarding Distance (m)",
         "Cost per m3 (€)",
+        "Wood Volume per Running Meter (m3/m)",
     ]
     layout_overview_df = pd.DataFrame(columns=layout_columns)
     layout_overview_table_figure = go.FigureWidget(
