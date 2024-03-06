@@ -128,6 +128,7 @@ def update_tables(
 
     layout_overview_table_figure.data[0].cells.values = [
         updated_layout_costs["Total Cable Road Costs (€)"],
+        updated_layout_costs["Setup Costs (€) + Productivity Costs (€)"],
         updated_layout_costs["Ecolgical Penalty"],
         updated_layout_costs["Ergonomic Penalty"],
         [current_indices],
@@ -307,6 +308,10 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
     return {
         "Wood Volume per Cable Road (m3)": wood_volume_per_cr,
         "Total Cable Road Costs (€)": int(total_cable_road_costs),
+        "Setup Costs (€) + Productivity Costs (€)": [
+            int(line_cost),
+            int(productivity_cost_overall),
+        ],
         "Ecolgical Penalty": int(sum_eco_distances),
         "Ergonomic Penalty": int(sum_ergo_distances),
         "Tree to Cable Road Assignment": tree_to_line_assignment,
@@ -401,6 +406,7 @@ def interactive_cr_selection(
     # and for the current layout overview
     layout_columns = [
         "Total Layout Costs (€)",
+        "Setup Costs (€) + Productivity Costs (€)",
         "Ecological Penalty",
         "Ergonomic Penalty",
         "Selected Cable Roads",
