@@ -127,13 +127,13 @@ def update_tables(
     )
 
     layout_overview_table_figure.data[0].cells.values = [
-        updated_layout_costs["Total Cable Road Costs"],
+        updated_layout_costs["Total Cable Road Costs (€)"],
         updated_layout_costs["Ecolgical Penalty"],
         updated_layout_costs["Ergonomic Penalty"],
         [current_indices],
-        updated_layout_costs["Max Yarding Distance"],
-        updated_layout_costs["Average Yarding Distance"],
-        updated_layout_costs["Cost per m3"],
+        updated_layout_costs["Max Yarding Distance (m)"],
+        updated_layout_costs["Average Yarding Distance (m)"],
+        updated_layout_costs["Cost per m3 (€)"],
     ]
 
     # set the current_cable_roads_table dataframe rows to show only these CRs
@@ -144,10 +144,10 @@ def update_tables(
     current_cable_roads_table_figure.data[0].cells.values = [
         line_costs.astype(int),
         line_lengths.astype(int),
-        updated_layout_costs["Wood Volume per Cable Road"],
+        updated_layout_costs["Wood Volume per Cable Road (m3)"],
         updated_layout_costs["Supports Amount"],
-        updated_layout_costs["Supports Height"],
-        updated_layout_costs["Average Tree Size"],
+        updated_layout_costs["Supports Height (m)"],
+        updated_layout_costs["Average Tree Size (m)"],
     ]
 
     # as well as the colour of the corresponding trees
@@ -305,17 +305,17 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
 
     # return a dict of the results and convert all results to ints for readability
     return {
-        "Wood Volume per Cable Road": wood_volume_per_cr,
-        "Total Cable Road Costs": int(total_cable_road_costs),
+        "Wood Volume per Cable Road (m3)": wood_volume_per_cr,
+        "Total Cable Road Costs (€)": int(total_cable_road_costs),
         "Ecolgical Penalty": int(sum_eco_distances),
         "Ergonomic Penalty": int(sum_ergo_distances),
         "Tree to Cable Road Assignment": tree_to_line_assignment,
-        "Supports Height": supports_height,
+        "Supports Height (m)": supports_height,
         "Supports Amount": supports_amount,
-        "Max Yarding Distance": int(max_yarding_distance),
-        "Average Yarding Distance": int(average_yarding_distance),
-        "Cost per m3": round(cost_per_m3, 2),
-        "Average Tree Size": average_tree_size_per_cr,
+        "Max Yarding Distance (m)": int(max_yarding_distance),
+        "Average Yarding Distance (m)": int(average_yarding_distance),
+        "Cost per m3 (€)": round(cost_per_m3, 2),
+        "Average Tree Size (m)": average_tree_size_per_cr,
     }
 
 
@@ -380,12 +380,12 @@ def interactive_cr_selection(
             go.Table(
                 header=dict(
                     values=[
-                        "Cable Road Cost",
-                        "Cable Road Length",
-                        "Wood Volume per Cable Road",
+                        "Cable Road Cost (€)",
+                        "Cable Road Length (m)",
+                        "Wood Volume per Cable Road (m3)",
                         "Supports Amount",
-                        "Supports Height",
-                        "Average Tree Size",
+                        "Supports Height (m)",
+                        "Average Tree Size (m)",
                     ]
                 ),
                 cells=dict(values=[]),
@@ -400,13 +400,13 @@ def interactive_cr_selection(
 
     # and for the current layout overview
     layout_columns = [
-        "Total Layout Costs",
+        "Total Layout Costs (€)",
         "Ecological Penalty",
         "Ergonomic Penalty",
         "Selected Cable Roads",
-        "Max Yarding Distance",
-        "Average Yarding Distance",
-        "Cost per m3",
+        "Max Yarding Distance (m)",
+        "Average Yarding Distance (m)",
+        "Cost per m3 (€)",
     ]
     layout_overview_df = pd.DataFrame(columns=layout_columns)
     layout_overview_table_figure = go.FigureWidget(
