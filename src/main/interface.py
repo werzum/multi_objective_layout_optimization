@@ -128,14 +128,14 @@ def update_tables(
 
     layout_overview_table_figure.data[0].cells.values = [
         updated_layout_costs["Total Cable Road Costs (€)"],
-        updated_layout_costs["Setup Costs (€) + Productivity Costs (€)"],
+        updated_layout_costs["Setup and Productivity Costs (€)"],
         updated_layout_costs["Ecolgical Penalty"],
         updated_layout_costs["Ergonomic Penalty"],
         [current_indices],
         updated_layout_costs["Max Yarding Distance (m)"],
         updated_layout_costs["Average Yarding Distance (m)"],
         updated_layout_costs["Cost per m3 (€)"],
-        updated_layout_costs["Wood Volume per Running Meter (m3/m)"],
+        updated_layout_costs["Volume per Meter (m3/m)"],
     ]
 
     # set the current_cable_roads_table dataframe rows to show only these CRs
@@ -314,10 +314,7 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
     return {
         "Wood Volume per Cable Road (m3)": wood_volume_per_cr,
         "Total Cable Road Costs (€)": int(total_cable_road_costs),
-        "Setup Costs (€) + Productivity Costs (€)": [
-            int(line_cost),
-            int(productivity_cost_overall),
-        ],
+        "Setup and Productivity Costs (€)": f"{int(line_cost)}, {int(productivity_cost_overall)}",
         "Ecolgical Penalty": int(sum_eco_distances),
         "Ergonomic Penalty": int(sum_ergo_distances),
         "Tree to Cable Road Assignment": tree_to_line_assignment,
@@ -327,7 +324,7 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
         "Average Yarding Distance (m)": int(average_yarding_distance),
         "Cost per m3 (€)": round(cost_per_m3, 2),
         "Average Tree Size (m)": average_tree_size_per_cr,
-        "Wood Volume per Running Meter (m3/m)": round(volume_per_running_meter, 2),
+        "Volume per Meter (m3/m)": round(volume_per_running_meter, 2),
     }
 
 
@@ -413,14 +410,14 @@ def interactive_cr_selection(
     # and for the current layout overview
     layout_columns = [
         "Total Layout Costs (€)",
-        "Setup Costs (€) + Productivity Costs (€)",
+        "Setup and Productivity Costs (€)",
         "Ecological Penalty",
         "Ergonomic Penalty",
         "Selected Cable Roads",
         "Max Yarding Distance (m)",
         "Average Yarding Distance (m)",
         "Cost per m3 (€)",
-        "Wood Volume per Running Meter (m3/m)",
+        "Volume per Meter (m3/m)",
     ]
     layout_overview_df = pd.DataFrame(columns=layout_columns)
     layout_overview_table_figure = go.FigureWidget(
@@ -432,7 +429,7 @@ def interactive_cr_selection(
         ]
     )
     layout_overview_table_figure.update_layout(
-        title="Current Layout Overview", height=150, margin=dict(r=30, l=30, t=30, b=30)
+        title="Current Layout Overview", height=250, margin=dict(r=30, l=30, t=30, b=30)
     )
 
     # as well as the layout comparison table
