@@ -382,8 +382,11 @@ def interactive_cr_selection(
     )
 
     # create a dataframe and push it to a figurewidget to display details about our selected lines
-    current_cable_roads_table = forest_area_3.line_gdf[["line_cost", "line_length"]]
-    current_cable_roads_table["current_wood_volume"] = pd.Series(dtype="int")
+    current_cable_roads_table = forest_area_3.line_gdf[
+        ["line_cost", "line_length"]
+    ].copy()
+    # current_cable_roads_table["current_wood_volume"] = pd.Series(dtype="int")
+    current_cable_roads_table.loc[:, "current_wood_volume"] = pd.Series(dtype="int")
     current_cable_roads_table_figure = go.FigureWidget(
         [
             go.Table(
@@ -480,16 +483,6 @@ def interactive_cr_selection(
             margin=dict(r=30, l=30, t=30, b=30),
         )
 
-        text = """A Pareto Frontier represents the set of all non-dominated solutions, i.e. solutions where none of the objective functions can be improved in value without degrading some of the other objective values.Here, we consider three objectives: cost, relative ergonomical impact, and relative ecological impact. Each point on the Pareto Frontier represents a unique combination of these three objectives that is Pareto optimal. No point on the Pareto Frontier can be improved in one objective without worsening at least one of the other objectives."""
-
-        # create a widget with the text
-        pareto_explanation_widget = Textarea(
-            value=text,
-            description="Explanation:",
-            disabled=True,
-            layout=Layout(width="90%", height="50%"),
-        )
-
         def selection_fn(trace, points, selector):
             nonlocal current_indices
             # get index of this point in the trace
@@ -511,10 +504,10 @@ def interactive_cr_selection(
             )
 
         pareto_frontier.data[0].on_click(selection_fn)
-        return pareto_frontier, pareto_explanation_widget
+        return pareto_frontier
 
     # get the pareto frontier as 3d scatter plot
-    pareto_frontier, pareto_explanation_widget = plot_pareto_frontier(
+    pareto_frontier = plot_pareto_frontier(
         results_df,
         current_indices,
         interactive_layout,
@@ -788,6 +781,27 @@ def interactive_cr_selection(
             [],
         ]
 
+    def create_explanation_widget():
+        return Textarea(
+            value="",
+            placeholder="",
+            description="Explanation:",
+            disabled=True,
+            layout=Layout(width="90%", height="100px"),
+        )
+
+    def explanation_dropdown():
+        dropdown_menu = Dropdown(
+            options=[
+                "Pareto Frontier",
+                "Ecological Penalty",
+                "Ergonomic Penalty",
+                "Cost",
+            ],
+            description="Load explanation",
+        )
+        return dropdown_menu
+
     def create_buttons(layout_3d_scatter_plot):
         """
         Define the buttons for interacting with the layout and the comparison table
@@ -800,6 +814,8 @@ def interactive_cr_selection(
         add_layout_to_comparison_button = Button(description="Add layout to comparison")
         reset_comparison_button = Button(description="Reset comparison")
         dropdown_menu = create_dropdown_menu()
+        explanation_widget = create_explanation_widget()
+        explanation_dropdown_menu = explanation_dropdown()
 
         # and bind all the functions to the buttons
         move_left_button.on_click(move_left_callback)
@@ -812,6 +828,22 @@ def interactive_cr_selection(
             partial(view_in_3d_callback, scatterplot=layout_3d_scatter_plot)
         )
 
+        def explanation_dropdown_onclick(change):
+            if change["type"] == "change" and change["name"] == "value":
+                if change["new"] == "":
+                    return
+
+                if change.new == "Pareto Frontier":
+                    explanation_widget.value = "The Pareto Frontier shows the trade-offs between ecological, ergonomic and cost objectives. Each point represents a layout with different cable road configurations. The points on the frontier are the most optimal layouts, where no objective can be improved without worsening another. Click on a point to select the corresponding layout."
+                elif change.new == "Ecological Penalty":
+                    explanation_widget.value = "The ecological penalty represents the environmental impact of each cable road beyond 10m lateral distance. The sum of all distances greater than 10m is shown."
+                elif change.new == "Ergonomic Penalty":
+                    explanation_widget.value = "The ergonomic penalty represents the physical strain of each cable road beyond 15m lateral distance. The sum of all distances greater than 15m is shown."
+                elif change.new == "Cost":
+                    explanation_widget.value = "The cost represents the total cable road costs, including setup and productivity costs."
+
+        explanation_dropdown_menu.observe(explanation_dropdown_onclick)
+
         return (
             move_left_button,
             move_right_button,
@@ -820,6 +852,8 @@ def interactive_cr_selection(
             reset_comparison_button,
             dropdown_menu,
             view_in_3d_button,
+            explanation_widget,
+            explanation_dropdown_menu,
         )
 
     buttons = list(create_buttons(layout_3d_scatter_plot))
@@ -829,7 +863,6 @@ def interactive_cr_selection(
         current_cable_roads_table_figure,
         layout_overview_table_figure,
         pareto_frontier,
-        pareto_explanation_widget,
         buttons[0],
         buttons[1],
         buttons[2],
@@ -839,4 +872,6 @@ def interactive_cr_selection(
         buttons[6],
         layout_comparison_table_figure,
         layout_3d_scatter_plot,
+        buttons[7],
+        buttons[8],
     )
