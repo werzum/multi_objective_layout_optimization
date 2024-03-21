@@ -2,7 +2,7 @@ from calendar import c
 from functools import partial
 import re
 from turtle import up
-from matplotlib.axis import YAxis
+from matplotlib.axis import XAxis, YAxis
 import pandas as pd
 import numpy as np
 from typing import Tuple
@@ -376,9 +376,11 @@ def interactive_cr_selection(
     # create a figure from all individual scatter lines
     interactive_layout = go.FigureWidget([trees, contour_traces, *individual_lines])
     interactive_layout.update_layout(
-        title="Interactive Cable Road Layout",
+        title="Cable Corridor Map",
         width=1200,
         height=900,
+        xaxis=dict(title="X (m)"),
+        yaxis=dict(title="Y (m)"),
     )
 
     # create a dataframe and push it to a figurewidget to display details about our selected lines
@@ -405,7 +407,7 @@ def interactive_cr_selection(
         ]
     )
     current_cable_roads_table_figure.update_layout(
-        title="Current Cable Roads Overview",
+        title="Activated Cable Corridor Overview",
         height=250,
         margin=dict(r=30, l=30, t=30, b=30),
     )
@@ -432,7 +434,9 @@ def interactive_cr_selection(
         ]
     )
     layout_overview_table_figure.update_layout(
-        title="Current Layout Overview", height=250, margin=dict(r=30, l=30, t=30, b=30)
+        title="Current Cable Corridor Layout Overview",
+        height=250,
+        margin=dict(r=30, l=30, t=30, b=30),
     )
 
     # as well as the layout comparison table
@@ -445,7 +449,9 @@ def interactive_cr_selection(
             )
         ]
     )
-    layout_comparison_table_figure.update_layout(title="Layout Comparison")
+    layout_comparison_table_figure.update_layout(
+        title="Cable Corridor Layout Comparison"
+    )
 
     def plot_pareto_frontier(
         results_df,
@@ -469,7 +475,7 @@ def interactive_cr_selection(
         )
 
         pareto_frontier.update_layout(
-            title="""Pareto Frontier""",
+            title="""Pareto Frontier of Optimal Solutions""",
             width=800,
             height=400,
             scene=dict(
@@ -524,10 +530,15 @@ def interactive_cr_selection(
     layout_3d_scatter_plot = go.FigureWidget(go.Scatter3d())
 
     layout_3d_scatter_plot.update_layout(
-        title="""3D Plot""",
+        title="""3D Plot of Cable Corridor Layout""",
         width=1000,
         height=600,
         scene_camera_eye=dict(x=0.5, y=0.5, z=1),
+        scene=dict(
+            xaxis_title="X (m)",
+            yaxis_title="Y (m)",
+            zaxis_title="Z (m)",
+        ),
     )
 
     # create the onclick function to select new CRs
