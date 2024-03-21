@@ -213,11 +213,20 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
         distance_trees_to_lines_sum = sum(distance_tree_line)
 
     # compute the productivity cost
-    productivity_cost_overall = np.sum(
-        model_list[0].productivity_cost[
-            range(len(tree_to_line_assignment)), tree_to_line_assignment
-        ]
-    )
+    selected_prod_cost = model_list[0].productivity_cost[:, indices]
+    productivity_cost_overall = 0
+    for index, val in enumerate(tree_to_line_assignment):
+        print(index, val)
+        productivity_cost_overall += selected_prod_cost[index][val]
+
+    # productivity_cost_overall = np.sum(
+    #     model_list[0].productivity_cost[indices, :][
+    #         range(len(tree_to_line_assignment)), tree_to_line_assignment
+    #     ]
+    # )
+    # print(model_list[0].productivity_cost[indices, :])
+    # print(tree_to_line_assignment)
+    # print(productivity_cost_overall)
 
     # sum of wood volume per CR
     # here we need to compute the sum of wood per tree to line assignment to return this for the CR table

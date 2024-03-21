@@ -615,10 +615,7 @@ def model_results_comparison(
         distance_carriage_support_array.append(
             np.sum(result.c2f_vars * distance_carriage_support)
         )
-
-        # get the total cable road costs
-        total_cable_road_costs = np.sum(result.fac_vars * facility_cost)
-        cable_road_costs.append(total_cable_road_costs)
+        cable_road_costs.append(np.sum(result.fac_vars * facility_cost))
 
         # subtract the productivity cost from the total profit
         total_profit_here = (
@@ -627,7 +624,7 @@ def model_results_comparison(
             - total_cable_road_costs
         )
 
-        cost_objective.append(productivity_array[-1] + total_cable_road_costs)
+        cost_objective.append(productivity_array[-1] + cable_road_costs[-1])
         overall_profit.append(total_profit_here)
 
         ecological_distances.append(result.ecological_objective)
