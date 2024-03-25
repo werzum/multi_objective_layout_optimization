@@ -128,9 +128,9 @@ def update_tables(
 
     layout_overview_table_figure.data[0].cells.values = [
         updated_layout_costs["Total Cable Road Costs (€)"],
-        updated_layout_costs["Setup and Productivity Costs (€)"],
-        updated_layout_costs["Ecolgical Penalty"],
-        updated_layout_costs["Ergonomic Penalty"],
+        updated_layout_costs["Setup and Prod. Costs (€)"],
+        updated_layout_costs["Ecol. Penalty"],
+        updated_layout_costs["Ergon. Penalty"],
         [current_indices],
         updated_layout_costs["Max Yarding Distance (m)"],
         updated_layout_costs["Average Yarding Distance (m)"],
@@ -216,17 +216,7 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
     selected_prod_cost = model_list[0].productivity_cost[:, indices]
     productivity_cost_overall = 0
     for index, val in enumerate(tree_to_line_assignment):
-        print(index, val)
         productivity_cost_overall += selected_prod_cost[index][val]
-
-    # productivity_cost_overall = np.sum(
-    #     model_list[0].productivity_cost[indices, :][
-    #         range(len(tree_to_line_assignment)), tree_to_line_assignment
-    #     ]
-    # )
-    # print(model_list[0].productivity_cost[indices, :])
-    # print(tree_to_line_assignment)
-    # print(productivity_cost_overall)
 
     # sum of wood volume per CR
     # here we need to compute the sum of wood per tree to line assignment to return this for the CR table
@@ -323,9 +313,9 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
     return {
         "Wood Volume per Cable Road (m3)": wood_volume_per_cr,
         "Total Cable Road Costs (€)": int(total_cable_road_costs),
-        "Setup and Productivity Costs (€)": f"{int(line_cost)}, {int(productivity_cost_overall)}",
-        "Ecolgical Penalty": int(sum_eco_distances),
-        "Ergonomic Penalty": int(sum_ergo_distances),
+        "Setup and Prod. Costs (€)": f"{int(line_cost)}, {int(productivity_cost_overall)}",
+        "Ecol. Penalty": int(sum_eco_distances),
+        "Ergon. Penalty": int(sum_ergo_distances),
         "Tree to Cable Road Assignment": tree_to_line_assignment,
         "Supports Height (m)": supports_height,
         "Supports Amount": supports_amount,
@@ -424,9 +414,9 @@ def interactive_cr_selection(
     # and for the current layout overview
     layout_columns = [
         "Total Layout Costs (€)",
-        "Setup and Productivity Costs (€)",
-        "Ecological Penalty",
-        "Ergonomic Penalty",
+        "Setup and Prod. Costs (€)",
+        "Ecol. Penalty",
+        "Ergon. Penalty",
         "Selected Cable Roads",
         "Max Yarding Distance (m)",
         "Average Yarding Distance (m)",
@@ -500,11 +490,15 @@ def interactive_cr_selection(
 
         def selection_fn(trace, points, selector):
             nonlocal current_indices
+
+            # print("pareto frontier clicked", current_indices)
             # get index of this point in the trace
             index = points.point_inds[0]
 
             # get the corresponding list of activated cable rows from the dataframe
             current_indices = results_df.iloc[index]["selected_lines"]
+            # print("current indices as per df", current_indices)
+            # print(type(current_indices))
 
             update_interactive_based_on_indices(
                 current_cable_roads_table_figure,
@@ -757,6 +751,8 @@ def interactive_cr_selection(
         Function to view the current layout in 3d. This updates the layout_3d_scatter_plot with the new 3d scatterplot based on the current indices
         """
         nonlocal current_indices
+        # print("Viewing in 3D", current_indices)
+        # print(type(current_indices))
 
         # reset the scatterplot
         scatterplot.data = []
@@ -856,11 +852,11 @@ def interactive_cr_selection(
                 if change.new == "Pareto Frontier":
                     explanation_widget.value = "The Pareto Frontier shows the trade-offs between ecological, ergonomic and cost objectives. Each point represents a layout with different cable road configurations. The points on the frontier are the most optimal layouts, where no objective can be improved without worsening another. Click on a point to select the corresponding layout."
                 elif change.new == "Ecological Penalty":
-                    explanation_widget.value = "The ecological penalty represents the environmental impact of each cable road beyond 10m lateral distance. The sum of all distances greater than 10m is shown."
+                    explanation_widget.value = "The ecological penalty represents the environmental impact of each cable road and measures the residual stand damage of each cable road based on Limbeck-Lillineau (2020)."
                 elif change.new == "Ergonomic Penalty":
-                    explanation_widget.value = "The ergonomic penalty represents the physical strain of each cable road beyond 15m lateral distance. The sum of all distances greater than 15m is shown."
+                    explanation_widget.value = "The ergonomic penalty quantifies the physical strain on the forest worker for each cable road based on lateral yarding distance (Ghaffaryian et al., 2009)."
                 elif change.new == "Cost":
-                    explanation_widget.value = "The cost represents the total cable road costs, including setup and productivity costs."
+                    explanation_widget.value = "The cost represents the total cable road costs. It includes corridor setup- and takedown cost (Stampfer et al., 2013) as well as productivity costs (Ghaffaryian et al., 2009)."
 
         explanation_dropdown_menu.observe(explanation_dropdown_onclick)
 

@@ -154,7 +154,7 @@ def plot_supported_cr_relief(
             )
         )
 
-    fig.update_traces(marker={"size": 0.75})
+    # fig.update_traces(marker={"size": 0.75})
     fig.update_layout(
         margin=dict(l=0, r=0, b=0, t=0),
         width=1000,
@@ -284,10 +284,19 @@ def add_straight_line_to_go_figure(
 
 def plot_all_cable_roads(height_gdf, line_gdf) -> go.Figure:
     height_gdf_small = height_gdf.iloc[::100]
-    fig = px.scatter_3d(
-        x=height_gdf_small["x"], y=height_gdf_small["y"], z=height_gdf_small["elev"]
+
+    fig = go.Figure(
+        data=[
+            go.Mesh3d(
+                x=height_gdf_small["x"],
+                y=height_gdf_small["y"],
+                z=height_gdf_small["elev"],
+                color="lightgrey",
+                opacity=0.5,
+            )
+        ]
     )
-    fig.update_traces(marker={"size": 0.75})
+    # fig.update_traces(marker={"size": 0.75})
     fig.update_layout(
         margin=dict(l=0, r=0, b=0, t=0),
         width=2000,
