@@ -1,3 +1,4 @@
+import pandas as pd
 from shapely.geometry import LineString, Point
 import numpy as np
 import itertools
@@ -440,7 +441,7 @@ def check_support_tension_and_collision(
 
 def generate_triple_angle(
     point: Point, line_candidate: LineString, anchor_trees: gpd.GeoDataFrame
-) -> tuple[list, list] | tuple[None, None]:
+) -> tuple[list, list, pd.Series] | tuple[None, None, None]:
     """Generate a list of line-triples that are within correct angles to the road point
     and slope line and the corresponding max supported force by the center tree.
 
@@ -482,7 +483,7 @@ def generate_triple_angle(
     ]
 
     if anchor_trees_working_copy.empty or len(anchor_trees_working_copy) < 3:
-        return None, None
+        return None, None, None
 
     # 3. create lines to all these possible connections
     anchor_trees_working_copy["anchor_line"] = anchor_trees_working_copy.geometry.apply(
@@ -504,7 +505,7 @@ def generate_triple_angle(
     ]
 
     if len(central_trees) < 3 or len(side_trees) < 2:
-        return None, None
+        return None, None, None
 
     central_trees.loc[:, "possible_anchor_triples"] = central_trees[
         "anchor_line"
@@ -518,12 +519,14 @@ def generate_triple_angle(
 
     # if this did not yield viable anchors, proceed
     if len(central_trees["possible_anchor_triples"].sum()) < 1:
-        return None, None
+        return None, None, None
     else:
+        print("success return")
         return (
             # return the first combination per main anchor line
             [sublist[0] for sublist in central_trees["possible_anchor_triples"]],
             central_trees["max_holding_force"].to_list(),
+            central_trees,
         )
 
 

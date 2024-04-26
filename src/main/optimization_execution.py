@@ -302,7 +302,7 @@ def augmecon_optimization(
                 print("couldnt improve objective?")
                 break  # skipping the rest of the ergonomics range since we cant improve the objective anymore
             else:
-                # the expected value as per the ergonomics range. If the slack variable is greater than what we would constrain for the next step, we skip those iterations
+                # the eFxpected value as per the ergonomics range. If the slack variable is greater than what we would constrain for the next step, we skip those iterations
                 j_bypass = int(abs(np.floor(j_slack / ergonomics_step)))
                 if j_bypass > 0:
                     # for iterator j, skip j_bypass steps

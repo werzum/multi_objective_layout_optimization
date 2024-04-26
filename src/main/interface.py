@@ -53,6 +53,7 @@ def update_interactive_based_on_indices(
     current_cable_roads_table,
     layout_overview_table_figure,
     anchor_table_figure,
+    road_anchor_table_figure,
     current_indices,
     interactive_layout,
     forest_area_3,
@@ -79,6 +80,7 @@ def update_interactive_based_on_indices(
         current_cable_roads_table,
         layout_overview_table_figure,
         anchor_table_figure,
+        road_anchor_table_figure,
         current_indices,
         interactive_layout,
         forest_area_3,
@@ -91,6 +93,7 @@ def update_colors_and_tables(
     current_cable_roads_table,
     layout_overview_table_figure,
     anchor_table_figure,
+    road_anchor_table_figure,
     current_indices,
     interactive_layout,
     forest_area_3,
@@ -104,6 +107,7 @@ def update_colors_and_tables(
         current_cable_roads_table,
         layout_overview_table_figure,
         anchor_table_figure,
+        road_anchor_table_figure,
         current_indices,
         interactive_layout,
         forest_area_3,
@@ -117,6 +121,7 @@ def update_tables(
     current_cable_roads_table,
     layout_overview_table_figure,
     anchor_table_figure,
+    road_anchor_table_figure,
     current_indices,
     interactive_layout,
     forest_area_3,
@@ -132,13 +137,13 @@ def update_tables(
     )
 
     layout_overview_table_figure.data[0].cells.values = [
-        updated_layout_costs["Total Cable Road Costs (€)"],
+        updated_layout_costs["Total Cable Corridor Costs (€)"],
         updated_layout_costs["Setup and Prod. Costs (€)"],
         updated_layout_costs["Ecol. Penalty"],
         updated_layout_costs["Ergon. Penalty"],
         [current_indices],
-        updated_layout_costs["Max Yarding Distance (m)"],
-        updated_layout_costs["Average Yarding Distance (m)"],
+        updated_layout_costs["Max lateral Yarding Distance (m)"],
+        updated_layout_costs["Average lateral Yarding Distance (m)"],
         updated_layout_costs["Cost per m3 (€)"],
         updated_layout_costs["Volume per Meter (m3/m)"],
     ]
@@ -151,16 +156,16 @@ def update_tables(
     current_cable_roads_table_figure.data[0].cells.values = [
         line_costs.astype(int),
         line_lengths.astype(int),
-        updated_layout_costs["Wood Volume per Cable Road (m3)"],
+        updated_layout_costs["Wood Volume per Cable Corridor (m3)"],
         updated_layout_costs["Supports Amount"],
         updated_layout_costs["Supports Height (m)"],
-        updated_layout_costs["Average Tree Size (m)"],
+        updated_layout_costs["Average Tree Height (m)"],
     ]
 
     # as well as the colour of the corresponding trees
     interactive_layout.data[0].marker.color = [
         px.colors.qualitative.Plotly[integer]
-        for integer in updated_layout_costs["Tree to Cable Road Assignment"]
+        for integer in updated_layout_costs["Tree to Cable Corridor Assignment"]
     ]
 
     # update the anchor table
@@ -170,7 +175,16 @@ def update_tables(
         updated_layout_costs["Anchor max holding force"],
         updated_layout_costs["Anchor x coordinate"],
         updated_layout_costs["Anchor y coordinate"],
-        updated_layout_costs["Anchor Number"],
+        updated_layout_costs["Corresponding Cable Corridor"],
+    ]
+
+    road_anchor_table_figure.data[0].cells.values = [
+        updated_layout_costs["Road Anchor BHD"],
+        updated_layout_costs["Road Anchor height"],
+        updated_layout_costs["Road Anchor max holding force"],
+        updated_layout_costs["Road Anchor x coordinate"],
+        updated_layout_costs["Road Anchor y coordinate"],
+        updated_layout_costs["Corresponding Cable Corridor"],
     ]
 
 
@@ -274,6 +288,7 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
     ]
     supports_amount = [len(heights) for heights in supports_height]
 
+    # get the tail spar anchor
     print(rot_line_gdf["tree_anchor_support_trees"])
     endmast_height_list = []
     endmast_BHD_list = []
@@ -288,6 +303,22 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
         endmast_max_holding_force_list.append(int(endmast["max_holding_force"]))
         endmast_x_list.append(round(endmast["x"], 2))
         endmast_y_list.append(round(endmast["y"], 2))
+
+    road_anchor_height_list = []
+    road_anchor_BHD_list = []
+    road_anchor_max_holding_force_list = []
+    road_anchor_x_list = []
+    road_anchor_y_list = []
+    # and do the same for the road side anchor
+    for each_road_anchor in rot_line_gdf.road_anchor_tree_series:
+        road_anchor = each_road_anchor.loc[
+            each_road_anchor["BHD"].idxmax()
+        ]  # choose the anchor with the largest BHD
+        road_anchor_height_list.append(int(road_anchor["h"]))
+        road_anchor_BHD_list.append(int(road_anchor["BHD"]))
+        road_anchor_max_holding_force_list.append(int(road_anchor["max_holding_force"]))
+        road_anchor_x_list.append(round(road_anchor["x"], 2))
+        road_anchor_y_list.append(round(road_anchor["y"], 2))
 
     # get the max and average yarding distance
     max_yarding_distance = max(distance_trees_to_selected_lines)
@@ -342,25 +373,30 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
     # return a dict of the results and convert all results to ints for readability
     print(endmast_y_list)
     return {
-        "Wood Volume per Cable Road (m3)": wood_volume_per_cr,
-        "Total Cable Road Costs (€)": int(total_cable_road_costs),
+        "Wood Volume per Cable Corridor (m3)": wood_volume_per_cr,
+        "Total Cable Corridor Costs (€)": int(total_cable_road_costs),
         "Setup and Prod. Costs (€)": f"{int(line_cost)}, {int(productivity_cost_overall)}",
         "Ecol. Penalty": int(sum_eco_distances),
         "Ergon. Penalty": int(sum_ergo_distances),
-        "Tree to Cable Road Assignment": tree_to_line_assignment,
+        "Tree to Cable Corridor Assignment": tree_to_line_assignment,
         "Supports Height (m)": supports_height,
         "Supports Amount": supports_amount,
-        "Max Yarding Distance (m)": int(max_yarding_distance),
-        "Average Yarding Distance (m)": int(average_yarding_distance),
+        "Max lateral Yarding Distance (m)": int(max_yarding_distance),
+        "Average lateral Yarding Distance (m)": int(average_yarding_distance),
         "Cost per m3 (€)": round(cost_per_m3, 2),
-        "Average Tree Size (m)": average_tree_size_per_cr,
+        "Average Tree Height (m)": average_tree_size_per_cr,
         "Volume per Meter (m3/m)": round(volume_per_running_meter, 2),
         "Anchor height": endmast_height_list,
         "Anchor BHD": endmast_BHD_list,
         "Anchor max holding force": endmast_max_holding_force_list,
         "Anchor x coordinate": endmast_x_list,
         "Anchor y coordinate": endmast_y_list,
-        "Anchor Number": indices,
+        "Corresponding Cable Corridor": indices,
+        "Road Anchor height": road_anchor_height_list,
+        "Road Anchor BHD": road_anchor_BHD_list,
+        "Road Anchor max holding force": road_anchor_max_holding_force_list,
+        "Road Anchor x coordinate": road_anchor_x_list,
+        "Road Anchor y coordinate": road_anchor_y_list,
     }
 
 
@@ -430,12 +466,12 @@ def interactive_cr_selection(
             go.Table(
                 header=dict(
                     values=[
-                        "Cable Road Cost (€)",
-                        "Cable Road Length (m)",
-                        "Wood Volume per Cable Road (m3)",
+                        "Cable Corridor Cost (€)",
+                        "Cable Corridor Length (m)",
+                        "Wood Volume per Cable Corridor (m3)",
                         "Supports Amount",
                         "Supports Height (m)",
-                        "Average Tree Size (m)",
+                        "Average Tree Height (m)",
                     ]
                 ),
                 cells=dict(values=[]),
@@ -454,9 +490,9 @@ def interactive_cr_selection(
         "Setup and Prod. Costs (€)",
         "Ecol. Penalty",
         "Ergon. Penalty",
-        "Selected Cable Roads",
-        "Max Yarding Distance (m)",
-        "Average Yarding Distance (m)",
+        "Selected Cable Corridors",
+        "Max lateral Yarding Distance (m)",
+        "Average lateral Yarding Distance (m)",
         "Cost per m3 (€)",
         "Volume per Meter (m3/m)",
     ]
@@ -496,13 +532,27 @@ def interactive_cr_selection(
         "Max. supported force (N)",
         "X coordinate",
         "Y coordinate",
-        "Anchor Number",
+        "Corresponding Cable Corridor",
     ]
     anchor_df = pd.DataFrame(columns=anchor_columns)
     anchor_table_figure = go.FigureWidget(
         [go.Table(header=dict(values=anchor_columns), cells=dict(values=[anchor_df]))]
     )
     anchor_table_figure.update_layout(
+        title="Anchor Information",
+        height=250,
+        margin=dict(r=30, l=30, t=30, b=30),
+    )
+
+    road_anchor_df = pd.DataFrame(columns=anchor_columns)
+    road_anchor_table_figure = go.FigureWidget(
+        [
+            go.Table(
+                header=dict(values=anchor_columns), cells=dict(values=[road_anchor_df])
+            )
+        ]
+    )
+    road_anchor_table_figure.update_layout(
         title="Anchor Information",
         height=250,
         margin=dict(r=30, l=30, t=30, b=30),
@@ -561,6 +611,7 @@ def interactive_cr_selection(
                 current_cable_roads_table,
                 layout_overview_table_figure,
                 anchor_table_figure,
+                road_anchor_table_figure,
                 current_indices,
                 interactive_layout,
                 forest_area_3,
@@ -654,6 +705,7 @@ def interactive_cr_selection(
                 current_cable_roads_table,
                 layout_overview_table_figure,
                 anchor_table_figure,
+                road_anchor_table_figure,
                 current_indices,
                 interactive_layout,
                 forest_area_3,
@@ -705,6 +757,7 @@ def interactive_cr_selection(
             current_cable_roads_table,
             layout_overview_table_figure,
             anchor_table_figure,
+            road_anchor_table_figure,
             current_indices,
             interactive_layout,
             forest_area_3,
@@ -790,7 +843,7 @@ def interactive_cr_selection(
 
             # get the corresponding list of activated cable rows from the dataframe
             corresponding_indices = layout_comparison_df.iloc[selected_index][
-                "Selected Cable Roads"
+                "Selected Cable Corridors"
             ][0]
 
             update_interactive_based_on_indices(
@@ -798,6 +851,7 @@ def interactive_cr_selection(
                 current_cable_roads_table,
                 layout_overview_table_figure,
                 anchor_table_figure,
+                road_anchor_table_figure,
                 corresponding_indices,
                 interactive_layout,
                 forest_area_3,
@@ -936,12 +990,14 @@ def interactive_cr_selection(
         )
 
     buttons = list(create_buttons(layout_3d_scatter_plot))
+    print("test")
 
     return (
         interactive_layout,
         current_cable_roads_table_figure,
         layout_overview_table_figure,
         anchor_table_figure,
+        road_anchor_table_figure,
         pareto_frontier,
         buttons[0],
         buttons[1],

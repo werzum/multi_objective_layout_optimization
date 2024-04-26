@@ -41,7 +41,6 @@ def generate_possible_lines(
     Returns:
         _type_: _description_
     """
-
     global_vars.init(height_gdf)
     max_main_line_slope_deviation = 45
 
@@ -77,7 +76,11 @@ def generate_possible_lines(
     print(len(line_df), " after supports trees")
 
     # filter the triple angles for good supports
-    line_df["possible_anchor_triples"], line_df["max_holding_force"] = zip(
+    (
+        line_df["possible_anchor_triples"],
+        line_df["max_holding_force"],
+        line_df["road_anchor_tree_series"],
+    ) = zip(
         *[
             cable_road_computation.generate_triple_angle(
                 Point(line.coords[0]), line, anchor_trees

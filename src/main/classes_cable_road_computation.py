@@ -106,9 +106,9 @@ class Cable_Road:
 
         # Parameters to keep track of segments+
         self.number_sub_segments = number_sub_segments
-        self.supported_segments: list[
-            SupportedSegment
-        ] = []  # list of SupportedSegment objects, ie. sub cable roads
+        self.supported_segments: list[SupportedSegment] = (
+            []
+        )  # list of SupportedSegment objects, ie. sub cable roads
 
         self._s_current_tension = 0.0
 
@@ -353,6 +353,7 @@ class forest_area:
         self.slope_line = scale(slope_line, 100, 100)
 
     def compute_cable_road(self):
+        print("loaded new")
         (
             line_gdf,
             start_point_dict,
@@ -377,17 +378,17 @@ class forest_area:
     def compute_line_costs(self):
         # compute the line costs
         uphill_yarding = True
-        self.line_gdf[
-            "line_cost"
-        ] = optimization_compute_quantification.compute_line_costs(
-            self.line_gdf, uphill_yarding, large_yarder=True
+        self.line_gdf["line_cost"] = (
+            optimization_compute_quantification.compute_line_costs(
+                self.line_gdf, uphill_yarding, large_yarder=True
+            )
         )
 
         # and the volume of the harvesteable trees
-        self.harvesteable_trees_gdf[
-            "cubic_volume"
-        ] = optimization_compute_quantification.compute_tree_volume(
-            self.harvesteable_trees_gdf["BHD"], self.harvesteable_trees_gdf["h"]
+        self.harvesteable_trees_gdf["cubic_volume"] = (
+            optimization_compute_quantification.compute_tree_volume(
+                self.harvesteable_trees_gdf["BHD"], self.harvesteable_trees_gdf["h"]
+            )
         )
 
     def cluster_trees(self):

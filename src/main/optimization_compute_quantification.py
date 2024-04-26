@@ -196,10 +196,14 @@ def calculate_felling_cost(
         if aij[cli][fac] > 15:
             min_per_cycle = min_per_cycle + (aij[cli][fac] - 15)
 
-        hrs_per_cycle = min_per_cycle / 60
-        cost_per_cycle = (
-            hrs_per_cycle * 44
-        )  # divide by 60 to get hrs/cycle and multiply by 44 to get cost
+        # total cost with synchrofalke and two workers is 273.67 - we divide by 60 to get the cost per minute (4.56$/min)
+        # and now get the cost to harvest this tree
+        cost_per_cycle = 4.56 * min_per_cycle
+
+        # hrs_per_cycle = min_per_cycle / 60
+        # cost_per_cycle = (
+        #     hrs_per_cycle * 44
+        # )  # divide by 60 to get hrs/cycle and multiply by 44 to get cost
 
         x[...] = cost_per_cycle
     return productivity_cost_matrix

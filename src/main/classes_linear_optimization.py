@@ -615,7 +615,9 @@ def model_results_comparison(
         distance_carriage_support_array.append(
             np.sum(result.c2f_vars * distance_carriage_support)
         )
-        cable_road_costs.append(np.sum(result.fac_vars * facility_cost))
+
+        total_cable_road_costs = np.sum(result.fac_vars * facility_cost)
+        cable_road_costs.append(total_cable_road_costs)
 
         # subtract the productivity cost from the total profit
         total_profit_here = (
