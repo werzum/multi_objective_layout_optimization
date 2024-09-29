@@ -311,9 +311,11 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
     road_anchor_y_list = []
     # and do the same for the road side anchor
     for each_road_anchor in rot_line_gdf.road_anchor_tree_series:
-        road_anchor = each_road_anchor.loc[
-            each_road_anchor["BHD"].idxmax()
-        ]  # choose the anchor with the largest BHD
+        print(each_road_anchor["BHD"])
+        road_anchor = each_road_anchor.sample(n=1)
+        # road_anchor = each_road_anchor.iloc[
+        #     0  # each_road_anchor["BHD"].idxmax()
+        # ]  # choose the anchor with the largest BHD
         road_anchor_height_list.append(int(road_anchor["h"]))
         road_anchor_BHD_list.append(int(road_anchor["BHD"]))
         road_anchor_max_holding_force_list.append(int(road_anchor["max_holding_force"]))
@@ -466,7 +468,7 @@ def interactive_cr_selection(
             go.Table(
                 header=dict(
                     values=[
-                        "Cable Corridor Cost (€)",
+                        "Cable Corridor Setup Cost (€)",
                         "Cable Corridor Length (m)",
                         "Wood Volume per Cable Corridor (m3)",
                         "Supports Amount",
