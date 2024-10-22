@@ -1,4 +1,5 @@
 03_Data
+*.pkl
 forest_area_3.pkl
 forest_area_3_03_2024.pkl
 optimization_results.pkl

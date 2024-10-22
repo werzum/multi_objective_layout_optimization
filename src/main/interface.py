@@ -138,7 +138,7 @@ def update_tables(
 
     layout_overview_table_figure.data[0].cells.values = [
         updated_layout_costs["Total Cable Corridor Costs (€)"],
-        updated_layout_costs["Setup and Prod. Costs (€)"],
+        updated_layout_costs["Setup and Takedown, Prod. Costs (€)"],
         updated_layout_costs["Ecol. Penalty"],
         updated_layout_costs["Ergon. Penalty"],
         [current_indices],
@@ -178,6 +178,8 @@ def update_tables(
         updated_layout_costs["Corresponding Cable Corridor"],
     ]
 
+    print(updated_layout_costs["Road Anchor Angle of Attack"].astype(int))
+
     road_anchor_table_figure.data[0].cells.values = [
         updated_layout_costs["Road Anchor BHD"],
         updated_layout_costs["Road Anchor height"],
@@ -185,6 +187,7 @@ def update_tables(
         updated_layout_costs["Road Anchor x coordinate"],
         updated_layout_costs["Road Anchor y coordinate"],
         updated_layout_costs["Corresponding Cable Corridor"],
+        updated_layout_costs["Road Anchor Angle of Attack"].astype(int),
     ]
 
 
@@ -289,7 +292,6 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
     supports_amount = [len(heights) for heights in supports_height]
 
     # get the tail spar anchor
-    print(rot_line_gdf["tree_anchor_support_trees"])
     endmast_height_list = []
     endmast_BHD_list = []
     endmast_max_holding_force_list = []
@@ -311,7 +313,6 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
     road_anchor_y_list = []
     # and do the same for the road side anchor
     for each_road_anchor in rot_line_gdf.road_anchor_tree_series:
-        print(each_road_anchor["BHD"])
         road_anchor = each_road_anchor.sample(n=1)
         # road_anchor = each_road_anchor.iloc[
         #     0  # each_road_anchor["BHD"].idxmax()
@@ -330,6 +331,7 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
 
     # total cost = # get the total cable road costs
     total_cable_road_costs = line_cost + productivity_cost_overall
+
     cost_per_m3 = total_cable_road_costs / sum(wood_volume_per_cr)
 
     # calulate the environmental impact of each line beyond 10m lateral distance
@@ -377,7 +379,7 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
     return {
         "Wood Volume per Cable Corridor (m3)": wood_volume_per_cr,
         "Total Cable Corridor Costs (€)": int(total_cable_road_costs),
-        "Setup and Prod. Costs (€)": f"{int(line_cost)}, {int(productivity_cost_overall)}",
+        "Setup and Takedown, Prod. Costs (€)": f"{int(line_cost)}, {int(productivity_cost_overall)}",
         "Ecol. Penalty": int(sum_eco_distances),
         "Ergon. Penalty": int(sum_ergo_distances),
         "Tree to Cable Corridor Assignment": tree_to_line_assignment,
@@ -399,6 +401,10 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
         "Road Anchor max holding force": road_anchor_max_holding_force_list,
         "Road Anchor x coordinate": road_anchor_x_list,
         "Road Anchor y coordinate": road_anchor_y_list,
+        "Road Anchor Angle of Attack": rot_line_gdf[
+            "angle_between_start_support_and_cr"
+        ],
+        "Tail Anchor Angle of Attack": rot_line_gdf["angle_between_end_support_and_cr"],
     }
 
 
@@ -489,13 +495,13 @@ def interactive_cr_selection(
     # and for the current layout overview
     layout_columns = [
         "Total Layout Costs (€)",
-        "Setup and Prod. Costs (€)",
+        "Setup and Takedown, Prod. Costs (€)",
         "Ecol. Penalty",
         "Ergon. Penalty",
         "Selected Cable Corridors",
         "Max lateral Yarding Distance (m)",
         "Average lateral Yarding Distance (m)",
-        "Cost per m3 (€)",
+        "Cost per m3 (€/m)",
         "Volume per Meter (m3/m)",
     ]
     layout_overview_df = pd.DataFrame(columns=layout_columns)
@@ -534,7 +540,8 @@ def interactive_cr_selection(
         "Max. supported force (N)",
         "X coordinate",
         "Y coordinate",
-        "Corresponding Cable Corridor",
+        "Corresponding cable corridor",
+        "Attack angle skyline (°)",
     ]
     anchor_df = pd.DataFrame(columns=anchor_columns)
     anchor_table_figure = go.FigureWidget(
