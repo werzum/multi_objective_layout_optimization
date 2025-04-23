@@ -10,6 +10,10 @@ from itertools import cycle
 
 import plotly.graph_objects as go
 from src.main import optimization_compute_quantification, classes_linear_optimization
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.main.classes_linear_optimization import result_object
 
 
 def plot_gdfs(gdfs: list):
@@ -199,7 +203,7 @@ def expert_results_extraction(
 
 
 def plot_optimization_layout(
-    result: classes_linear_optimization.result_object,
+    result: "result_object",
     line_gdf: gpd.GeoDataFrame,
     harvesteable_trees_gdf: gpd.GeoDataFrame,
 ):
