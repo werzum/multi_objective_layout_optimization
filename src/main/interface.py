@@ -178,8 +178,6 @@ def update_tables(
         updated_layout_costs["Corresponding Cable Corridor"],
     ]
 
-    print(updated_layout_costs["Road Anchor Angle of Attack"].astype(int))
-
     road_anchor_table_figure.data[0].cells.values = [
         updated_layout_costs["Road Anchor BHD"],
         updated_layout_costs["Road Anchor height"],
@@ -375,7 +373,6 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
     volume_per_running_meter = total_cable_road_length / sum(wood_volume_per_cr)
 
     # return a dict of the results and convert all results to ints for readability
-    print(endmast_y_list)
     return {
         "Wood Volume per Cable Corridor (m3)": wood_volume_per_cr,
         "Total Cable Corridor Costs (€)": int(total_cable_road_costs),
