@@ -705,7 +705,6 @@ def interactive_cr_selection(
             update_line_colors_by_indices(current_indices, interactive_layout)
 
             # update the tables accordingly
-
             update_tables(
                 current_cable_roads_table_figure,
                 current_cable_roads_table,
