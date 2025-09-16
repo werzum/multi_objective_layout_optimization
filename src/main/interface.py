@@ -296,13 +296,14 @@ def update_layout_overview(indices, forest_area_3, model_list) -> dict:
     endmast_x_list = []
     endmast_y_list = []
     # get information about the Endmast - height, BHD,
-    for tree_anchor_support_tree in rot_line_gdf.tree_anchor_support_trees:
-        endmast = tree_anchor_support_tree.iloc[0]
-        endmast_height_list.append(int(endmast["h"]))
-        endmast_BHD_list.append(int(endmast["BHD"]))
-        endmast_max_holding_force_list.append(int(endmast["max_holding_force"]))
-        endmast_x_list.append(round(endmast["x"], 2))
-        endmast_y_list.append(round(endmast["y"], 2))
+    for end_support_tree in rot_line_gdf.end_support_tree:
+        endmast_height_list.append(int(end_support_tree["h"]))
+        endmast_BHD_list.append(int(end_support_tree["BHD"]))
+        endmast_max_holding_force_list.append(
+            int(end_support_tree["max_holding_force"])
+        )
+        endmast_x_list.append(round(end_support_tree["x"], 2))
+        endmast_y_list.append(round(end_support_tree["y"], 2))
 
     road_anchor_height_list = []
     road_anchor_BHD_list = []

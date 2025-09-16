@@ -5,7 +5,6 @@ import itertools
 import geopandas as gpd
 from itertools import pairwise
 
-
 from src.main import (
     mechanical_computations,
     geometry_utilities,
@@ -19,7 +18,7 @@ def decrement_tension_until_towers_anchors_supports_hold(
     this_cable_road,
     max_supported_forces,
     anchor_triplets,
-    tree_anchor_support_trees,
+    end_support_tree,
     height_gdf,
 ):
     tower_and_anchors_hold = (
@@ -52,7 +51,7 @@ def decrement_tension_until_towers_anchors_supports_hold(
 def compute_required_supports(
     anchor_triplets: list,
     max_supported_forces: list[float],
-    tree_anchor_support_trees: gpd.GeoDataFrame,
+    end_support_tree: object,
     height_gdf: gpd.GeoDataFrame,
     overall_trees: gpd.GeoDataFrame,
     pre_tension: int = 0,
@@ -67,7 +66,7 @@ def compute_required_supports(
     Args:
         anchor_triplets (list): A list of anchor triplets, each triplet is a list of three points
         max_supported_forces (list[float]): A list of the maximum supported forces for each anchor triplet
-        tree_anchor_support_trees (list): A list of the support trees for each anchor triplet
+        end_support_tree (object): The end support tree at the end of the line
         height_gdf (gpd.GeoDataFrame): A GeoDataFrame containing the height information
         overall_trees (gpd.GeoDataFrame): A GeoDataFrame containing the trees
         pre_tension (int, optional): The pre-tension to start with. Defaults to 0.
@@ -86,18 +85,16 @@ def compute_required_supports(
 
     # TODO - set this up with check if  this is the first iteration, so we can properly set up the tower
     if from_line:
-        min_height_anchor = min(
-            len(tree_anchor_support_trees.iloc[0].max_supported_force_series) - 1, 8
-        )
+        min_height_anchor = min(len(end_support_tree.max_supported_force_series) - 1, 8)
 
         this_cable_road = classes_cable_road_computation.initialize_cable_road_with_supports(
             from_line,
             height_gdf,
             start_point_max_supported_force=0,
             # take the first tree anchor and get its support force at 8m height - TODO
-            end_point_max_supported_force=tree_anchor_support_trees.iloc[
-                0
-            ].max_supported_force_series[min_height_anchor],
+            end_point_max_supported_force=end_support_tree.max_supported_force_series[
+                min_height_anchor
+            ],
             pre_tension=pre_tension,
             is_tower=True,
         )
@@ -125,7 +122,7 @@ def compute_required_supports(
             this_cable_road,
             max_supported_forces,
             anchor_triplets,
-            tree_anchor_support_trees,
+            end_support_tree,
             height_gdf,
         )
 
@@ -198,7 +195,7 @@ def compute_required_supports(
         left_CR = compute_required_supports(
             anchor_triplets,
             max_supported_forces,
-            tree_anchor_support_trees,
+            end_support_tree,
             height_gdf,
             overall_trees,
             pre_tension=this_cable_road.s_current_tension,
@@ -210,7 +207,7 @@ def compute_required_supports(
         right_CR = compute_required_supports(
             anchor_triplets,
             max_supported_forces,
-            tree_anchor_support_trees,
+            end_support_tree,
             height_gdf,
             overall_trees,
             pre_tension=this_cable_road.s_current_tension,
@@ -521,7 +518,6 @@ def generate_triple_angle(
     if len(central_trees["possible_anchor_triples"].sum()) < 1:
         return None, None, None
     else:
-        print("success return")
         return (
             # return the first combination per main anchor line
             [sublist[0] for sublist in central_trees["possible_anchor_triples"]],
@@ -532,10 +528,10 @@ def generate_triple_angle(
 
 def generate_tree_anchor_support_trees(
     overall_trees: gpd.GeoDataFrame,
-    target: Point,
-    point: Point,
+    starting_point: Point,
+    end_point: Point,
     possible_line: LineString,
-) -> gpd.GeoDataFrame:
+):  # -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
     """find trees in overall_trees along the last bit of the possible_line that are close to the line and can serve as support tree
 
     Args:
@@ -562,17 +558,21 @@ def generate_tree_anchor_support_trees(
 
     # find those trees that are within the right distance to the target tree
     support_tree_candidates = support_tree_candidates[
-        support_tree_candidates.geometry.distance(target).between(
+        support_tree_candidates.geometry.distance(end_point).between(
             min_support_anchor_distance, max_support_anchor_distance
         )
     ]
 
     # select only those support tree candidates which are close to the roadside point than the target tree
     support_tree_candidates = support_tree_candidates[
-        support_tree_candidates.geometry.distance(point) < target.distance(point)
+        support_tree_candidates.geometry.distance(starting_point)
+        < end_point.distance(starting_point)
     ]
 
-    return support_tree_candidates
+    if support_tree_candidates.empty:
+        return None
+    else:
+        return support_tree_candidates.iloc[0]
 
 
 def create_candidate_points_and_lines(

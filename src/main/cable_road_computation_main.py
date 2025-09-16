@@ -60,20 +60,34 @@ def generate_possible_lines(
     line_df = line_df[line_df["slope_deviation"] < max_main_line_slope_deviation]
     print(len(line_df), " after slope deviations")
 
-    # line_df = line_df.iloc[::10]
-
     # filter the candidates for support trees
     # overall_trees, target, point, possible_line
-    line_df["tree_anchor_support_trees"] = [
+    line_df["end_support_tree"] = [
         cable_road_computation.generate_tree_anchor_support_trees(
-            overall_trees, Point(line.coords[1]), Point(line.coords[0]), line
+            overall_trees, Point(line.coords[0]), Point(line.coords[1]), line
         )
         for line in line_df["line_candidates"]
     ]
 
     # add to df and filter empty entries
-    line_df = line_df[line_df["tree_anchor_support_trees"].apply(len) > 0]
+    line_df = line_df[line_df["end_support_tree"].notnull()]
     print(len(line_df), " after supports trees")
+
+    # find the end_anchor_tree in the list of target trees
+    line_df["end_anchor_tree"] = [
+        target_trees[
+            target_trees.geometry.geom_equals(Point(line_candidate.coords[1]))
+        ].iloc[0]
+        for line_candidate in line_df["line_candidates"]
+    ]
+
+    # and redo the line candidate to now go frome the road point to the end support tree
+    line_df["line_candidates"] = [
+        LineString(
+            [row.line_candidates.coords[0], row.end_support_tree.geometry.coords[0]]
+        )
+        for index, row in line_df.iterrows()
+    ]
 
     # filter the triple angles for good supports
     (
@@ -96,7 +110,7 @@ def generate_possible_lines(
         cable_road_computation.compute_required_supports(
             line["possible_anchor_triples"],
             line["max_holding_force"],
-            line["tree_anchor_support_trees"],
+            line["end_support_tree"],
             height_gdf,
             overall_trees,
             from_line=line["line_candidates"],
