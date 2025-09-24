@@ -89,7 +89,8 @@ def create_results_df(optimization_result_list, sample_model, forest_area_gdf):
     results_df = classes_linear_optimization.model_results_comparison(
         optimization_result_list,
         forest_area_gdf.line_gdf,
-        sample_model.distance_tree_line,
+        distance_tree_line,
+        # sample_model.distance_tree_line,
         distance_carriage_support,
         sample_model.productivity_cost,
         tree_volumes_list,

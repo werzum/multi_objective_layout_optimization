@@ -609,6 +609,26 @@ def model_results_comparison(
             total_profit_per_layout_baseline += profit_this_cr
 
     for result in result_list:
+        # redo the c2f vars and fac2cli, since they dont align with which trees are assigned to which cable corridor
+        # 1. get the indexes of selected lines
+        selected_lines_index = list(result.selected_lines.index)
+        # 2. get the distances for all trees to those lines
+        distances_to_selected_lines = distance_tree_line[:, selected_lines_index]
+        # 3. choose the smallest one for each
+        tree_assigned_to_cr = np.argmin(distances_to_selected_lines, axis=1)
+        # 4. convert to fac2cli by
+        result.fac2cli = [[] for i in range(len(result_list[0].fac2cli))]
+        for index, value in enumerate(selected_lines_index):
+            trees_assigned_to_this_value = list(
+                np.where(tree_assigned_to_cr == index)[0]
+            )
+            result.fac2cli[value] = trees_assigned_to_this_value
+        # fixing the c2f vars, which dont seem to align with the fac2cli:
+        c2fmatrix = np.zeros(result.c2f_vars.shape, dtype=bool)
+        for id, col in enumerate(result.fac2cli):
+            c2fmatrix[col, id] = True
+        result.c2f_vars = c2fmatrix
+
         # and the corresponding rows from the distance matrix, pc matrix etc
         distance_tree_line_array.append(np.sum(result.c2f_vars * distance_tree_line))
         productivity_array.append(np.sum(result.c2f_vars * productivity_cost_matrix))
