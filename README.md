@@ -1,6 +1,6 @@
 # Optimization of Cable-Road Layouts in Smart Forestry
 
-![Main components](02_Figures/Presentation Figures/three_components_figure.png)
+![Main components](02_Figures/Presentation%20Figures/three_components_figure.png)
 
 Advanced multi-objective planning tools for designing cable-road corridors that balance productivity, ergonomics, and ecological impact in steep-terrain forestry. It provides a tool for simulating, optimizing, and indivudally adjusting cable corridor layouts.
 
@@ -8,7 +8,7 @@ Advanced multi-objective planning tools for designing cable-road corridors that 
 
 This repository accompanies the dissertation *LiDAR-based Multi-Objective Optimization for Cable Yarding in Steep Terrain*. It combines high-resolution terrain data, geometric reasoning, and evolutionary optimization to automatically generate feasible cable-road networks. The toolkit supports researchers and practitioners who need to explore trade-offs between harvesting efficiency and environmental stewardship. See the figure below of an overview of how the components of the dissertation fit together:
 
-![Dissertation components](02_Figures/Presentation Figures/dissertation_components.png)
+![Dissertation components](02_Figures/Presentation%20Figures/dissertation_components.png)
 
 ### Key Capabilities
 
