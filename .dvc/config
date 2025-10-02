@@ -1,4 +1,0 @@
-[core]
-    remote = bokudrive
-['remote "bokudrive"']
-    url = /home/carlo/seafile-client/moo/MOO
